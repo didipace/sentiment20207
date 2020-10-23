@@ -284,4 +284,33 @@ class Socket extends sys.net.Socket {
 			conf_set_servername_callback(ctx, sniCallback);
 		}
 
-		if (caCert
+		if (caCert != null)
+			conf_set_ca(ctx, caCert == null ? null : @:privateAccess caCert.__x);
+		conf_set_verify(ctx, verifyCert);
+
+		return ctx;
+	}
+
+	private static var ssl_new = neko.Lib.loadLazy("ssl", "ssl_new", 1);
+	private static var ssl_close = neko.Lib.loadLazy("ssl", "ssl_close", 1);
+	private static var ssl_handshake = neko.Lib.loadLazy("ssl", "ssl_handshake", 1);
+	private static var ssl_set_socket = neko.Lib.loadLazy("ssl", "ssl_set_socket", 2);
+	private static var ssl_set_hostname = neko.Lib.loadLazy("ssl", "ssl_set_hostname", 2);
+	private static var ssl_get_peer_certificate = neko.Lib.loadLazy("ssl", "ssl_get_peer_certificate", 1);
+
+	private static var ssl_read = neko.Lib.loadLazy("ssl", "ssl_read", 1);
+	private static var ssl_write = neko.Lib.loadLazy("ssl", "ssl_write", 2);
+
+	private static var conf_new = neko.Lib.loadLazy("ssl", "conf_new", 1);
+	private static var conf_close = neko.Lib.loadLazy("ssl", "conf_close", 1);
+	private static var conf_set_ca = neko.Lib.loadLazy("ssl", "conf_set_ca", 2);
+	private static var conf_set_verify = neko.Lib.loadLazy("ssl", "conf_set_verify", 2);
+	private static var conf_set_cert = neko.Lib.loadLazy("ssl", "conf_set_cert", 3);
+	private static var conf_set_servername_callback = neko.Lib.loadLazy("ssl", "conf_set_servername_callback", 2);
+
+	private static var socket_new = neko.Lib.load("std", "socket_new", 1);
+	private static var socket_close = neko.Lib.load("std", "socket_close", 1);
+	private static var socket_connect = neko.Lib.load("std", "socket_connect", 3);
+	private static var socket_bind = neko.Lib.load("std", "socket_bind", 3);
+	private static var socket_accept = neko.Lib.load("std", "socket_accept", 1);
+}
