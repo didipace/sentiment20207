@@ -153,4 +153,135 @@ class Socket extends sys.net.Socket {
 
 	public override function connect(host:sys.net.Host, port:Int):Void {
 		try {
-			ctx = buildSSLContext(fal
+			ctx = buildSSLContext(false);
+			ssl = ssl_new(ctx);
+			ssl_set_socket(ssl, __s);
+			handshakeDone = false;
+			if (hostname == null)
+				hostname = host.host;
+			if (hostname != null)
+				ssl_set_hostname(ssl, untyped hostname.__s);
+			socket_connect(__s, host.ip, port);
+			handshake();
+		} catch (s:String) {
+			if (s == "std@socket_connect")
+				throw "Failed to connect on " + host.host + ":" + port;
+			else
+				neko.Lib.rethrow(s);
+		} catch (e:Dynamic) {
+			neko.Lib.rethrow(e);
+		}
+	}
+
+	public function handshake():Void {
+		if (!handshakeDone) {
+			try {
+				ssl_handshake(ssl);
+				handshakeDone = true;
+			} catch (e:Dynamic) {
+				if (e == "Blocking")
+					throw haxe.io.Error.Blocked;
+				else
+					neko.Lib.rethrow(e);
+			}
+		}
+	}
+
+	public function setCA(cert:Certificate):Void {
+		caCert = cert;
+	}
+
+	public function setHostname(name:String):Void {
+		hostname = name;
+	}
+
+	public function setCertificate(cert:Certificate, key:Key):Void {
+		ownCert = cert;
+		ownKey = key;
+	}
+
+	public override function read():String {
+		handshake();
+		var b = ssl_read(ssl);
+		if (b == null)
+			return "";
+		return new String(cast b);
+	}
+
+	public override function write(content:String):Void {
+		handshake();
+		ssl_write(ssl, untyped content.__s);
+	}
+
+	public override function close():Void {
+		if (ssl != null)
+			ssl_close(ssl);
+		if (ctx != null)
+			conf_close(ctx);
+		if (altSNIContexts != null)
+			sniCallback = null;
+		socket_close(__s);
+		var input:SocketInput = cast input;
+		var output:SocketOutput = cast output;
+		@:privateAccess input.__s = output.__s = null;
+		input.close();
+		output.close();
+	}
+
+	public function addSNICertificate(cbServernameMatch:String->Bool, cert:Certificate, key:Key):Void {
+		if (altSNIContexts == null)
+			altSNIContexts = [];
+		altSNIContexts.push({match: cbServernameMatch, cert: cert, key: key});
+	}
+
+	public override function bind(host:sys.net.Host, port:Int):Void {
+		ctx = buildSSLContext(true);
+
+		socket_bind(__s, host.ip, port);
+	}
+
+	public override function accept():Socket {
+		var c = socket_accept(__s);
+		var ssl = ssl_new(ctx);
+		ssl_set_socket(ssl, c);
+
+		var s = Type.createEmptyInstance(sys.ssl.Socket);
+		s.__s = c;
+		s.ssl = ssl;
+		s.input = new SocketInput(s);
+		s.output = new SocketOutput(s);
+		s.handshakeDone = false;
+
+		return s;
+	}
+
+	public function peerCertificate():sys.ssl.Certificate {
+		var x = ssl_get_peer_certificate(ssl);
+		return x == null ? null : new sys.ssl.Certificate(x);
+	}
+
+	private function buildSSLContext(server:Bool):CTX {
+		var ctx:CTX = conf_new(server);
+
+		if (ownCert != null && ownKey != null)
+			conf_set_cert(ctx, @:privateAccess ownCert.__x, @:privateAccess ownKey.__k);
+
+		if (altSNIContexts != null) {
+			sniCallback = function(servername) {
+				var servername = new String(cast servername);
+				for (c in altSNIContexts) {
+					if (c.match(servername))
+						return @:privateAccess {
+							key:c.key.__k, cert:c.cert.__x
+						};
+				}
+				if (ownKey != null && ownCert != null)
+					return @:privateAccess {
+						key:ownKey.__k, cert:ownCert.__x
+					};
+				return null;
+			}
+			conf_set_servername_callback(ctx, sniCallback);
+		}
+
+		if (caCert
