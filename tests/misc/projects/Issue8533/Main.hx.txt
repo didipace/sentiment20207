@@ -1,0 +1,6 @@
+import haxe.display.Position;
+import haxe.macro.Context;
+import haxe.macro.PositionTools;
+
+class Main {
+	static fu
