@@ -20,23 +20,27 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package lua.lib.luv;
+// This file is generated from mozilla\MutationObserver.webidl. Do not edit!
 
-import lua.lib.luv.net.Tcp;
+package js.html;
 
-@:luaRequire("luv")
-extern class Stream extends Handle {
-	function shutdown(?cb:Void->Void):Int;
-	function listen(backlog:Int, cb:String->String->Void):Int;
-	function accept(client_stream:Stream):Int;
-	function read_start(cb:String->String->Void):Int;
-	function read_stop():Int;
-	function write(data:StreamData, ?cb:String->Bool->Void):Int;
-	function write2(data:StreamData, send_handle:Tcp, cb:String->Bool->Void):Int;
-	function try_write(data:StreamData):Int;
-	function is_readable():Bool;
-	function is_writable():Bool;
-	function set_blocking(blocking:Bool):Int;
+/**
+	A `MutationRecord` represents an individual DOM mutation. It is the object that is passed to `MutationObserver`'s callback.
+
+	Documentation [MutationRecord](https://developer.mozilla.org/en-US/docs/Web/API/MutationRecord) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/MutationRecord$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/MutationRecord>
+**/
+@:native("MutationRecord")
+extern class MutationRecord {
+	var type(default,null) : String;
+	var target(default,null) : Node;
+	var addedNodes(default,null) : NodeList;
+	var removedNodes(default,null) : NodeList;
+	var previousSibling(default,null) : Node;
+	var nextSibling(default,null) : Node;
+	var attributeName(default,null) : String;
+	var attributeNamespace(default,null) : String;
+	var oldValue(default,null) : String;
+	
 }
-
-typedef StreamData = haxe.extern.EitherType<String, Table<Int, String>>;

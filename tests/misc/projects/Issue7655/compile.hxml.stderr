@@ -1,0 +1,6 @@
+Main.hx:7: characters 34-35 : Warning : String
+Main.hx:7: characters 9-37 : Warning : js.lib.Thenable<Void>
+Main.hx:8: characters 34-35 : Warning : String
+Main.hx:8: characters 56-57 : Warning : Unknown<0>
+Main.hx:8: characters 9-59 : Warning : js.lib.Thenable<Void>
+Main.hx:10: cha
