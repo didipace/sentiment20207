@@ -128,4 +128,124 @@ abstract UnicodeString(String) from String to String {
 	}
 
 	/**
-		Returns 
+		Returns an iterator of the code point indices and unicode code points.
+	**/
+	public inline function keyValueIterator():StringKeyValueIteratorUnicode {
+		return new StringKeyValueIteratorUnicode(this);
+	}
+
+	#if target.utf16
+	/**
+		The number of characters in `this` String.
+	**/
+	public var length(get, never):Int;
+
+	/**
+		Returns the character at position `index` of `this` String.
+
+		If `index` is negative or exceeds `this.length`, the empty String `""`
+		is returned.
+	**/
+	public function charAt(index:Int):String {
+		if (index < 0)
+			return '';
+		var unicodeOffset = 0;
+		var nativeOffset = 0;
+		while (nativeOffset < this.length) {
+			var c = StringTools.utf16CodePointAt(this, nativeOffset++);
+			if (unicodeOffset == index) {
+				return String.fromCharCode(c);
+			}
+			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
+				nativeOffset++;
+			}
+			unicodeOffset++;
+		}
+		return '';
+	}
+
+	/**
+		Returns the character code at position `index` of `this` String.
+
+		If `index` is negative or exceeds `this.length`, `null` is returned.
+	**/
+	public function charCodeAt(index:Int):Null<Int> {
+		if (index < 0)
+			return null;
+		var unicodeOffset = 0;
+		var nativeOffset = 0;
+		while (nativeOffset < this.length) {
+			var c = StringTools.utf16CodePointAt(this, nativeOffset++);
+			if (unicodeOffset == index) {
+				return c;
+			}
+			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
+				nativeOffset++;
+			}
+			unicodeOffset++;
+		}
+		return null;
+	}
+
+	/**
+		Returns the position of the leftmost occurrence of `str` within `this`
+		String.
+
+		If `startIndex` is given, the search is performed within the substring
+		of `this` String starting from `startIndex` (if `startIndex` is posivite
+		or 0) or `max(this.length + startIndex, 0)` (if `startIndex` is negative).
+
+		If `startIndex` exceeds `this.length`, -1 is returned.
+
+		Otherwise the search is performed within `this` String. In either case,
+		the returned position is relative to the beginning of `this` String.
+
+		If `str` cannot be found, -1 is returned.
+	**/
+	public function indexOf(str:String, ?startIndex:Int):Int {
+		if (startIndex == null) {
+			startIndex = 0;
+		} else {
+			if (startIndex < 0) {
+				startIndex = (this : UnicodeString).length + startIndex;
+			}
+		}
+
+		var unicodeOffset = 0;
+		var nativeOffset = 0;
+		var matchingOffset = 0;
+		var result = -1;
+		while (nativeOffset <= this.length) {
+			var c = StringTools.utf16CodePointAt(this, nativeOffset);
+
+			if (unicodeOffset >= startIndex) {
+				var c2 = StringTools.utf16CodePointAt(str, matchingOffset);
+				if (c == c2) {
+					if (matchingOffset == 0) {
+						result = unicodeOffset;
+					}
+					matchingOffset++;
+					if (c2 >= StringTools.MIN_SURROGATE_CODE_POINT) {
+						matchingOffset++;
+					}
+					if (matchingOffset == str.length) {
+						return result;
+					}
+				} else if (matchingOffset != 0) {
+					result = -1;
+					matchingOffset = 0;
+					continue;
+				}
+			}
+
+			nativeOffset++;
+			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
+				nativeOffset++;
+			}
+			unicodeOffset++;
+		}
+		return -1;
+	}
+
+	/**
+		Returns the position of the rightmost occurrence of `str` wit
