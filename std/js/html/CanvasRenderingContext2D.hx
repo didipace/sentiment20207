@@ -68,4 +68,49 @@ extern class CanvasRenderingContext2D {
 	@:overload( function( image : ImageBitmap, sx : Float, sy : Float, sw : Float, sh : Float, dx : Float, dy : Float, dw : Float, dh : Float) : Void {} )
 	@:overload( function( image : ImageElement, dx : Float, dy : Float ) : Void {} )
 	@:overload( function( image : ImageElement, dx : Float, dy : Float, dw : Float, dh : Float ) : Void {} )
-	function dr
+	function drawImage( image : ImageElement, sx : Float, sy : Float, sw : Float, sh : Float, dx : Float, dy : Float, dw : Float, dh : Float ) : Void;
+	function beginPath() : Void;
+	@:overload( function( winding : CanvasWindingRule = NONZERO ) : Void {} )
+	function fill( path : Path2D, winding : CanvasWindingRule = NONZERO ) : Void;
+	@:overload( function() : Void {} )
+	function stroke( path : Path2D ) : Void;
+	@:overload( function( winding : CanvasWindingRule = NONZERO ) : Void {} )
+	function clip( path : Path2D, winding : CanvasWindingRule = NONZERO ) : Void;
+	@:overload( function( x : Float, y : Float, winding : CanvasWindingRule = NONZERO ) : Bool {} )
+	function isPointInPath( path : Path2D, x : Float, y : Float, winding : CanvasWindingRule = NONZERO ) : Bool;
+	@:overload( function( x : Float, y : Float ) : Bool {} )
+	function isPointInStroke( path : Path2D, x : Float, y : Float ) : Bool;
+	function createLinearGradient( x0 : Float, y0 : Float, x1 : Float, y1 : Float ) : CanvasGradient;
+	/** @throws DOMError */
+	function createRadialGradient( x0 : Float, y0 : Float, r0 : Float, x1 : Float, y1 : Float, r1 : Float ) : CanvasGradient;
+	/** @throws DOMError */
+	@:overload( function( image : js.html.svg.ImageElement, repetition : String) : CanvasPattern {} )
+	@:overload( function( image : CanvasElement, repetition : String) : CanvasPattern {} )
+	@:overload( function( image : VideoElement, repetition : String) : CanvasPattern {} )
+	@:overload( function( image : ImageBitmap, repetition : String) : CanvasPattern {} )
+	function createPattern( image : ImageElement, repetition : String ) : CanvasPattern;
+	/** @throws DOMError */
+	function addHitRegion( ?options : HitRegionOptions ) : Void;
+	function removeHitRegion( id : String ) : Void;
+	function clearHitRegions() : Void;
+	/** @throws DOMError */
+	@:overload( function( sw : Float, sh : Float ) : ImageData {} )
+	function createImageData( imagedata : ImageData ) : ImageData;
+	/** @throws DOMError */
+	function getImageData( sx : Float, sy : Float, sw : Float, sh : Float ) : ImageData;
+	/** @throws DOMError */
+	@:overload( function( imagedata : ImageData, dx : Float, dy : Float ) : Void {} )
+	function putImageData( imagedata : ImageData, dx : Float, dy : Float, dirtyX : Float, dirtyY : Float, dirtyWidth : Float, dirtyHeight : Float ) : Void;
+	/** @throws DOMError */
+	function setLineDash( segments : Array<Float> ) : Void;
+	function getLineDash() : Array<Float>;
+	function closePath() : Void;
+	function moveTo( x : Float, y : Float ) : Void;
+	function lineTo( x : Float, y : Float ) : Void;
+	function quadraticCurveTo( cpx : Float, cpy : Float, x : Float, y : Float ) : Void;
+	function bezierCurveTo( cp1x : Float, cp1y : Float, cp2x : Float, cp2y : Float, x : Float, y : Float ) : Void;
+	/** @throws DOMError */
+	function arcTo( x1 : Float, y1 : Float, x2 : Float, y2 : Float, radius : Float ) : Void;
+	function rect( x : Float, y : Float, w : Float, h : Float ) : Void;
+	/** @throws DOMError */
+	function arc( x : Float, y : Float, radius : Float, startAn
