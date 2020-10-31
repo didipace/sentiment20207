@@ -360,4 +360,89 @@ abstract UnicodeString(String) from String to String {
 	}
 
 	/**
-		Returns the
+		Returns the part of `this` String from `startIndex` to but not including `endIndex`.
+
+		If `startIndex` or `endIndex` are negative, 0 is used instead.
+
+		If `startIndex` exceeds `endIndex`, they are swapped.
+
+		If the (possibly swapped) `endIndex` is omitted or exceeds
+		`this.length`, `this.length` is used instead.
+
+		If the (possibly swapped) `startIndex` exceeds `this.length`, the empty
+		String `""` is returned.
+	**/
+	public function substring(startIndex:Int, ?endIndex:Int):String {
+		if (startIndex < 0) {
+			startIndex = 0;
+		}
+		if (endIndex != null) {
+			if (endIndex < 0) {
+				endIndex = 0;
+			}
+			if (startIndex == endIndex) {
+				return "";
+			}
+			if (startIndex > endIndex) {
+				var tmp = startIndex;
+				startIndex = endIndex;
+				endIndex = tmp;
+			}
+		}
+
+		var unicodeOffset = 0;
+		var nativeOffset = 0;
+		var fromOffset = -1;
+		var subLength = 0;
+		while (nativeOffset < this.length) {
+			var c = StringTools.utf16CodePointAt(this, nativeOffset);
+
+			if (startIndex <= unicodeOffset) {
+				if (fromOffset < 0) {
+					if (endIndex == null) {
+						return this.substr(nativeOffset);
+					}
+					fromOffset = nativeOffset;
+				}
+				subLength++;
+				if (subLength >= endIndex - startIndex) {
+					var lastOffset = (c < StringTools.MIN_SURROGATE_CODE_POINT ? nativeOffset : nativeOffset + 1);
+					return this.substr(fromOffset, lastOffset - fromOffset + 1);
+				}
+			}
+
+			nativeOffset += (c >= StringTools.MIN_SURROGATE_CODE_POINT ? 2 : 1);
+			unicodeOffset++;
+		}
+		return (fromOffset < 0 ? "" : this.substr(fromOffset));
+	}
+
+	function get_length():Int {
+		var l = 0;
+		for (c in new StringIteratorUnicode(this)) {
+			l++;
+		}
+		return l;
+	}
+	#end
+	#end
+	@:op(A < B) static function lt(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A <= B) static function lte(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A > B) static function gt(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A >= B) static function gte(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A == B) static function eq(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A != B) static function neq(a:UnicodeString, b:UnicodeString):Bool;
+
+	@:op(A + B) static function add(a:UnicodeString, b:UnicodeString):UnicodeString;
+
+	@:op(A += B) static function assignAdd(a:UnicodeString, b:UnicodeString):UnicodeString;
+
+	@:op(A + B) @:commutative static function add(a:UnicodeString, b:String):UnicodeString;
+
+	@:op(A += B) @:commutative static function assignAdd(a:UnicodeString, b:String):UnicodeString;
+}
