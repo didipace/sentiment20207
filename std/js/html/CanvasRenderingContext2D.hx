@@ -113,4 +113,33 @@ extern class CanvasRenderingContext2D {
 	function arcTo( x1 : Float, y1 : Float, x2 : Float, y2 : Float, radius : Float ) : Void;
 	function rect( x : Float, y : Float, w : Float, h : Float ) : Void;
 	/** @throws DOMError */
-	function arc( x : Float, y : Float, radius : Float, startAn
+	function arc( x : Float, y : Float, radius : Float, startAngle : Float, endAngle : Float, anticlockwise : Bool = false ) : Void;
+	/** @throws DOMError */
+	function ellipse( x : Float, y : Float, radiusX : Float, radiusY : Float, rotation : Float, startAngle : Float, endAngle : Float, anticlockwise : Bool = false ) : Void;
+	function clearRect( x : Float, y : Float, w : Float, h : Float ) : Void;
+	function fillRect( x : Float, y : Float, w : Float, h : Float ) : Void;
+	function strokeRect( x : Float, y : Float, w : Float, h : Float ) : Void;
+	function save() : Void;
+	function restore() : Void;
+	/** @throws DOMError */
+	function fillText( text : String, x : Float, y : Float, ?maxWidth : Float ) : Void;
+	/** @throws DOMError */
+	function strokeText( text : String, x : Float, y : Float, ?maxWidth : Float ) : Void;
+	/** @throws DOMError */
+	function measureText( text : String ) : TextMetrics;
+	/** @throws DOMError */
+	function scale( x : Float, y : Float ) : Void;
+	/** @throws DOMError */
+	function rotate( angle : Float ) : Void;
+	/** @throws DOMError */
+	function translate( x : Float, y : Float ) : Void;
+	/** @throws DOMError */
+	function transform( a : Float, b : Float, c : Float, d : Float, e : Float, f : Float ) : Void;
+	/** @throws DOMError */
+	function setTransform( a : Float, b : Float, c : Float, d : Float, e : Float, f : Float ) : Void;
+	/** @throws DOMError */
+	function resetTransform() : Void;
+	/** @throws DOMError */
+	function drawFocusIfNeeded( element : Element ) : Void;
+	function drawCustomFocusRing( element : Element ) : Bool;
+}
