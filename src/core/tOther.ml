@@ -140,4 +140,104 @@ module TExprToExpr = struct
 			let final = has_var_flag v VFinal
 			and t = mk_type_hint v.v_type v.v_pos
 			and eo = eopt eo in
-			EVars ([mk_evar ~final ?
+			EVars ([mk_evar ~final ?t ?eo ~meta:v.v_meta (v.v_name,v.v_pos)])
+		| TBlock el -> EBlock (List.map convert_expr el)
+		| TFor (v,it,e) ->
+			let ein = (EBinop (OpIn,(EConst (Ident v.v_name),it.epos),convert_expr it),it.epos) in
+			EFor (ein,convert_expr e)
+		| TIf (e,e1,e2) -> EIf (convert_expr e,convert_expr e1,eopt e2)
+		| TWhile (e1,e2,flag) -> EWhile (convert_expr e1, convert_expr e2, flag)
+		| TSwitch (e,cases,def) ->
+			let cases = List.map (fun (vl,e) ->
+				List.map convert_expr vl,None,(match e.eexpr with TBlock [] -> None | _ -> Some (convert_expr e)),e.epos
+			) cases in
+			let def = match eopt def with None -> None | Some (EBlock [],_) -> Some (None,null_pos) | Some e -> Some (Some e,pos e) in
+			ESwitch (convert_expr e,cases,def)
+		| TEnumIndex _
+		| TEnumParameter _ ->
+			(* these are considered complex, so the AST is handled in TMeta(Meta.Ast) *)
+			die "" __LOC__
+		| TTry (e,catches) ->
+			let e1 = convert_expr e in
+			let catches = List.map (fun (v,e) ->
+				let ct = try convert_type v.v_type,null_pos with Exit -> die "" __LOC__ in
+				let e = convert_expr e in
+				(v.v_name,v.v_pos),(Some ct),e,(pos e)
+			) catches in
+			ETry (e1,catches)
+		| TReturn e -> EReturn (eopt e)
+		| TBreak -> EBreak
+		| TContinue -> EContinue
+		| TThrow e -> EThrow (convert_expr e)
+		| TCast (e,t) ->
+			let t = (match t with
+				| None -> None
+				| Some t ->
+					let t = (match t with TClassDecl c -> TInst (c,[]) | TEnumDecl e -> TEnum (e,[]) | TTypeDecl t -> TType (t,[]) | TAbstractDecl a -> TAbstract (a,[])) in
+					Some (try convert_type t,null_pos with Exit -> die "" __LOC__)
+			) in
+			ECast (convert_expr e,t)
+		| TMeta ((Meta.Ast,[e1,_],_),_) -> e1
+		| TMeta (m,e) -> EMeta(m,convert_expr e)
+		| TIdent s -> EConst (Ident s))
+		,e.epos)
+
+end
+
+module ExtType = struct
+	let is_mono = function
+		| TMono { tm_type = None } -> true
+		| _ -> false
+
+	let is_void = function
+		| TAbstract({a_path=[],"Void"},_) -> true
+		| _ -> false
+
+	let is_int t = match t with
+		| TAbstract({a_path=[],"Int"},_) -> true
+		| _ -> false
+
+	let is_float t = match t with
+		| TAbstract({a_path=[],"Float"},_) -> true
+		| _ -> false
+
+	let is_numeric t = match t with
+		| TAbstract({a_path=[],"Float"},_) -> true
+		| TAbstract({a_path=[],"Int"},_) -> true
+		| _ -> false
+
+	let is_string t = match t with
+		| TInst({cl_path=[],"String"},_) -> true
+		| _ -> false
+
+	let is_bool t = match t with
+		| TAbstract({a_path=[],"Bool"},_) -> true
+		| _ -> false
+
+	let is_rest t = match t with
+		| TType({t_path=["haxe"; "extern"],"Rest"},_)
+		| TAbstract({a_path=["haxe"],"Rest"},_) -> true
+		| _ -> false
+
+	let is_type_param t =
+		match t with
+		| TInst({ cl_kind = KTypeParameter _ }, _) -> true
+		| _ -> false
+
+	type semantics =
+		| VariableSemantics
+		| ReferenceSemantics
+		| ValueSemantics
+
+	let semantics_name = function
+		| VariableSemantics -> "variable"
+		| ReferenceSemantics -> "reference"
+		| ValueSemantics -> "value"
+
+	let has_semantics t sem =
+		let name = semantics_name sem in
+		let check meta =
+			has_meta_option meta Meta.Semantics name
+		in
+		let rec loop t = match t with
+			| TInst(c,_)
