@@ -240,4 +240,107 @@ module ExtType = struct
 			has_meta_option meta Meta.Semantics name
 		in
 		let rec loop t = match t with
-			| TInst(c,_)
+			| TInst(c,_) -> check c.cl_meta
+			| TEnum(en,_) -> check en.e_meta
+			| TType(t,tl) -> check t.t_meta || (loop (apply_typedef t tl))
+			| TAbstract(a,_) -> check a.a_meta
+			| TLazy f -> loop (lazy_type f)
+			| TMono r ->
+				(match r.tm_type with
+				| Some t -> loop t
+				| _ -> false)
+			| _ ->
+				false
+		in
+		loop t
+
+	let has_variable_semantics t = has_semantics t VariableSemantics
+	let has_reference_semantics t = has_semantics t ReferenceSemantics
+	let has_value_semantics t = has_semantics t ValueSemantics
+end
+
+let no_meta = []
+
+let class_module_type c =
+	let path = ([],"Class<" ^ (s_type_path c.cl_path) ^ ">") in
+	let t = mk_anon ~fields:c.cl_statics (ref (Statics c)) in
+	{ (mk_typedef c.cl_module path c.cl_pos null_pos t) with t_private = true}
+
+let enum_module_type m path p  =
+	let path = ([], "Enum<" ^ (s_type_path path) ^ ">") in
+	let t = mk_mono() in
+	{(mk_typedef m path p null_pos t) with t_private = true}
+
+let abstract_module_type a tl =
+	let path = ([],Printf.sprintf "Abstract<%s%s>" (s_type_path a.a_path) (s_type_params (ref []) tl)) in
+	let t = mk_anon (ref (AbstractStatics a)) in
+	{(mk_typedef a.a_module path a.a_pos null_pos t) with t_private = true}
+
+module TClass = struct
+	let get_member_fields' self_too c0 tl =
+		let rec loop acc c tl =
+			let apply = apply_params c.cl_params tl in
+			let maybe_add acc cf =
+				if not (PMap.mem cf.cf_name acc) then begin
+					let cf = if tl = [] then cf else {cf with cf_type = apply cf.cf_type} in
+					PMap.add cf.cf_name (c,cf) acc
+				end else acc
+			in
+			let acc = if self_too || c != c0 then List.fold_left maybe_add acc c.cl_ordered_fields else acc in
+			if (has_class_flag c CInterface) then
+				List.fold_left (fun acc (i,tl) -> loop acc i (List.map apply tl)) acc c.cl_implements
+			else
+				match c.cl_super with
+				| Some(c,tl) -> loop acc c (List.map apply tl)
+				| None -> acc
+		in
+		loop PMap.empty c0 tl
+
+	let get_all_super_fields c =
+		get_member_fields' false c (extract_param_types c.cl_params)
+
+	let get_all_fields c tl =
+		get_member_fields' true c tl
+
+	let get_overridden_fields c cf =
+		let rec loop acc c = match c.cl_super with
+			| None ->
+				acc
+			| Some(c,_) ->
+				begin try
+					let cf' = PMap.find cf.cf_name c.cl_fields in
+					loop (cf' :: acc) c
+				with Not_found ->
+					loop acc c
+				end
+		in
+		loop [] c
+
+	let add_field c cf =
+		let is_static = has_class_field_flag cf CfStatic in
+		if is_static then begin
+			c.cl_statics <- PMap.add cf.cf_name cf c.cl_statics;
+			c.cl_ordered_statics <- cf :: c.cl_ordered_statics;
+		end else begin
+			c.cl_fields <- PMap.add cf.cf_name cf c.cl_fields;
+			c.cl_ordered_fields <- cf :: c.cl_ordered_fields;
+		end
+
+	let get_map_function c tl =
+		let rec loop map c = match c.cl_super with
+			| Some(csup,tl) ->
+				let map t = map (apply_params csup.cl_params tl t) in
+				loop map csup
+			| None ->
+				map
+		in
+		let apply = apply_params c.cl_params tl in
+		loop apply c
+end
+
+let s_class_path c =
+	let path = match c.cl_kind with
+		| KAbstractImpl a -> a.a_path
+		| _ -> c.cl_path
+	in
+	s_type_path path
