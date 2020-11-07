@@ -618,4 +618,90 @@ class TestNumericCasts extends unit.Test {
 		return x;
 	}
 	static function BoxedFloat32_BoxedFloat64(v:Null<Float32>):Null<Float64> return cast v;
-	static f
+	static function DynamicBoxedFloat32_BoxedFloat64(v:Null<Float32>):Null<Float64> {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Int8(v:Null<Float64>):Int8 return cast v;
+	static function DynamicBoxedFloat64_Int8(v:Null<Float64>):Int8 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Int16(v:Null<Float64>):Int16 return cast v;
+	static function DynamicBoxedFloat64_Int16(v:Null<Float64>):Int16 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Int32(v:Null<Float64>):Int32 return cast v;
+	static function DynamicBoxedFloat64_Int32(v:Null<Float64>):Int32 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Int64(v:Null<Float64>):Int64 return cast v;
+	static function DynamicBoxedFloat64_Int64(v:Null<Float64>):Int64 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Float32(v:Null<Float64>):Float32 return cast v;
+	static function DynamicBoxedFloat64_Float32(v:Null<Float64>):Float32 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_Float64(v:Null<Float64>):Float64 return cast v;
+	static function DynamicBoxedFloat64_Float64(v:Null<Float64>):Float64 {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_BoxedInt8(v:Null<Float64>):Null<Int8> return cast v;
+	static function DynamicBoxedFloat64_BoxedInt8(v:Null<Float64>):Null<Int8> {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_BoxedInt16(v:Null<Float64>):Null<Int16> return cast v;
+	static function DynamicBoxedFloat64_BoxedInt16(v:Null<Float64>):Null<Int16> {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_BoxedInt32(v:Null<Float64>):Null<Int32> return cast v;
+	static function DynamicBoxedFloat64_BoxedInt32(v:Null<Float64>):Null<Int32> {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_BoxedInt64(v:Null<Float64>):Null<Int64> return cast v;
+	static function DynamicBoxedFloat64_BoxedInt64(v:Null<Float64>):Null<Int64> {
+		var x:Dynamic = v;
+		return x;
+	}
+	static function BoxedFloat64_BoxedFloat32(v:Null<Float64>):Null<Float32> return cast v;
+	static function DynamicBoxedFloat64_BoxedFloat32(v:Null<Float64>):Null<Float32> {
+		var x:Dynamic = v;
+		return x;
+	}
+	public function test() {
+		{
+			deq(0, Int8_Int16(0));
+			deq(1, Int8_Int16(1));
+			deq(0, DynamicInt8_Int16(0));
+			deq(1, DynamicInt8_Int16(1));
+			deq(0, Int8_Int32(0));
+			deq(1, Int8_Int32(1));
+			deq(0, DynamicInt8_Int32(0));
+			deq(1, DynamicInt8_Int32(1));
+			deq(0, Int8_Int64(0));
+			deq(1, Int8_Int64(1));
+			deq(0, DynamicInt8_Int64(0));
+			deq(1, DynamicInt8_Int64(1));
+			deq(0, Int8_Float32(0));
+			deq(1, Int8_Float32(1));
+			deq(0, DynamicInt8_Float32(0));
+			deq(1, DynamicInt8_Float32(1));
+			deq(0, Int8_Float64(0));
+			deq(1, Int8_Float64(1));
+			deq(0, DynamicInt8_Float64(0));
+			deq(1, DynamicInt8_Float64(1));
+			deq(0, Int8_BoxedInt8(0));
+			deq(1, Int8_BoxedInt8(1));
+			deq(0, DynamicInt8_BoxedInt8(0));
+			deq(1, DynamicInt8_BoxedInt8(1));
+			deq(0, Int8_BoxedInt16(0));
+			deq(1, Int8_BoxedI
