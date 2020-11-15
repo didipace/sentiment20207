@@ -1481,4 +1481,43 @@ class TestNumericCasts extends unit.Test {
 			deq(1., BoxedFloat64_BoxedInt16(1.));
 			deq(null, BoxedFloat64_BoxedInt16(null));
 			deq(0, DynamicBoxedFloat64_BoxedInt16(0));
-			deq(1, DynamicBoxedFloat64_BoxedInt1
+			deq(1, DynamicBoxedFloat64_BoxedInt16(1));
+			deq(0., DynamicBoxedFloat64_BoxedInt16(0.));
+			deq(1., DynamicBoxedFloat64_BoxedInt16(1.));
+			deq(null, DynamicBoxedFloat64_BoxedInt16(null));
+			deq(0, BoxedFloat64_BoxedInt32(0));
+			deq(1, BoxedFloat64_BoxedInt32(1));
+			deq(0., BoxedFloat64_BoxedInt32(0.));
+			deq(1., BoxedFloat64_BoxedInt32(1.));
+			deq(null, BoxedFloat64_BoxedInt32(null));
+			deq(0, DynamicBoxedFloat64_BoxedInt32(0));
+			deq(1, DynamicBoxedFloat64_BoxedInt32(1));
+			deq(0., DynamicBoxedFloat64_BoxedInt32(0.));
+			deq(1., DynamicBoxedFloat64_BoxedInt32(1.));
+			deq(null, DynamicBoxedFloat64_BoxedInt32(null));
+			deq(0, BoxedFloat64_BoxedInt64(0));
+			deq(1, BoxedFloat64_BoxedInt64(1));
+			deq(0., BoxedFloat64_BoxedInt64(0.));
+			deq(1., BoxedFloat64_BoxedInt64(1.));
+			deq(null, BoxedFloat64_BoxedInt64(null));
+			deq(0, DynamicBoxedFloat64_BoxedInt64(0));
+			deq(1, DynamicBoxedFloat64_BoxedInt64(1));
+			deq(0., DynamicBoxedFloat64_BoxedInt64(0.));
+			deq(1., DynamicBoxedFloat64_BoxedInt64(1.));
+			deq(null, DynamicBoxedFloat64_BoxedInt64(null));
+			deq(0, BoxedFloat64_BoxedFloat32(0));
+			deq(1, BoxedFloat64_BoxedFloat32(1));
+			deq(0., BoxedFloat64_BoxedFloat32(0.));
+			deq(1., BoxedFloat64_BoxedFloat32(1.));
+			deq(null, BoxedFloat64_BoxedFloat32(null));
+			deq(0, DynamicBoxedFloat64_BoxedFloat32(0));
+			deq(1, DynamicBoxedFloat64_BoxedFloat32(1));
+			deq(0., DynamicBoxedFloat64_BoxedFloat32(0.));
+			deq(1., DynamicBoxedFloat64_BoxedFloat32(1.));
+			deq(null, DynamicBoxedFloat64_BoxedFloat32(null));
+		};
+	}
+	function deq(expected:Dynamic, actual:Dynamic, ?p:haxe.PosInfos) {
+		eq(expected, actual, p);
+	}
+}
