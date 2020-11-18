@@ -20,10 +20,16 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package cpp.vm;
+package python.lib.io;
 
-class Unsafe {
-	public static inline function unsafeSet(outForced:Dynamic, inValue:Dynamic):Void {
-		untyped __global__.__hxcpp_unsafe_set(outForced, inValue);
-	}
+import python.Bytearray;
+import python.lib.io.BufferedIOBase;
+
+@:pythonImport("io", "BufferedWriter")
+extern class BufferedWriter extends BufferedIOBase implements IBufferedWriter {
+	function new(raw:RawIOBase):Void;
+}
+
+@:remove extern interface IBufferedWriter extends IBufferedIOBase {
+	function flush():Void;
 }
