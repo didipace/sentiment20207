@@ -14,4 +14,10 @@ extern final class SoundTransform {
 	private function get_rightToLeft() : Float;
 	private function get_rightToRight() : Float;
 	private function get_volume() : Float;
-	private function se
+	private function set_leftToLeft(value : Float) : Float;
+	private function set_leftToRight(value : Float) : Float;
+	private function set_pan(value : Float) : Float;
+	private function set_rightToLeft(value : Float) : Float;
+	private function set_rightToRight(value : Float) : Float;
+	private function set_volume(value : Float) : Float;
+}
