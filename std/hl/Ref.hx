@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,17 +21,27 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package php;
+package hl;
 
-/**
-	@see http://php.net/manual/en/class.sessionhandlerinterface.php
-**/
-@:native('SessionHandlerInterface')
-extern interface SessionHandlerInterface {
-	function close():Bool;
-	function destroy(session_id:String):Bool;
-	function gc(maxlifetime:Int):Bool;
-	function open(save_path:String, session_name:String):Bool;
-	function read(session_id:String):String;
-	function write(session_id:String, session_data:String):Bool;
+@:semantics(reference)
+@:coreType abstract Ref<T> {
+	@:from extern public static inline function make<T>(v:T) {
+		return new Ref<T>(v);
+	}
+
+	extern public inline function new(v:T) {
+		this = untyped $ref(v);
+	}
+
+	extern public inline function get():T {
+		return untyped $unref(this);
+	}
+
+	extern public inline function set(v:T):Void {
+		return untyped $setref(this, v);
+	}
+
+	extern public inline function offset(v:Int):Ref<T> {
+		return untyped $refoffset(this, v);
+	}
 }

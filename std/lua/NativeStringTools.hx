@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,17 +21,31 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package php;
+package lua;
 
 /**
-	@see http://php.net/manual/en/class.sessionhandlerinterface.php
+	These are all externs for the base Lua "string" class, which functions
+	as an additional set of string tools.
+
+	Note that all relevant indexes are "1" based.
 **/
-@:native('SessionHandlerInterface')
-extern interface SessionHandlerInterface {
-	function close():Bool;
-	function destroy(session_id:String):Bool;
-	function gc(maxlifetime:Int):Bool;
-	function open(save_path:String, session_name:String):Bool;
-	function read(session_id:String):String;
-	function write(session_id:String, session_data:String):Bool;
-}
+@:native("_G.string")
+extern class NativeStringTools {
+	/**
+		Receives a string and returns its length. The empty string `""` has
+		length `0`. Embedded zeros are counted, so `"a\000bc\000"` has length `5`.
+	**/
+	static function len(str:String):Int;
+
+	/**
+		Receives zero or more integers. Returns a string with length equal to the
+		number of arguments, in which each character has the internal numerical
+		code equal to its corresponding argument.
+		Note that numerical codes are not necessarily portable across platforms.
+	**/
+	static function char(codes:haxe.extern.Rest<Int>):String;
+
+	// TODO: make a note about handling matched groups with multireturn
+
+	/**
+		Returns the substring of `str` that starts at `start` and continues until `end`;
