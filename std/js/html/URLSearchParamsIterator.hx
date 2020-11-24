@@ -20,6 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package js;
+// This file is generated from mozilla\URLSearchParams.webidl. Do not edit!
 
-@:deprecated typedef Set<T> = js.lib.Set<T>;
+package js.html;
+
+typedef URLSearchParamsIterator = {
+	/** @throws DOMError */
+	function next() : Dynamic;
+}
