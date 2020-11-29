@@ -142,4 +142,130 @@ import cs.NativeArray;
 			var mask = nBuckets - 1, hash = hash(key), k = hash, nProbes = 0;
 			var i = k & mask;
 			var last = i, flag;
-			// var inc = 
+			// var inc = getInc(k, mask);
+			while (!isEmpty(flag = hashes[i]) && (isDel(flag) || flag != k || keys[i] != key)) {
+				i = (i + ++nProbes) & mask;
+				#if DEBUG_HASHTBL
+				probeTimes++;
+				if (i == last)
+					throw "assert";
+				#end
+			}
+
+			#if DEBUG_HASHTBL
+			if (nProbes > maxProbe)
+				maxProbe = nProbes;
+			totalProbes++;
+			#end
+			return isEither(flag) ? -1 : i;
+		}
+
+		return -1;
+	}
+
+	final function resize(newNBuckets:Int):Void {
+		// This function uses 0.25*n_bucktes bytes of working space instead of [sizeof(key_t+val_t)+.25]*n_buckets.
+		var newHash = null;
+		var j = 1;
+		{
+			newNBuckets = roundUp(newNBuckets);
+			if (newNBuckets < 4)
+				newNBuckets = 4;
+			if (size >= (newNBuckets * HASH_UPPER + 0.5))
+				/* requested size is too small */ {
+				j = 0;
+			} else { /* hash table size to be changed (shrink or expand); rehash */
+				var nfSize = newNBuckets;
+				newHash = new NativeArray(nfSize);
+				if (nBuckets < newNBuckets) // expand
+				{
+					var k = new NativeArray(newNBuckets);
+					if (_keys != null)
+						arrayCopy(_keys, 0, k, 0, nBuckets);
+					_keys = k;
+
+					var v = new NativeArray(newNBuckets);
+					if (vals != null)
+						arrayCopy(vals, 0, v, 0, nBuckets);
+					vals = v;
+				} // otherwise shrink
+			}
+		}
+
+		if (j != 0) { // rehashing is required
+			#if !no_map_cache
+			// resetting cache
+			cachedKey = null;
+			cachedIndex = -1;
+			#end
+
+			j = -1;
+			var nBuckets = nBuckets,
+				_keys = _keys,
+				vals = vals,
+				hashes = hashes;
+
+			var newMask = newNBuckets - 1;
+			while (++j < nBuckets) {
+				var k;
+				if (!isEither(k = hashes[j])) {
+					var key = _keys[j];
+					var val = vals[j];
+
+					_keys[j] = null;
+					vals[j] = cast null;
+					hashes[j] = FLAG_DEL;
+					while (true)
+						/* kick-out process; sort of like in Cuckoo hashing */ {
+						var nProbes = 0;
+						// var inc = getInc(k, newMask);
+						var i = k & newMask;
+
+						while (!isEmpty(newHash[i]))
+							i = (i + ++nProbes) & newMask;
+
+						newHash[i] = k;
+
+						if (i < nBuckets && !isEither(k = hashes[i]))
+							/* kick out the existing element */ {
+							{
+								var tmp = _keys[i];
+								_keys[i] = key;
+								key = tmp;
+							} {
+								var tmp = vals[i];
+								vals[i] = val;
+								val = tmp;
+							}
+
+							hashes[i] = FLAG_DEL; /* mark it as deleted in the old hash table */
+						} else { /* write the element and jump out of the loop */
+							_keys[i] = key;
+							vals[i] = val;
+							break;
+						}
+					}
+				}
+			}
+
+			if (nBuckets > newNBuckets)
+				/* shrink the hash table */ {
+				{
+					var k = new NativeArray(newNBuckets);
+					arrayCopy(_keys, 0, k, 0, newNBuckets);
+					this._keys = k;
+				} {
+					var v = new NativeArray(newNBuckets);
+					arrayCopy(vals, 0, v, 0, newNBuckets);
+					this.vals = v;
+				}
+			}
+
+			this.hashes = newHash;
+			this.nBuckets = newNBuckets;
+			this.nOccupied = size;
+			this.upperBound = Std.int(newNBuckets * HASH_UPPER + .5);
+		}
+	}
+
+	public function get(key:K):Nu
