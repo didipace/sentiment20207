@@ -268,4 +268,171 @@ import cs.NativeArray;
 		}
 	}
 
-	public function get(key:K):Nu
+	public function get(key:K):Null<V> {
+		var idx = -1;
+		#if !no_map_cache
+		if (cachedKey == key && ((idx = cachedIndex) != -1)) {
+			return vals[idx];
+		}
+		#end
+
+		idx = lookup(key);
+		if (idx != -1) {
+			#if !no_map_cache
+			cachedKey = key;
+			cachedIndex = idx;
+			#end
+
+			return vals[idx];
+		}
+
+		return null;
+	}
+
+	private function getDefault(key:K, def:V):V {
+		var idx = -1;
+		#if !no_map_cache
+		if (cachedKey == key && ((idx = cachedIndex) != -1)) {
+			return vals[idx];
+		}
+		#end
+
+		idx = lookup(key);
+		if (idx != -1) {
+			#if !no_map_cache
+			cachedKey = key;
+			cachedIndex = idx;
+			#end
+
+			return vals[idx];
+		}
+
+		return def;
+	}
+
+	public function exists(key:K):Bool {
+		var idx = -1;
+		#if !no_map_cache
+		if (cachedKey == key && ((idx = cachedIndex) != -1)) {
+			return true;
+		}
+		#end
+
+		idx = lookup(key);
+		if (idx != -1) {
+			#if !no_map_cache
+			cachedKey = key;
+			cachedIndex = idx;
+			#end
+
+			return true;
+		}
+
+		return false;
+	}
+
+	public function remove(key:K):Bool {
+		var idx = -1;
+		#if !no_map_cache
+		if (!(cachedKey == key && ((idx = cachedIndex) != -1)))
+		#end
+		{
+			idx = lookup(key);
+		}
+
+		if (idx == -1) {
+			return false;
+		} else {
+			#if !no_map_cache
+			if (cachedKey == key)
+				cachedIndex = -1;
+			#end
+
+			hashes[idx] = FLAG_DEL;
+			_keys[idx] = null;
+			vals[idx] = null;
+			--size;
+
+			return true;
+		}
+	}
+
+	public function keys():Iterator<K> {
+		return new ObjectMapKeyIterator(this);
+	}
+
+	public function iterator():Iterator<V> {
+		return new ObjectMapValueIterator(this);
+	}
+
+	@:runtime public inline function keyValueIterator():KeyValueIterator<K, V> {
+		return new haxe.iterators.MapKeyValueIterator(this);
+	}
+
+	public function copy():ObjectMap<K, V> {
+		var copied = new ObjectMap<K, V>();
+		for (key in keys())
+			copied.set(key, get(key));
+		return copied;
+	}
+
+	public function toString():String {
+		var s = new StringBuf();
+		s.add("{");
+		var it = keys();
+		for (i in it) {
+			s.add(Std.string(i));
+			s.add(" => ");
+			s.add(Std.string(get(i)));
+			if (it.hasNext())
+				s.add(", ");
+		}
+		s.add("}");
+		return s.toString();
+	}
+
+	public function clear():Void {
+		hashes = null;
+		_keys = null;
+		vals = null;
+		nBuckets = 0;
+		size = 0;
+		nOccupied = 0;
+		upperBound = 0;
+		#if !no_map_cache
+		cachedKey = null;
+		cachedIndex = -1;
+		#end
+		#if DEBUG_HASHTBL
+		totalProbes = 0;
+		probeTimes = 0;
+		sameHash = 0;
+		maxProbe = 0;
+		#end
+	}
+
+	extern private static inline function roundUp(x:Int):Int {
+		--x;
+		x |= (x) >>> 1;
+		x |= (x) >>> 2;
+		x |= (x) >>> 4;
+		x |= (x) >>> 8;
+		x |= (x) >>> 16;
+		return ++x;
+	}
+
+	extern private static inline function getInc(k:Int, mask:Int):Int // return 1 for linear probing
+		return (((k) >> 3 ^ (k) << 3) | 1) & (mask);
+
+	extern private static inline function isEither(v:HashType):Bool
+		return (v & 0xFFFFFFFE) == 0;
+
+	extern private static inline function isEmpty(v:HashType):Bool
+		return v == FLAG_EMPTY;
+
+	extern private static inline function isDel(v:HashType):Bool
+		return v == FLAG_DEL;
+
+	// guarantee: Whatever this function is, it will never return 0 nor 1
+	extern private static inline function hash<K>(s:K):HashType {
+		var k:Int 
