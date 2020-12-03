@@ -35,4 +35,12 @@ class Issue2236 {
 	@:js('
 		var _g_a = [0];
 		var _g_pos = 0;
-		while(
+		while(_g_pos < _g_a.length) ++_g_pos;
+	')
+	static function test() {
+		var a = new ArrayRead([0]);
+		for( x in a ) {
+			x;
+		}
+	}
+}
