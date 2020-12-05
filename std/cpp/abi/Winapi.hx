@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,12 +21,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\Notification.webidl. Do not edit!
+package cpp.abi;
 
-package js.html;
-
-enum abstract NotificationDirection(String) {
-	var AUTO = "auto";
-	var LTR = "ltr";
-	var RTL = "rtl";
-}
+@:abi("__stdcall")
+extern class Winapi extends Abi {}
