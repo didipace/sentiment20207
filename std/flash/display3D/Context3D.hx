@@ -34,4 +34,21 @@ extern final class Context3D extends flash.events.EventDispatcher {
 	function setColorMask(red : Bool, green : Bool, blue : Bool, alpha : Bool) : Void;
 	function setCulling(triangleFaceToCull : Context3DTriangleFace) : Void;
 	function setDepthTest(depthMask : Bool, passCompareMode : Context3DCompareMode) : Void;
-	function setProgram(program : Program3D) : Voi
+	function setProgram(program : Program3D) : Void;
+	@:require(flash11_2) function setProgramConstantsFromByteArray(programType : Context3DProgramType, firstRegister : Int, numRegisters : Int, data : flash.utils.ByteArray, byteArrayOffset : UInt) : Void;
+	function setProgramConstantsFromMatrix(programType : Context3DProgramType, firstRegister : Int, matrix : flash.geom.Matrix3D, transposedMatrix : Bool = false) : Void;
+	function setProgramConstantsFromVector(programType : Context3DProgramType, firstRegister : Int, data : flash.Vector<Float>, numRegisters : Int = -1) : Void;
+	function setRenderToBackBuffer() : Void;
+	function setRenderToTexture(texture : flash.display3D.textures.TextureBase, enableDepthAndStencil : Bool = false, antiAlias : Int = 0, surfaceSelector : Int = 0, colorOutputIndex : Int = 0) : Void;
+	@:require(flash11_6) function setSamplerStateAt(sampler : Int, wrap : Context3DWrapMode, filter : Context3DTextureFilter, mipfilter : Context3DMipFilter) : Void;
+	function setScissorRectangle(rectangle : flash.geom.Rectangle) : Void;
+	function setStencilActions(?triangleFace : Context3DTriangleFace, ?compareMode : Context3DCompareMode, ?actionOnBothPass : Context3DStencilAction, ?actionOnDepthFail : Context3DStencilAction, ?actionOnDepthPassStencilFail : Context3DStencilAction) : Void;
+	function setStencilReferenceValue(referenceValue : UInt, readMask : UInt = 255, writeMask : UInt = 255) : Void;
+	function setTextureAt(sampler : Int, texture : flash.display3D.textures.TextureBase) : Void;
+	function setVertexBufferAt(index : Int, buffer : VertexBuffer3D, bufferOffset : Int = 0, ?format : Context3DVertexBufferFormat) : Void;
+	private function set_enableErrorChecking(value : Bool) : Bool;
+	private function set_maxBackBufferHeight(value : Int) : Int;
+	private function set_maxBackBufferWidth(value : Int) : Int;
+	@:flash.property static var supportsVideoTexture(get,never) : Bool;
+	private static function get_supportsVideoTexture() : Bool;
+}
