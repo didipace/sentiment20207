@@ -38,4 +38,17 @@ class Issue8502_2 extends scripthost.Issue8502 {
 		return 'cppia ' + super.doTest5(f);
 	}
 
-	override public function doTest3u(f:cpp.UInt8):Strin
+	override public function doTest3u(f:cpp.UInt8):String {
+		return 'cppia ' + super.doTest3u(f);
+	}
+
+	override public function doTest4u(f:cpp.UInt16):String {
+		return 'cppia ' + super.doTest4u(f);
+	}
+
+	override public function doTest5u(f:cpp.UInt32):String {
+		return 'cppia ' + super.doTest5u(f);
+	}
+}
+
+#end
