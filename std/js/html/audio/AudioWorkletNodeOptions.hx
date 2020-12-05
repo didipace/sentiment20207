@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,23 +21,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HTMLBRElement.webidl. Do not edit!
+// This file is generated from mozilla\AudioWorkletNode.webidl. Do not edit!
 
-package js.html;
+package js.html.audio;
 
-/**
-	The `HTMLBRElement` interface represents a HTML line break element (`br`). It inherits from `HTMLElement`.
-
-	Documentation [HTMLBRElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLBRElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLBRElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLBRElement>
-**/
-@:native("HTMLBRElement")
-extern class BRElement extends Element {
-	
-	/**
-		Is a `DOMString` indicating the flow of text around floating objects.
-	**/
-	var clear : String;
-	
+typedef AudioWorkletNodeOptions = AudioNodeOptions & {
+	var ?numberOfInputs : Int;
+	var ?numberOfOutputs : Int;
+	var ?outputChannelCount : Array<Int>;
+	var ?parameterData : haxe.DynamicAccess<Float>;
+	var ?processorOptions : Dynamic;
 }
