@@ -66,4 +66,153 @@ class Unserializer {
 	**/
 	public static var DEFAULT_RESOLVER:TypeResolver = new DefaultResolver();
 
-	static var B
+	static var BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%:";
+
+	#if !neko
+	static var CODES = null;
+
+	static function initCodes() {
+		var codes = #if flash new flash.utils.ByteArray(); #else new Array(); #end
+		for (i in 0...BASE64.length)
+			codes[StringTools.fastCodeAt(BASE64, i)] = i;
+		return codes;
+	}
+	#end
+
+	var buf:String;
+	var pos:Int;
+	var length:Int;
+	var cache:Array<Dynamic>;
+	var scache:Array<String>;
+	var resolver:TypeResolver;
+	#if neko
+	var upos:Int;
+	#end
+
+	/**
+		Creates a new Unserializer instance, with its internal buffer
+		initialized to `buf`.
+
+		This does not parse `buf` immediately. It is parsed only when calls to
+		`this.unserialize` are made.
+
+		Each Unserializer instance maintains its own cache.
+	**/
+	public function new(buf:String) {
+		this.buf = buf;
+		length = this.buf.fastLength();
+		pos = 0;
+		#if neko
+		upos = 0;
+		#end
+		scache = new Array();
+		cache = new Array();
+		var r = DEFAULT_RESOLVER;
+		if (r == null) {
+			r = new DefaultResolver();
+			DEFAULT_RESOLVER = r;
+		}
+		resolver = r;
+	}
+
+	/**
+		Sets the type resolver of `this` Unserializer instance to `r`.
+
+		If `r` is `null`, a special resolver is used which returns `null` for all
+		input values.
+
+		See `DEFAULT_RESOLVER` for more information on type resolvers.
+	**/
+	public function setResolver(r) {
+		if (r == null)
+			resolver = NullResolver.instance;
+		else
+			resolver = r;
+	}
+
+	/**
+		Gets the type resolver of `this` Unserializer instance.
+
+		See `DEFAULT_RESOLVER` for more information on type resolvers.
+	**/
+	public function getResolver() {
+		return resolver;
+	}
+
+	inline function get(p:Int):Int {
+		#if php
+		return p >= length ? 0 : buf.fastCharCodeAt(p);
+		#else
+		return StringTools.fastCodeAt(buf, p);
+		#end
+	}
+
+	function readDigits() {
+		var k = 0;
+		var s = false;
+		var fpos = pos;
+		while (true) {
+			var c = get(pos);
+			if (StringTools.isEof(c))
+				break;
+			if (c == "-".code) {
+				if (pos != fpos)
+					break;
+				s = true;
+				pos++;
+				continue;
+			}
+			if (c < "0".code || c > "9".code)
+				break;
+			k = k * 10 + (c - "0".code);
+			pos++;
+		}
+		if (s)
+			k *= -1;
+		return k;
+	}
+
+	function readFloat() {
+		var p1 = pos;
+		while (true) {
+			var c = get(pos);
+			if (StringTools.isEof(c))
+				break;
+			// + - . , 0-9
+			if ((c >= 43 && c < 58) || c == "e".code || c == "E".code)
+				pos++;
+			else
+				break;
+		}
+		return Std.parseFloat(buf.fastSubstr(p1, pos - p1));
+	}
+
+	function unserializeObject(o:{}) {
+		while (true) {
+			if (pos >= length)
+				throw "Invalid object";
+			if (get(pos) == "g".code)
+				break;
+			var k:Dynamic = unserialize();
+			if (!Std.isOfType(k, String))
+				throw "Invalid object key";
+			var v = unserialize();
+			Reflect.setField(o, k, v);
+		}
+		pos++;
+	}
+
+	function unserializeEnum<T>(edecl:Enum<T>, tag:String) {
+		if (get(pos++) != ":".code)
+			throw "Invalid enum format";
+		var nargs = readDigits();
+		if (nargs == 0)
+			return Type.createEnum(edecl, tag);
+		var args = new Array();
+		while (nargs-- > 0)
+			args.push(unserialize());
+		return Type.createEnum(edecl, tag, args);
+	}
+
+	/**
+		Unserializes the next part of `this` Unserializer instance and re
