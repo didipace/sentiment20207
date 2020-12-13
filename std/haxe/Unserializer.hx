@@ -215,4 +215,122 @@ class Unserializer {
 	}
 
 	/**
-		Unserializes the next part of `this` Unserializer instance and re
+		Unserializes the next part of `this` Unserializer instance and returns
+		the according value.
+
+		This function may call `this.resolver.resolveClass` to determine a
+		Class from a String, and `this.resolver.resolveEnum` to determine an
+		Enum from a String.
+
+		If `this` Unserializer instance contains no more or invalid data, an
+		exception is thrown.
+
+		This operation may fail on structurally valid data if a type cannot be
+		resolved or if a field cannot be set. This can happen when unserializing
+		Strings that were serialized on a different Haxe target, in which the
+		serialization side has to make sure not to include platform-specific
+		data.
+
+		Classes are created from `Type.createEmptyInstance`, which means their
+		constructors are not called.
+	**/
+	public function unserialize():Dynamic {
+		switch (get(pos++)) {
+			case "n".code:
+				return null;
+			case "t".code:
+				return true;
+			case "f".code:
+				return false;
+			case "z".code:
+				return 0;
+			case "i".code:
+				return readDigits();
+			case "d".code:
+				return readFloat();
+			case "y".code:
+				var len = readDigits();
+				if (get(pos++) != ":".code || length - pos < len)
+					throw "Invalid string length";
+				var s = buf.fastSubstr(pos, len);
+				pos += len;
+				s = StringTools.urlDecode(s);
+				scache.push(s);
+				return s;
+			case "k".code:
+				return Math.NaN;
+			case "m".code:
+				return Math.NEGATIVE_INFINITY;
+			case "p".code:
+				return Math.POSITIVE_INFINITY;
+			case "a".code:
+				var buf = buf;
+				var a = new Array<Dynamic>();
+				#if cpp
+				var cachePos = cache.length;
+				#end
+				cache.push(a);
+				while (true) {
+					var c = get(pos);
+					if (c == "h".code) {
+						pos++;
+						break;
+					}
+					if (c == "u".code) {
+						pos++;
+						var n = readDigits();
+						a[a.length + n - 1] = null;
+					} else
+						a.push(unserialize());
+				}
+				#if cpp
+				return cache[cachePos] = cpp.NativeArray.resolveVirtualArray(a);
+				#else
+				return a;
+				#end
+			case "o".code:
+				var o = {};
+				cache.push(o);
+				unserializeObject(o);
+				return o;
+			case "r".code:
+				var n = readDigits();
+				if (n < 0 || n >= cache.length)
+					throw "Invalid reference";
+				return cache[n];
+			case "R".code:
+				var n = readDigits();
+				if (n < 0 || n >= scache.length)
+					throw "Invalid string reference";
+				return scache[n];
+			case "x".code:
+				throw unserialize();
+			case "c".code:
+				var name = unserialize();
+				var cl = resolver.resolveClass(name);
+				if (cl == null)
+					throw "Class not found " + name;
+				var o = Type.createEmptyInstance(cl);
+				cache.push(o);
+				unserializeObject(o);
+				return o;
+			case "w".code:
+				var name = unserialize();
+				var edecl = resolver.resolveEnum(name);
+				if (edecl == null)
+					throw "Enum not found " + name;
+				var e = unserializeEnum(edecl, unserialize());
+				cache.push(e);
+				return e;
+			case "j".code:
+				var name = unserialize();
+				var edecl = resolver.resolveEnum(name);
+				if (edecl == null)
+					throw "Enum not found " + name;
+				pos++; /* skip ':' */
+				var index = readDigits();
+				var tag = Type.getEnumConstructs(edecl)[index];
+				if (tag == null)
+					throw "Unknown enum index " + name + "@" + index;
+				var e = unserializeEnum(edecl, tag);
+			
