@@ -433,4 +433,105 @@ class Unserializer {
 				return bytes;
 			case "C".code:
 				var name = unserialize();
-				var cl = resolver.resolveClass(
+				var cl = resolver.resolveClass(name);
+				if (cl == null)
+					throw "Class not found " + name;
+				var o:Dynamic = Type.createEmptyInstance(cl);
+				cache.push(o);
+				o.hxUnserialize(this);
+				if (get(pos++) != "g".code)
+					throw "Invalid custom data";
+				return o;
+			case "A".code:
+				var name = unserialize();
+				var cl = resolver.resolveClass(name);
+				if (cl == null)
+					throw "Class not found " + name;
+				return cl;
+			case "B".code:
+				var name = unserialize();
+				var e = resolver.resolveEnum(name);
+				if (e == null)
+					throw "Enum not found " + name;
+				return e;
+			default:
+		}
+		pos--;
+		throw("Invalid char " + buf.fastCharAt(pos) + " at position " + pos);
+	}
+
+	/**
+		Unserializes `v` and returns the according value.
+
+		This is a convenience function for creating a new instance of
+		Unserializer with `v` as buffer and calling its `unserialize()` method
+		once.
+	**/
+	public static function run(v:String):Dynamic {
+		return new Unserializer(v).unserialize();
+	}
+
+	#if neko
+	static var base_decode = neko.Lib.load("std", "base_decode", 2);
+	#end
+
+	static inline function fastLength(s:String):Int {
+		#if php
+		return php.Global.strlen(s);
+		#else
+		return s.length;
+		#end
+	}
+
+	static inline function fastCharCodeAt(s:String, pos:Int):Int {
+		#if php
+		return php.Global.ord((s:php.NativeString)[pos]);
+		#else
+		return s.charCodeAt(pos);
+		#end
+	}
+
+	static inline function fastCharAt(s:String, pos:Int):String {
+		#if php
+		return (s:php.NativeString)[pos];
+		#else
+		return s.charAt(pos);
+		#end
+	}
+
+	static inline function fastSubstr(s:String, pos:Int, length:Int):String {
+		#if php
+		return php.Global.substr(s, pos, length);
+		#else
+		return s.substr(pos, length);
+		#end
+	}
+}
+
+private class DefaultResolver {
+	public function new() {}
+
+	public inline function resolveClass(name:String):Class<Dynamic>
+		return Type.resolveClass(name);
+
+	public inline function resolveEnum(name:String):Enum<Dynamic>
+		return Type.resolveEnum(name);
+}
+
+private class NullResolver {
+	function new() {}
+
+	public inline function resolveClass(name:String):Class<Dynamic>
+		return null;
+
+	public inline function resolveEnum(name:String):Enum<Dynamic>
+		return null;
+
+	public static var instance(get, null):NullResolver;
+
+	inline static function get_instance():NullResolver {
+		if (instance == null)
+			instance = new NullResolver();
+		return instance;
+	}
+}
