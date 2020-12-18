@@ -333,4 +333,104 @@ class Unserializer {
 				if (tag == null)
 					throw "Unknown enum index " + name + "@" + index;
 				var e = unserializeEnum(edecl, tag);
-			
+				cache.push(e);
+				return e;
+			case "l".code:
+				var l = new List();
+				cache.push(l);
+				var buf = buf;
+				while (get(pos) != "h".code)
+					l.add(unserialize());
+				pos++;
+				return l;
+			case "b".code:
+				var h = new haxe.ds.StringMap();
+				cache.push(h);
+				var buf = buf;
+				while (get(pos) != "h".code) {
+					var s = unserialize();
+					h.set(s, unserialize());
+				}
+				pos++;
+				return h;
+			case "q".code:
+				var h = new haxe.ds.IntMap();
+				cache.push(h);
+				var buf = buf;
+				var c = get(pos++);
+				while (c == ":".code) {
+					var i = readDigits();
+					h.set(i, unserialize());
+					c = get(pos++);
+				}
+				if (c != "h".code)
+					throw "Invalid IntMap format";
+				return h;
+			case "M".code:
+				var h = new haxe.ds.ObjectMap();
+				cache.push(h);
+				var buf = buf;
+				while (get(pos) != "h".code) {
+					var s = unserialize();
+					h.set(s, unserialize());
+				}
+				pos++;
+				return h;
+			case "v".code:
+				var d;
+				if (get(pos) >= '0'.code && get(pos) <= '9'.code && get(pos + 1) >= '0'.code && get(pos + 1) <= '9'.code && get(pos + 2) >= '0'.code
+					&& get(pos + 2) <= '9'.code && get(pos + 3) >= '0'.code && get(pos + 3) <= '9'.code && get(pos + 4) == '-'.code) {
+					// Included for backwards compatibility
+					d = Date.fromString(buf.fastSubstr(pos, 19));
+					pos += 19;
+				} else
+					d = Date.fromTime(readFloat());
+				cache.push(d);
+				return d;
+			case "s".code:
+				var len = readDigits();
+				var buf = buf;
+				if (get(pos++) != ":".code || length - pos < len)
+					throw "Invalid bytes length";
+				#if neko
+				var bytes = haxe.io.Bytes.ofData(base_decode(untyped buf.fastSubstr(pos, len).__s, untyped BASE64.__s));
+				#elseif php
+				var phpEncoded = php.Global.strtr(buf.fastSubstr(pos, len), '%:', '+/');
+				var bytes = haxe.io.Bytes.ofData(php.Global.base64_decode(phpEncoded));
+				#else
+				var codes = CODES;
+				if (codes == null) {
+					codes = initCodes();
+					CODES = codes;
+				}
+				var i = pos;
+				var rest = len & 3;
+				var size = (len >> 2) * 3 + ((rest >= 2) ? rest - 1 : 0);
+				var max = i + (len - rest);
+				var bytes = haxe.io.Bytes.alloc(size);
+				var bpos = 0;
+				while (i < max) {
+					var c1 = codes[StringTools.fastCodeAt(buf, i++)];
+					var c2 = codes[StringTools.fastCodeAt(buf, i++)];
+					bytes.set(bpos++, (c1 << 2) | (c2 >> 4));
+					var c3 = codes[StringTools.fastCodeAt(buf, i++)];
+					bytes.set(bpos++, (c2 << 4) | (c3 >> 2));
+					var c4 = codes[StringTools.fastCodeAt(buf, i++)];
+					bytes.set(bpos++, (c3 << 6) | c4);
+				}
+				if (rest >= 2) {
+					var c1 = codes[StringTools.fastCodeAt(buf, i++)];
+					var c2 = codes[StringTools.fastCodeAt(buf, i++)];
+					bytes.set(bpos++, (c1 << 2) | (c2 >> 4));
+					if (rest == 3) {
+						var c3 = codes[StringTools.fastCodeAt(buf, i++)];
+						bytes.set(bpos++, (c2 << 4) | (c3 >> 2));
+					}
+				}
+				#end
+				pos += len;
+				cache.push(bytes);
+				return bytes;
+			case "C".code:
+				var name = unserialize();
+				var cl = resolver.resolveClass(
