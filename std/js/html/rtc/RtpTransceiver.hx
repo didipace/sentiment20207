@@ -51,4 +51,19 @@ extern class RtpTransceiver {
 	
 	/**
 		Indicates whether or not sending and receiving using the paired `RTCRtpSender` and `RTCRtpReceiver` has been permanently disabled, either due to SDP offer/answer, or due to a call to `RTCRtpTransceiver.stop`.
+	**/
+	var stopped(default,null) : Bool;
 	
+	/**
+		A string from the enum `RTCRtpTransceiverDirection` which is used to set the transceiver's desired direction.
+	**/
+	var direction : RtpTransceiverDirection;
+	
+	/**
+		A string from the enum `RTCRtpTransceiverDirection` which indicates the transceiver's current directionality, or `null` if the transceiver is stopped or has never participated in an exchange of offers and answers.
+	**/
+	var currentDirection(default,null) : RtpTransceiverDirection;
+	
+	function stop() : Void;
+	function getRemoteTrackId() : String;
+}
