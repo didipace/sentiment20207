@@ -29,4 +29,8 @@ package js.html;
 
 	Documentation [DOMStringMap](https://developer.mozilla.org/en-US/docs/Web/API/DOMStringMap) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/DOMStringMap$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/DOMStringMap>
+**/
+@:native("DOMStringMap")
+extern class DOMStringMap implements Dynamic<String> {
+}
