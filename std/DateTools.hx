@@ -176,4 +176,81 @@ class DateTools {
 			return DAYS_OF_MONTH[month];
 
 		var isB = ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
-		return if (isB) 29
+		return if (isB) 29 else 28;
+	}
+
+	/**
+		Converts a number of seconds to a timestamp.
+	**/
+	public static inline function seconds(n:Float):Float {
+		return n * 1000.0;
+	}
+
+	/**
+		Converts a number of minutes to a timestamp.
+	**/
+	public static inline function minutes(n:Float):Float {
+		return n * 60.0 * 1000.0;
+	}
+
+	/**
+		Converts a number of hours to a timestamp.
+	**/
+	public static inline function hours(n:Float):Float {
+		return n * 60.0 * 60.0 * 1000.0;
+	}
+
+	/**
+		Converts a number of days to a timestamp.
+	**/
+	public static inline function days(n:Float):Float {
+		return n * 24.0 * 60.0 * 60.0 * 1000.0;
+	}
+
+	/**
+		Separate a date-time into several components
+	**/
+	public static function parse(t:Float) {
+		var s = t / 1000;
+		var m = s / 60;
+		var h = m / 60;
+		return {
+			ms: t % 1000,
+			seconds: Std.int(s % 60),
+			minutes: Std.int(m % 60),
+			hours: Std.int(h % 24),
+			days: Std.int(h / 24),
+		};
+	}
+
+	/**
+		Build a date-time from several components
+	**/
+	public static function make(o:{
+		ms:Float,
+		seconds:Int,
+		minutes:Int,
+		hours:Int,
+		days:Int
+	}) {
+		return o.ms + 1000.0 * (o.seconds + 60.0 * (o.minutes + 60.0 * (o.hours + 24.0 * o.days)));
+	}
+
+	#if (js || flash || php || cpp || python)
+	/**
+		Retrieve Unix timestamp value from Date components. Takes same argument sequence as the Date constructor.
+	**/
+	public static #if (js || flash || php) inline #end function makeUtc(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Float {
+		#if (js || flash || python)
+		return untyped Date.UTC(year, month, day, hour, min, sec);
+		#elseif php
+		return php.Global.gmmktime(hour, min, sec, month + 1, day, year) * 1000;
+		#elseif cpp
+		return untyped __global__.__hxcpp_utc_date(year, month, day, hour, min, sec) * 1000.0;
+		#else
+		// TODO
+		return 0.;
+		#end
+	}
+	#end
+}
