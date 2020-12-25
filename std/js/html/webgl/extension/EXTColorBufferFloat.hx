@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,7 +21,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package python.lib.net;
+// This file is generated from mozilla\WebGL2RenderingContext.webidl. Do not edit!
 
-@:deprecated("Use python.lib.socket.Adress instead")
-typedef Address = python.lib.socket.Address;
+package js.html.webgl.extension;
+
+typedef EXTColorBufferFloat = {
+}
