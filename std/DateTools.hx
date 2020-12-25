@@ -63,4 +63,117 @@ class DateTools {
 				Std.string(d.getDate());
 			case "F":
 				__format(d, "%Y-%m-%d");
-			case "H",
+			case "H", "k":
+				StringTools.lpad(Std.string(d.getHours()), if (e == "H") "0" else " ", 2);
+			case "I", "l":
+				var hour = d.getHours() % 12;
+				StringTools.lpad(Std.string(hour == 0 ? 12 : hour), if (e == "I") "0" else " ", 2);
+			case "m":
+				StringTools.lpad(Std.string(d.getMonth() + 1), "0", 2);
+			case "M":
+				StringTools.lpad(Std.string(d.getMinutes()), "0", 2);
+			case "n":
+				"\n";
+			case "p":
+				if (d.getHours() > 11) "PM"; else "AM";
+			case "r":
+				__format(d, "%I:%M:%S %p");
+			case "R":
+				__format(d, "%H:%M");
+			case "s":
+				Std.string(Std.int(d.getTime() / 1000));
+			case "S":
+				StringTools.lpad(Std.string(d.getSeconds()), "0", 2);
+			case "t":
+				"\t";
+			case "T":
+				__format(d, "%H:%M:%S");
+			case "u":
+				var t = d.getDay();
+				if (t == 0) "7" else Std.string(t);
+			case "w":
+				Std.string(d.getDay());
+			case "y":
+				StringTools.lpad(Std.string(d.getFullYear() % 100), "0", 2);
+			case "Y":
+				Std.string(d.getFullYear());
+			default:
+				throw new haxe.exceptions.NotImplementedException("Date.format %" + e + "- not implemented yet.");
+		}
+	}
+
+	private static function __format(d:Date, f:String):String {
+		var r = new StringBuf();
+		var p = 0;
+		while (true) {
+			var np = f.indexOf("%", p);
+			if (np < 0)
+				break;
+
+			r.addSub(f, p, np - p);
+			r.add(__format_get(d, f.substr(np + 1, 1)));
+
+			p = np + 2;
+		}
+		r.addSub(f, p, f.length - p);
+		return r.toString();
+	}
+	#end
+
+	/**
+		Format the date `d` according to the format `f`. The format is
+		compatible with the `strftime` standard format, except that there is no
+		support in Flash and JS for day and months names (due to lack of proper
+		internationalization API). On Haxe/Neko/Windows, some formats are not
+		supported.
+
+		```haxe
+		var t = DateTools.format(Date.now(), "%Y-%m-%d_%H:%M:%S");
+		// 2016-07-08_14:44:05
+
+		var t = DateTools.format(Date.now(), "%r");
+		// 02:44:05 PM
+
+		var t = DateTools.format(Date.now(), "%T");
+		// 14:44:05
+
+		var t = DateTools.format(Date.now(), "%F");
+		// 2016-07-08
+		```
+	**/
+	public static function format(d:Date, f:String):String {
+		#if (neko && !(macro || interp))
+		return new String(untyped date_format(d.__t, f.__s));
+		#elseif php
+		return php.Global.strftime(f, php.Syntax.int(@:privateAccess d.__t));
+		#else
+		return __format(d, f);
+		#end
+	}
+
+	/**
+		Returns the result of adding timestamp `t` to Date `d`.
+
+		This is a convenience function for calling
+		`Date.fromTime(d.getTime() + t)`.
+	**/
+	public static inline function delta(d:Date, t:Float):Date {
+		return Date.fromTime(d.getTime() + t);
+	}
+
+	static var DAYS_OF_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+	/**
+		Returns the number of days in the month of Date `d`.
+
+		This method handles leap years.
+	**/
+	public static function getMonthDays(d:Date):Int {
+		var month = d.getMonth();
+		var year = d.getFullYear();
+
+		if (month != 1)
+			return DAYS_OF_MONTH[month];
+
+		var isB = ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+		return if (isB) 29
