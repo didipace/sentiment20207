@@ -21,4 +21,11 @@ extern class X509Certificate {
 	private function get_serialNumber() : String;
 	private function get_signatureAlgorithmOID() : String;
 	private function get_signatureAlgorithmParams() : flash.utils.ByteArray;
-	private function ge
+	private function get_subject() : X500DistinguishedName;
+	private function get_subjectPublicKey() : String;
+	private function get_subjectPublicKeyAlgorithmOID() : String;
+	private function get_subjectUniqueID() : String;
+	private function get_validNotAfter() : Date;
+	private function get_validNotBefore() : Date;
+	private function get_version() : UInt;
+}
