@@ -112,4 +112,118 @@ abstract UInt to Int from Int {
 
 	@:commutative @:op(A == B) private static function equalsFloat<T:Float>(a:UInt, b:T):Bool;
 
-	@:commutative @:op(A != B) private static fun
+	@:commutative @:op(A != B) private static function notEqualsFloat<T:Float>(a:UInt, b:T):Bool;
+
+	@:op(++A) private function prefixIncrement():UInt;
+
+	@:op(A++) private function postfixIncrement():UInt;
+
+	@:op(--A) private function prefixDecrement():UInt;
+
+	@:op(A--) private function postfixDecrement():UInt;
+}
+#else
+
+/**
+	The unsigned `Int` type is only defined for Flash and C#.
+	Simulate it for other platforms.
+
+	@see https://haxe.org/manual/types-basic-types.html
+**/
+@:transitive
+abstract UInt(Int) from Int to Int {
+	@:op(A + B) private static inline function add(a:UInt, b:UInt):UInt {
+		return a.toInt() + b.toInt();
+	}
+
+	@:op(A / B) private static inline function div(a:UInt, b:UInt):Float {
+		return a.toFloat() / b.toFloat();
+	}
+
+	@:op(A * B) private static inline function mul(a:UInt, b:UInt):UInt {
+		return a.toInt() * b.toInt();
+	}
+
+	@:op(A - B) private static inline function sub(a:UInt, b:UInt):UInt {
+		return a.toInt() - b.toInt();
+	}
+
+	@:op(A > B)
+	private static #if !js inline #end function gt(a:UInt, b:UInt):Bool {
+		var aNeg = a.toInt() < 0;
+		var bNeg = b.toInt() < 0;
+		return if (aNeg != bNeg) aNeg; else a.toInt() > b.toInt();
+	}
+
+	@:op(A >= B)
+	private static #if !js inline #end function gte(a:UInt, b:UInt):Bool {
+		var aNeg = a.toInt() < 0;
+		var bNeg = b.toInt() < 0;
+		return if (aNeg != bNeg) aNeg; else a.toInt() >= b.toInt();
+	}
+
+	@:op(A < B) private static inline function lt(a:UInt, b:UInt):Bool {
+		return gt(b, a);
+	}
+
+	@:op(A <= B) private static inline function lte(a:UInt, b:UInt):Bool {
+		return gte(b, a);
+	}
+
+	@:op(A & B) private static inline function and(a:UInt, b:UInt):UInt {
+		return a.toInt() & b.toInt();
+	}
+
+	@:op(A | B) private static inline function or(a:UInt, b:UInt):UInt {
+		return a.toInt() | b.toInt();
+	}
+
+	@:op(A ^ B) private static inline function xor(a:UInt, b:UInt):UInt {
+		return a.toInt() ^ b.toInt();
+	}
+
+	@:op(A << B) private static inline function shl(a:UInt, b:Int):UInt {
+		return a.toInt() << b;
+	}
+
+	@:op(A >> B) private static inline function shr(a:UInt, b:Int):UInt {
+		return a.toInt() >>> b;
+	}
+
+	@:op(A >>> B) private static inline function ushr(a:UInt, b:Int):UInt {
+		return a.toInt() >>> b;
+	}
+
+	@:op(A % B) private static inline function mod(a:UInt, b:UInt):UInt {
+		return Std.int(a.toFloat() % b.toFloat());
+	}
+
+	@:commutative @:op(A + B) private static inline function addWithFloat(a:UInt, b:Float):Float {
+		return a.toFloat() + b;
+	}
+
+	@:commutative @:op(A * B) private static inline function mulWithFloat(a:UInt, b:Float):Float {
+		return a.toFloat() * b;
+	}
+
+	@:op(A / B) private static inline function divFloat(a:UInt, b:Float):Float {
+		return a.toFloat() / b;
+	}
+
+	@:op(A / B) private static inline function floatDiv(a:Float, b:UInt):Float {
+		return a / b.toFloat();
+	}
+
+	@:op(A - B) private static inline function subFloat(a:UInt, b:Float):Float {
+		return a.toFloat() - b;
+	}
+
+	@:op(A - B) private static inline function floatSub(a:Float, b:UInt):Float {
+		return a - b.toFloat();
+	}
+
+	@:op(A > B) private static inline function gtFloat(a:UInt, b:Float):Bool {
+		return a.toFloat() > b;
+	}
+
+	@:commutative @:op(A == B) private static inline functio
