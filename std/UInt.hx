@@ -226,4 +226,96 @@ abstract UInt(Int) from Int to Int {
 		return a.toFloat() > b;
 	}
 
-	@:commutative @:op(A == B) private static inline functio
+	@:commutative @:op(A == B) private static inline function equalsInt<T:Int>(a:UInt, b:T):Bool {
+		return a.toInt() == b;
+	}
+
+	@:commutative @:op(A != B) private static inline function notEqualsInt<T:Int>(a:UInt, b:T):Bool {
+		return a.toInt() != b;
+	}
+
+	@:commutative @:op(A == B) private static inline function equalsFloat<T:Float>(a:UInt, b:T):Bool {
+		return a.toFloat() == b;
+	}
+
+	@:commutative @:op(A != B) private static inline function notEqualsFloat<T:Float>(a:UInt, b:T):Bool {
+		return a.toFloat() != b;
+	}
+
+	@:op(A >= B) private static inline function gteFloat(a:UInt, b:Float):Bool {
+		return a.toFloat() >= b;
+	}
+
+	@:op(A > B) private static inline function floatGt(a:Float, b:UInt):Bool {
+		return a > b.toFloat();
+	}
+
+	@:op(A >= B) private static inline function floatGte(a:Float, b:UInt):Bool {
+		return a >= b.toFloat();
+	}
+
+	@:op(A < B) private static inline function ltFloat(a:UInt, b:Float):Bool {
+		return a.toFloat() < b;
+	}
+
+	@:op(A <= B) private static inline function lteFloat(a:UInt, b:Float):Bool {
+		return a.toFloat() <= b;
+	}
+
+	@:op(A < B) private static inline function floatLt(a:Float, b:UInt):Bool {
+		return a < b.toFloat();
+	}
+
+	@:op(A <= B) private static inline function floatLte(a:Float, b:UInt):Bool {
+		return a <= b.toFloat();
+	}
+
+	@:op(A % B) private static inline function modFloat(a:UInt, b:Float):Float {
+		return a.toFloat() % b;
+	}
+
+	@:op(A % B) private static inline function floatMod(a:Float, b:UInt):Float {
+		return a % b.toFloat();
+	}
+
+	@:op(~A) private inline function negBits():UInt {
+		return ~this;
+	}
+
+	@:op(++A) private inline function prefixIncrement():UInt {
+		return ++this;
+	}
+
+	@:op(A++) private inline function postfixIncrement():UInt {
+		return this++;
+	}
+
+	@:op(--A) private inline function prefixDecrement():UInt {
+		return --this;
+	}
+
+	@:op(A--) private inline function postfixDecrement():UInt {
+		return this--;
+	}
+
+	// TODO: radix is just defined to deal with doc_gen issues
+	private inline function toString(?radix:Int):String {
+		return Std.string(toFloat());
+	}
+
+	private inline function toInt():Int {
+		return this;
+	}
+
+	@:to private #if (!js || analyzer) inline #end function toFloat():Float {
+		var int = toInt();
+		if (int < 0) {
+			return 4294967296.0 + int;
+		} else {
+			// + 0.0 here to make sure we promote to Float on some platforms
+			// In particular, PHP was having issues when comparing to Int in the == op.
+			return int + 0.0;
+		}
+	}
+}
+#end
