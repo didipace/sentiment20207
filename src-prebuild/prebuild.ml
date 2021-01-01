@@ -200,4 +200,109 @@ let gen_meta_info metas =
 				| "InlineConstructorArgument" -> "InlineConstructorArgument _"
 				| _ -> name
 			) in
-			"\t| " ^ name ^ " -> \"" ^ metadata ^ "\",(" ^ (Printf.sprintf "%S"
+			"\t| " ^ name ^ " -> \"" ^ metadata ^ "\",(" ^ (Printf.sprintf "%S" doc) ^ ",[" ^ (String.concat "; " (platforms_str @ params_str @ targets_str @ internal_str @ links_str)) ^ "])"
+	) metas in
+	String.concat "\n" meta_str
+
+let gen_warning_type warnings =
+	let warning_str = List.map (function
+		w ->
+			Printf.sprintf "\t| %s" w.w_name
+	) warnings in
+	String.concat "\n" warning_str
+
+let gen_warning_parse warnings =
+	let warning_str = List.map (function
+		w ->
+			Printf.sprintf "\t| \"%s\" -> %s" w.w_name w.w_name
+	) warnings in
+	let warning_str = warning_str @ ["\t| _ -> raise Exit"] in
+	String.concat "\n" warning_str
+
+
+let gen_warning_obj warnings =
+	let warning_str = List.map (fun w ->
+		let w_parent = match w.w_parent with
+			| None -> if w.w_name = "WAll" then "None" else "Some WAll"
+			| Some w -> Printf.sprintf "Some %s" w
+		in
+		Printf.sprintf "\t| %s -> {w_name = \"%s\"; w_doc = \"%s\"; w_generic = %b; w_parent = %s}" w.w_name w.w_name (s_escape w.w_doc) w.w_generic w_parent
+	) warnings in
+	String.concat "\n" warning_str
+
+let autogen_header = "(* This file is auto-generated using prebuild from files in src-json *)
+(* Do not edit manually! *)
+"
+
+let define_header = autogen_header ^ "
+open Globals
+
+type define_parameter =
+	| HasParam of string
+	| Platforms of platform list
+	| Link of string
+
+"
+
+let meta_header = autogen_header ^ "
+open Globals
+
+type meta_usage =
+	| TClass
+	| TClassField
+	| TAbstract
+	| TAbstractField
+	| TEnum
+	| TTypedef
+	| TAnyField
+	| TExpr
+	| TTypeParameter
+	| TVariable
+
+let parse_meta_usage = function
+	| \"TClass\" -> TClass
+	| \"TClassField\" -> TClassField
+	| \"TAbstract\" -> TAbstract
+	| \"TAbstractField\" -> TAbstractField
+	| \"TEnum\" -> TEnum
+	| \"TTypedef\" -> TTypedef
+	| \"TAnyField\" -> TAnyField
+	| \"TExpr\" -> TExpr
+	| \"TTypeParameter\" -> TTypeParameter
+	| \"TVariable\" -> TVariable
+	| t -> raise (failwith (\"invalid metadata target \" ^ t))
+
+type meta_parameter =
+	| HasParam of string
+	| Platforms of platform list
+	| UsedOn of meta_usage list
+	| UsedInternally
+	| Link of string
+
+"
+
+;;
+
+match Array.to_list (Sys.argv) with
+	| [_; "define"; define_path]->
+		let defines = parse_file_array define_path parse_define in
+		Printf.printf "%s" define_header;
+		Printf.printf "type strict_defined =\n";
+		Printf.printf "%s" (gen_define_type defines);
+		Printf.printf "\n\t| Last\n\t| Custom of string\n\n";
+		Printf.printf "let infos = function\n";
+		Printf.printf "%s" (gen_define_info defines);
+		Printf.printf "\n\t| Last -> die \"\" __LOC__\n\t| Custom s -> s,(\"\",[])\n"
+	| [_; "meta"; meta_path]->
+		let metas = parse_file_array meta_path parse_meta in
+		Printf.printf "%s" meta_header;
+		Printf.printf "type strict_meta =\n";
+		Printf.printf "%s" (gen_meta_type metas);
+		Printf.printf "\n\t| Last\n\t| Dollar of string\n\t| Custom of string\n\n";
+		Printf.printf "let get_info = function\n";
+		Printf.printf "%s" (gen_meta_info metas);
+		Printf.printf "\n\t| Last -> die \"\" __LOC__\n\t| Dollar s -> \"$\" ^ s,(\"\",[])\n\t| Custom s -> s,(\"\",[])\n"
+	| [_; "warning"; warning_path]->
+		let warnings = parse_file_array warning_path parse_warning in
+		print_endline "type warning =";
+		print_endlin
