@@ -305,4 +305,28 @@ match Array.to_list (Sys.argv) with
 	| [_; "warning"; warning_path]->
 		let warnings = parse_file_array warning_path parse_warning in
 		print_endline "type warning =";
-		print_endlin
+		print_endline (gen_warning_type warnings);
+		print_endline "";
+		print_endline "type warning_obj = {";
+		print_endline "\tw_name : string;";
+		print_endline "\tw_doc : string;";
+		print_endline "\tw_generic : bool;";
+		print_endline "\tw_parent : warning option;";
+		print_endline "}";
+		print_endline "";
+		print_endline "let warning_obj = function";
+		print_endline (gen_warning_obj warnings);
+		print_endline "";
+		print_endline "let from_string = function";
+		print_endline (gen_warning_parse warnings);
+	| _ :: "libparams" :: params ->
+		Printf.printf "(%s)" (String.concat " " (List.map (fun s -> Printf.sprintf "\"%s\"" s) params))
+	| [_ ;"version";add_revision;branch;sha] ->
+		begin match add_revision with
+		| "0" | "" ->
+			print_endline "let version_extra = None"
+		| _ ->
+			Printf.printf "let version_extra = Some (\"git build %s\",\"%s\")" branch sha
+		end
+	| args ->
+		print_endline (String.concat ", " args)
