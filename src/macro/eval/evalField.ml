@@ -35,4 +35,37 @@ let rec proto_field_raise proto name =
 		| _ -> raise Not_found
 
 let instance_field vi name =
-	vi.ifields.(get_instan
+	vi.ifields.(get_instance_field_index_raise vi.iproto name)
+
+let object_field_raise o name = match o.oproto with
+	| OProto proto ->
+		o.ofields.(get_instance_field_index_raise proto name)
+	| ODictionary l ->
+		IntMap.find name l
+
+let object_field o name =
+	try object_field_raise o name with Not_found -> vnull
+
+let field_raise v f =
+	match vresolve v with
+	| VObject o -> object_field_raise o f
+	| VInstance {ikind = IBytes s} when f = key_length -> vint (Bytes.length s)
+	| VPrototype proto -> proto_field_raise proto f
+	| VArray va ->
+		if f = key_length then vint (va.alength)
+		else proto_field_direct (get_ctx()).array_prototype f
+	| VVector vv ->
+		if f = key_length then vint (Array.length vv)
+		else proto_field_direct (get_ctx()).vector_prototype f
+	| VString s ->
+		if f = key_length then vint (s.slength)
+		else proto_field_direct (get_ctx()).string_prototype f
+	| VInstance vi -> (try instance_field vi f with Not_found -> proto_field_raise vi.iproto f)
+	| _ -> raise Not_found
+
+let field v f =
+	try field_raise v f with Not_found -> no_field
+
+let dynamic_field v name = match field v name with
+	| VFunction(f,false) -> vfield_closure v f
+	| v -> v
