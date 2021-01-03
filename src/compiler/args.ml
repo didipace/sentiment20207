@@ -120,4 +120,64 @@ let parse_args com =
 			com.class_path <- Path.add_trailing_slash path :: com.class_path
 		),"<path>","add a directory to find source files");
 		("Compilation",["-m";"--main"],["-main"],Arg.String (fun cl ->
-			if com.main_class <> None then raise (Arg.Bad "M
+			if com.main_class <> None then raise (Arg.Bad "Multiple --main classes specified");
+			let cpath = Path.parse_type_path cl in
+			com.main_class <- Some cpath;
+			actx.classes <- cpath :: actx.classes
+		),"<class>","select startup class");
+		("Compilation",["-D";"--define"],[],Arg.String (fun var ->
+			let flag, value = try let split = ExtString.String.split var "=" in (fst split, Some (snd split)) with _ -> var, None in
+			match value with
+				| Some value -> Common.external_define_value com flag value
+				| None -> Common.external_define com flag;
+		),"<var[=value]>","define a conditional compilation flag");
+		("Debug",["-v";"--verbose"],[],Arg.Unit (fun () ->
+			com.verbose <- true
+		),"","turn on verbose mode");
+		("Debug",["--debug"],["-debug"], Arg.Unit (fun() ->
+			Common.define com Define.Debug;
+			com.debug <- true;
+		),"","add debug information to the compiled code");
+		("Miscellaneous",["--version"],["-version"],Arg.Unit (fun() ->
+			com.info s_version_full null_pos;
+			actx.did_something <- true;
+		),"","print version and exit");
+		("Miscellaneous", ["-h";"--help"], ["-help"], Arg.Unit (fun () ->
+			raise (Arg.Help "")
+		),"","show extended help information");
+		("Miscellaneous",["--help-defines"],[], Arg.Unit (fun() ->
+			let all,max_length = Define.get_documentation_list com.user_defines in
+			let all = List.map (fun (n,doc) -> Printf.sprintf " %-*s: %s" max_length n (limit_string doc (max_length + 3))) all in
+			List.iter (fun msg -> com.print (msg ^ "\n")) all;
+			actx.did_something <- true
+		),"","print help for all compiler specific defines");
+		("Miscellaneous",["--help-user-defines"],[], Arg.Unit (fun() ->
+			actx.did_something <- true;
+			com.callbacks#add_after_init_macros (fun() ->
+				let all,max_length = Define.get_user_documentation_list com.user_defines in
+				let all = List.map (fun (n,doc) -> Printf.sprintf " %-*s: %s" max_length n (limit_string doc (max_length + 3))) all in
+				List.iter (fun msg -> com.print (msg ^ "\n")) all;
+				exit 0
+			)
+		),"","print help for all user defines");
+		("Miscellaneous",["--help-metas"],[], Arg.Unit (fun() ->
+			let all,max_length = Meta.get_documentation_list com.user_metas in
+			let all = List.map (fun (n,doc) -> Printf.sprintf " %-*s: %s" max_length n (limit_string doc (max_length + 3))) all in
+			List.iter (fun msg -> com.print (msg ^ "\n")) all;
+			actx.did_something <- true
+		),"","print help for all compiler metadatas");
+		("Miscellaneous",["--help-user-metas"],[], Arg.Unit (fun() ->
+			actx.did_something <- true;
+			com.callbacks#add_after_init_macros (fun() ->
+				let all,max_length = Meta.get_user_documentation_list com.user_metas in
+				let all = List.map (fun (n,doc) -> Printf.sprintf " %-*s: %s" max_length n (limit_string doc (max_length + 3))) all in
+				List.iter (fun msg -> com.print (msg ^ "\n")) all;
+				exit 0
+			)
+		),"","print help for all user metadatas");
+	] in
+	let adv_args_spec = [
+		("Optimization",["--dce"],["-dce"],Arg.String (fun mode ->
+			(match mode with
+			| "std" | "full" | "no" -> ()
+			| _ -> raise (Arg.Bad "Invalid DCE mode, expected
