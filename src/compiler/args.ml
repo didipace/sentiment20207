@@ -65,4 +65,59 @@ let parse_args com =
 		actx.deprecations <- s :: actx.deprecations
 	in
 	let add_native_lib file extern = actx.native_libs <- (file,extern) :: actx.native_libs in
-	let 
+	let basic_args_spec = [
+		("Target",["--js"],["-js"],Arg.String (set_platform com Js),"<file>","generate JavaScript code into target file");
+		("Target",["--lua"],["-lua"],Arg.String (set_platform com Lua),"<file>","generate Lua code into target file");
+		("Target",["--swf"],["-swf"],Arg.String (set_platform com Flash),"<file>","generate Flash SWF bytecode into target file");
+		("Target",["--neko"],["-neko"],Arg.String (set_platform com Neko),"<file>","generate Neko bytecode into target file");
+		("Target",["--php"],["-php"],Arg.String (fun dir ->
+			actx.classes <- (["php"],"Boot") :: actx.classes;
+			set_platform com Php dir;
+		),"<directory>","generate PHP code into target directory");
+		("Target",["--cpp"],["-cpp"],Arg.String (fun dir ->
+			set_platform com Cpp dir;
+		),"<directory>","generate C++ code into target directory");
+		("Target",["--cppia"],["-cppia"],Arg.String (fun file ->
+			Common.define com Define.Cppia;
+			set_platform com Cpp file;
+		),"<file>","generate Cppia bytecode into target file");
+		("Target",["--cs"],["-cs"],Arg.String (fun dir ->
+			set_platform com Cs dir;
+		),"<directory>","generate C# code into target directory");
+		("Target",["--java"],["-java"],Arg.String (fun dir ->
+			set_platform com Java dir;
+		),"<directory>","generate Java code into target directory");
+		("Target",["--jvm"],[],Arg.String (fun dir ->
+			Common.define com Define.Jvm;
+			actx.jvm_flag <- true;
+			set_platform com Java dir;
+		),"<file>","generate JVM bytecode into target file");
+		("Target",["--python"],["-python"],Arg.String (fun dir ->
+			set_platform com Python dir;
+		),"<file>","generate Python code into target file");
+		("Target",["--hl"],["-hl"],Arg.String (fun file ->
+			set_platform com Hl file;
+		),"<file>","generate HashLink .hl bytecode or .c code into target file");
+		("Target",[],["-x"], Arg.String (fun cl ->
+			let cpath = Path.parse_type_path cl in
+			(match com.main_class with
+				| Some c -> if cpath <> c then raise (Arg.Bad "Multiple --main classes specified")
+				| None -> com.main_class <- Some cpath);
+			actx.classes <- cpath :: actx.classes;
+			Common.define com Define.Interp;
+			set_platform com (!Globals.macro_platform) "";
+			actx.interp <- true;
+		),"<class>","interpret the program using internal macro system");
+		("Target",["--interp"],[], Arg.Unit (fun() ->
+			Common.define com Define.Interp;
+			set_platform com (!Globals.macro_platform) "";
+			actx.interp <- true;
+		),"","interpret the program using internal macro system");
+		("Target",["--run"],[], Arg.Unit (fun() ->
+			raise (Arg.Bad "--run requires an argument: a Haxe module name")
+		), "<module> [args...]","interpret a Haxe module with command line arguments");
+		("Compilation",["-p";"--class-path"],["-cp"],Arg.String (fun path ->
+			com.class_path <- Path.add_trailing_slash path :: com.class_path
+		),"<path>","add a directory to find source files");
+		("Compilation",["-m";"--main"],["-main"],Arg.String (fun cl ->
+			if com.main_class <> None then raise (Arg.Bad "M
