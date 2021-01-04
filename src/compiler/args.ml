@@ -180,4 +180,63 @@ let parse_args com =
 		("Optimization",["--dce"],["-dce"],Arg.String (fun mode ->
 			(match mode with
 			| "std" | "full" | "no" -> ()
-			| _ -> raise (Arg.Bad "Invalid DCE mode, expected
+			| _ -> raise (Arg.Bad "Invalid DCE mode, expected std | full | no"));
+			Common.define_value com Define.Dce mode
+		),"[std|full|no]","set the dead code elimination mode (default std)");
+		("Target-specific",["--swf-version"],["-swf-version"],Arg.Float (fun v ->
+			if not actx.swf_version || com.flash_version < v then com.flash_version <- v;
+			actx.swf_version <- true;
+		),"<version>","change the SWF version");
+		("Target-specific",["--swf-header"],["-swf-header"],Arg.String (fun h ->
+			add_deprecation "-swf-header has been deprecated, use -D swf-header instead";
+			define_value com Define.SwfHeader h
+		),"<header>","define SWF header (width:height:fps:color)");
+		("Target-specific",["--flash-strict"],[],Arg.Unit (fun () ->
+			add_deprecation "--flash-strict has been deprecated, use -D flash-strict instead";
+			Common.define com Define.FlashStrict
+		), "","more type strict flash API");
+		("Target-specific",["--swf-lib"],["-swf-lib"],Arg.String (fun file ->
+			add_native_lib file false;
+		),"<file>","add the SWF library to the compiled SWF");
+		("Target-specific",["--neko-lib"],[],Arg.String (fun file ->
+			com.neko_libs <- file :: com.neko_libs
+		),"<file>","add the neko library");
+		("Target-specific",["--swf-lib-extern"],["-swf-lib-extern"],Arg.String (fun file ->
+			add_native_lib file true;
+		),"<file>","use the SWF library for type checking");
+		("Target-specific",["--java-lib"],["-java-lib"],Arg.String (fun file ->
+			add_native_lib file false;
+		),"<file>","add an external JAR or directory of JAR files");
+		("Target-specific",["--java-lib-extern"],[],Arg.String (fun file ->
+			add_native_lib file true;
+		),"<file>","use an external JAR or directory of JAR files for type checking");
+		("Target-specific",["--net-lib"],["-net-lib"],Arg.String (fun file ->
+			add_native_lib file false;
+		),"<file>[@std]","add an external .NET DLL file");
+		("Target-specific",["--net-std"],["-net-std"],Arg.String (fun file ->
+			Dotnet.add_net_std com file
+		),"<file>","add a root std .NET DLL search path");
+		("Target-specific",["--c-arg"],["-c-arg"],Arg.String (fun arg ->
+			com.c_args <- arg :: com.c_args
+		),"<arg>","pass option <arg> to the native Java/C# compiler");
+		("Compilation",["-r";"--resource"],["-resource"],Arg.String (fun res ->
+			let file, name = (match ExtString.String.nsplit res "@" with
+				| [file; name] -> file, name
+				| [file] -> file, file
+				| _ -> raise (Arg.Bad "Invalid Resource format, expected file@name")
+			) in
+			let file = (try Common.find_file com file with Not_found -> file) in
+			let data = (try
+				let s = Std.input_file ~bin:true file in
+				if String.length s > 12000000 then raise Exit;
+				s;
+			with
+				| Sys_error _ -> failwith ("Resource file not found: " ^ file)
+				| _ -> failwith ("Resource '" ^ file ^ "' excess the maximum size of 12MB")
+			) in
+			if Hashtbl.mem com.resources name then failwith ("Duplicate resource name " ^ name);
+			Hashtbl.add com.resources name data
+		),"<file>[@name]","add a named resource file");
+		("Debug",["--prompt"],["-prompt"], Arg.Unit (fun() -> Helper.prompt := true),"","prompt on error");
+		("Compilation",["--cmd"],["-cmd"], Arg.String (fun cmd ->
+			actx.cm
