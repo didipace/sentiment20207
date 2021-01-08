@@ -239,4 +239,55 @@ let parse_args com =
 		),"<file>[@name]","add a named resource file");
 		("Debug",["--prompt"],["-prompt"], Arg.Unit (fun() -> Helper.prompt := true),"","prompt on error");
 		("Compilation",["--cmd"],["-cmd"], Arg.String (fun cmd ->
-			actx.cm
+			actx.cmds <- Helper.unquote cmd :: actx.cmds
+		),"<command>","run the specified command after successful compilation");
+		("Optimization",["--no-traces"],[], Arg.Unit (fun () ->
+			add_deprecation "--no-traces has been deprecated, use -D no-traces instead";
+			Common.define com Define.NoTraces
+		), "","don't compile trace calls in the program");
+		("Batch",["--next"],[], Arg.Unit (fun() -> die "" __LOC__), "","separate several haxe compilations");
+		("Batch",["--each"],[], Arg.Unit (fun() -> die "" __LOC__), "","append preceding parameters to all Haxe compilations separated by --next");
+		("Services",["--display"],[], Arg.String (fun input ->
+			actx.display_arg <- Some input;
+		),"","display code tips");
+		("Services",["--xml"],["-xml"],Arg.String (fun file ->
+			actx.xml_out <- Some file
+		),"<file>","generate XML types description");
+		("Services",["--json"],[],Arg.String (fun file ->
+			actx.json_out <- Some file
+		),"<file>","generate JSON types description");
+		("Optimization",["--no-output"],[], Arg.Unit (fun() -> actx.no_output <- true),"","compiles but does not generate any file");
+		("Debug",["--times"],[], Arg.Unit (fun() -> Timer.measure_times := true),"","measure compilation times");
+		("Optimization",["--no-inline"],[],Arg.Unit (fun () ->
+			add_deprecation "--no-inline has been deprecated, use -D no-inline instead";
+			Common.define com Define.NoInline
+		), "","disable inlining");
+		("Optimization",["--no-opt"],[], Arg.Unit (fun() ->
+			com.foptimize <- false;
+			Common.define com Define.NoOpt;
+		), "","disable code optimizations");
+		("Compilation",["--remap"],[], Arg.String (fun s ->
+			let pack, target = (try ExtString.String.split s ":" with _ -> raise (Arg.Bad "Invalid remap format, expected source:target")) in
+			com.package_rules <- PMap.add pack (Remap target) com.package_rules;
+		),"<package:target>","remap a package to another one");
+		("Compilation",["--macro"],[], Arg.String (fun e ->
+			actx.force_typing <- true;
+			actx.config_macros <- e :: actx.config_macros
+		),"<macro>","call the given macro before typing anything else");
+		("Compilation Server",["--server-listen"],["--wait"], Arg.String (fun hp ->
+			die "" __LOC__
+		),"[[host:]port]|stdio]","wait on the given port (or use standard i/o) for commands to run");
+		("Compilation Server",["--server-connect"],[], Arg.String (fun hp ->
+			die "" __LOC__
+		),"[host:]port]","connect to the given port and wait for commands to run");
+		("Compilation Server",["--connect"],[],Arg.String (fun _ ->
+			die "" __LOC__
+		),"<[host:]port>","connect on the given port and run commands there");
+		("Compilation",["-C";"--cwd"],[], Arg.String (fun dir ->
+			(try Unix.chdir dir with _ -> raise (Arg.Bad ("Invalid directory: " ^ dir)));
+			actx.did_something <- true;
+		),"<directory>","set current working directory");
+		("Compilation",["--haxelib-global"],[], Arg.Unit (fun () -> ()),"","pass --global argument to haxelib");
+		("Compilation",["-w"],[], Arg.String (fun s ->
+			let p = { pfile = "-w " ^ s; pmin = 0; pmax = 0 } in
+			let l = Warning.parse_options s p i
