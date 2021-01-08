@@ -290,4 +290,80 @@ let parse_args com =
 		("Compilation",["--haxelib-global"],[], Arg.Unit (fun () -> ()),"","pass --global argument to haxelib");
 		("Compilation",["-w"],[], Arg.String (fun s ->
 			let p = { pfile = "-w " ^ s; pmin = 0; pmax = 0 } in
-			let l = Warning.parse_options s p i
+			let l = Warning.parse_options s p in
+			com.warning_options <- l :: com.warning_options
+		),"<warning list>","enable or disable specific warnings");
+	] in
+	let args_callback cl =
+		begin try
+			let path,name = Path.parse_path cl in
+			if StringHelper.starts_uppercase_identifier name then
+				actx.classes <- (path,name) :: actx.classes
+			else begin
+				actx.force_typing <- true;
+				actx.config_macros <- (Printf.sprintf "include('%s', true, null, null, true)" cl) :: actx.config_macros;
+			end
+		with Failure _ when ignore_error com ->
+			()
+		end
+	in
+	let all_args = (basic_args_spec @ adv_args_spec) in
+	let all_args_spec = process_args all_args in
+	let process args =
+		let current = ref 0 in
+		(try
+			let rec loop acc args = match args with
+				| "--display" :: arg :: args ->
+					loop (arg :: "--display" :: acc) args
+				| arg :: args ->
+					loop (Helper.expand_env arg :: acc) args
+				| [] ->
+					List.rev acc
+			in
+			let args = loop [] args in
+			Arg.parse_argv ~current (Array.of_list ("" :: args)) all_args_spec args_callback "";
+		with
+		| Arg.Help _ ->
+			raise (Helper.HelpMessage (usage_string all_args usage))
+		| Arg.Bad msg ->
+			let first_line = List.nth (Str.split (Str.regexp "\n") msg) 0 in
+			let new_msg = (Printf.sprintf "%s" first_line) in
+			let r = Str.regexp "unknown option [`']?\\([-A-Za-z]+\\)[`']?" in
+			try
+				ignore(Str.search_forward r msg 0);
+				let s = Str.matched_group 1 msg in
+				let sl = List.map (fun (s,_,_) -> s) all_args_spec in
+				let sl = StringError.get_similar s sl in
+				begin match sl with
+				| [] -> raise Not_found
+				| _ ->
+					let spec = List.filter (fun (_,sl',sl'',_,_,_) ->
+						List.exists (fun s -> List.mem s sl) (sl' @ sl'')
+					) all_args in
+					let new_msg = (Printf.sprintf "%s\nDid you mean:\n%s" first_line (usage_string ~print_cat:false spec "")) in
+					raise (Arg.Bad new_msg)
+				end;
+			with Not_found ->
+				raise (Arg.Bad new_msg));
+		if com.platform = Globals.Cpp && not (Define.defined com.defines DisableUnicodeStrings) && not (Define.defined com.defines HxcppSmartStings) then begin
+			Define.define com.defines HxcppSmartStings;
+		end;
+		if Define.raw_defined com.defines "gen_hx_classes" then begin
+			(* TODO: this is something we're gonna remove once we have something nicer for generating flash externs *)
+			actx.force_typing <- true;
+			actx.pre_compilation <- (fun() ->
+				let process_lib lib =
+					if not (lib#has_flag NativeLibraries.FlagIsStd) then
+						List.iter (fun path -> if path <> (["java";"lang"],"String") then actx.classes <- path :: actx.classes) lib#list_modules
+				in
+				List.iter process_lib com.native_libs.net_libs;
+				List.iter process_lib com.native_libs.swf_libs;
+				List.iter process_lib com.native_libs.java_libs;
+			) :: actx.pre_compilation;
+			actx.xml_out <- Some "hx"
+		end;
+	in
+	actx.raise_usage <- (fun () -> raise (Helper.HelpMessage (usage_string basic_args_spec usage)));
+	(* Handle CLI arguments *)
+	process com.args;
+	actx
