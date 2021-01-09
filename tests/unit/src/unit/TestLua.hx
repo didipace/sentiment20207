@@ -38,4 +38,25 @@ class TestLua extends Test {
 		var k = lua.NativeStringTools.find("foo bar", "foo");
 		eq(called,false);
 		called = true;
-		// make sure that multireturn is wrapped if return value
+		// make sure that multireturn is wrapped if return values not used
+		var l = lua.NativeStringTools.find("foo bar", "foo");
+		var m = l + '';
+		eq(called, true);
+		untyped _hx_box_mr = old_hx_box_mr;
+	}
+
+}
+
+@:multiReturn extern class Multi {
+	var a : Int;
+	var b : String;
+}
+
+class MultiCall {
+	public static function doit() : Dynamic {
+		return untyped __lua__("1,'hi'");	
+	}
+	public static function acceptMr(m:Multi){
+		return lua.Lua.type(m) == "table";
+	}
+}
