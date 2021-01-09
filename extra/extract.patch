@@ -1,0 +1,167 @@
+
+// types patches configuration for playerglobal.swc
+
+flash.display.DisplayObject.filters : Array<flash.filters.BitmapFilter>;
+
+-flash.accessibility.Accessibility.new
+@:require(flash10_1) flash.accessibility.ISearchableText
+@:require(flash10_1) flash.accessibility.ISimpleTextSelection
+
+@:require(flash10_1) flash.automation.ActionGenerator
+@:require(flash10_1) flash.automation.AutomationAction
+@:require(flash10_1) flash.automation.Configuration
+@:require(flash10_1) flash.automation.KeyboardAutomationAction
+@:require(flash10_1) flash.automation.MouseAutomationAction
+@:require(flash10_1) flash.automation.StageCapture
+@:require(flash10_1) flash.automation.StageCaptureEvent
+
+-flash.desktop.Clipboard.new
+flash.desktop.Clipboard.formats : Array<ClipboardFormats>;
+flash.desktop.Clipboard.$format : ClipboardFormats;
+flash.desktop.Clipboard.$transferMode : ClipboardTransferMode;
+
+enum flash.desktop.ClipboardFormats;
+enum flash.desktop.ClipboardTransferMode;
+
+enum flash.display.PixelSnapping;
+enum flash.display.BlendMode;
+
+@:require(flash10) flash.desktop.Clipboard
+@:require(flash10) flash.desktop.ClipboardFormats
+@:require(flash10) flash.desktop.ClipboardTransferMode
+
+flash.display.Bitmap.pixelSnapping : PixelSnapping;
+flash.display.Bitmap.$pixelSnapping : PixelSnapping;
+flash.display.BitmapData.$blendMode : BlendMode;
+flash.display.BitmapData.$redArray : Array<Int>;
+flash.display.BitmapData.$greenArray : Array<Int>;
+flash.display.BitmapData.$blueArray : Array<Int>;
+flash.display.BitmapData.$alphaArray : Array<Int>;
+flash.display.BitmapData.$offsets : Array<flash.geom.Point>;
+@:require(flash10) flash.display.BitmapData.setVector
+@:require(flash10) flash.display.BitmapData.getVector
+@:require(flash10) flash.display.BitmapData.histogram
+
+@:require(flash10_1) flash.display.Loader.uncaughtErrorEvents;
+@:require(flash10_1) flash.display.LoaderInfo.isURLInaccessible;
+@:require(flash10_1) flash.display.LoaderInfo.uncaughtErrorEvents;
+
+@:require(flash10_1) flash.display.ColorCorrection
+@:require(flash10_1) flash.display.ColorCorrectionSupport
+@:require(flash10_1) flash.display.FocusDirection
+@:require(flash10_1) flash.display.NativeMenu
+@:require(flash10_1) flash.display.NativeMenuItem
+
+@:require(flash10) flash.display.DisplayObject.blendShader
+@:require(flash10) flash.display.DisplayObject.rotationX
+@:require(flash10) flash.display.DisplayObject.rotationY
+@:require(flash10) flash.display.DisplayObject.rotationZ
+@:require(flash10) flash.display.DisplayObject.scaleZ
+@:require(flash10) flash.display.DisplayObject.z
+@:require(flash10) flash.display.DisplayObject.globalToLocal3D
+@:require(flash10) flash.display.DisplayObject.local3DToGlobal
+-flash.display.DisplayObject.new
+flash.display.DisplayObject.blendMode : BlendMode;
+flash.display.DisplayObject.opaqueBackground : Null<UInt>;
+flash.display.DisplayObjectContainer.getObjectsUnderPoint : Array<DisplayObject>;
+
+@:require(flash10_1) flash.display.Sprite.startTouchDrag;
+@:require(flash10_1) flash.display.Sprite.stopTouchDrag;
+
+@:require(flash10_1) flash.display.Stage.wmodeGPU;
+
+enum flash.display.GradientType;
+enum flash.display.CapsStyle;
+enum flash.display.JointStyle;
+enum flash.display.GraphicsPathWinding;
+enum flash.display.TriangleCulling;
+enum flash.display.InterpolationMethod;
+enum flash.display.LineScaleMode;
+enum flash.display.ShaderParameterType;
+enum flash.display.ShaderPrecision;
+enum flash.display.SpreadMethod;
+enum flash.display.StageAlign;
+enum flash.display.StageDisplayState;
+enum flash.display.StageQuality;
+enum flash.display.StageScaleMode;
+-flash.display.SWFVersion.new
+
+flash.display.Graphics.$type : GradientType;
+flash.display.Graphics.$colors : Array<UInt>;
+flash.display.Graphics.$spreadMethod : SpreadMethod;
+flash.display.Graphics.$interpolationMethod : InterpolationMethod;
+flash.display.Graphics.$scaleMode : LineScaleMode;
+flash.display.Graphics.$caps : CapsStyle;
+flash.display.Graphics.$joints : JointStyle;
+flash.display.Graphics.$winding : GraphicsPathWinding;
+flash.display.Graphics.$culling : TriangleCulling;
+@:require(flash10) flash.display.Graphics.beginShaderFill
+@:require(flash10) flash.display.Graphics.copyFrom
+@:require(flash10) flash.display.Graphics.drawGraphicsData
+@:require(flash10) flash.display.Graphics.drawPath
+@:require(flash10) flash.display.Graphics.drawTriangles
+@:require(flash10) flash.display.Graphics.lineBitmapStyle
+@:require(flash10) flash.display.Graphics.lineShaderStyle
+
+
+flash.display.GraphicsGradientFill.type : GradientType;
+flash.display.GraphicsGradientFill.colors : Array<UInt>;
+flash.display.GraphicsGradientFill.spreadMethod : SpreadMethod;
+flash.display.GraphicsGradientFill.interpolationMethod : InterpolationMethod;
+flash.display.GraphicsGradientFill.alphas : Array<Float>;
+flash.display.GraphicsGradientFill.ratios : Array<Float>;
+flash.display.GraphicsGradientFill.$type : GradientType;
+flash.display.GraphicsGradientFill.$colors : Array<UInt>;
+flash.display.GraphicsGradientFill.$spreadMethod : SpreadMethod;
+flash.display.GraphicsGradientFill.$interpolationMethod : InterpolationMethod;
+flash.display.GraphicsGradientFill.$alphas : Array<Float>;
+flash.display.GraphicsGradientFill.$ratios : Array<Float>;
+flash.display.GraphicsGradientFill.$matrix : flash.geom.Matrix;
+
+flash.display.GraphicsPath.winding : GraphicsPathWinding;
+flash.display.GraphicsPath.$winding : GraphicsPathWinding;
+
+flash.display.GraphicsStroke.scaleMode : LineScaleMode;
+flash.display.GraphicsStroke.caps : CapsStyle;
+flash.display.GraphicsStroke.joints : JointStyle;
+flash.display.GraphicsStroke.$scaleMode : LineScaleMode;
+flash.display.GraphicsStroke.$caps : CapsStyle;
+flash.display.GraphicsStroke.$joints : JointStyle;
+
+flash.display.GraphicsTrianglePath.culling : TriangleCulling;
+flash.display.GraphicsTrianglePath.$culling : TriangleCulling;
+
+
+@:require(flash10) flash.display.Loader.unloadAndStop
+
+enum flash.display.ActionScriptVersion;
+enum flash.display.ColorCorrection;
+enum flash.display.ColorCorrectionSupport;
+
+-flash.display.LoaderInfo.new
+flash.display.LoaderInfo.parameters : Dynamic<String>;
+flash.display.LoaderInfo.actionScriptVersion : ActionScriptVersion;
+
+-flash.display.MorphShape.new
+
+@:require(flash10) flash.display.MovieClip.currentFrameLabel
+flash.display.MovieClip.currentLabels : Array<FrameLabel>;
+flash.display.MovieClip.scenes : Array<Scene>;
+
+flash.display.Scene.labels : Array<FrameLabel>;
+flash.display.Scene.$labels : Array<FrameLabel>;
+
+@:require(flash10) flash.display.Shader;
+flash.display.Shader.precisionHint : ShaderPrecision;
+
+-flash.display.ShaderParameter.new
+flash.display.ShaderParameter.type : ShaderParameterType;
+
+-flash.display.Stage.new
+flash.display.Stage.align : StageAlign;
+flash.display.Stage.quality : StageQuality;
+flash.display.Stage.scaleMode : StageScaleMode;
+flash.display.Stage.colorCorrection : ColorCorrection;
+flash.display.Stage.colorCorrectionSupport : ColorCorrectionSupport;
+flash.display.Stage.displayState : StageDisplayState;
+flash.display.Stage.displayState : StageDisplayState;
