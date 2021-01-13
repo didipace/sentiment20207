@@ -114,4 +114,84 @@ let print_toplevel il =
 		| ITClassField({field = cf;scope = (CFSStatic | CFSConstructor)}) ->
 			if check_ident cf.cf_name then Buffer.add_string b (Printf.sprintf "<i k=\"static\" t=\"%s\"%s>%s</i>\n" (s_type cf.cf_type) (s_doc cf.cf_doc) cf.cf_name);
 		| ITEnumField ef ->
-			let ef = ef.efield 
+			let ef = ef.efield in
+			if check_ident ef.ef_name then Buffer.add_string b (Printf.sprintf "<i k=\"enum\" t=\"%s\"%s>%s</i>\n" (s_type ef.ef_type) (s_doc ef.ef_doc) ef.ef_name);
+		| ITEnumAbstractField(a,cf) ->
+			let cf = cf.field in
+			if check_ident cf.cf_name then Buffer.add_string b (Printf.sprintf "<i k=\"enumabstract\" t=\"%s\"%s>%s</i>\n" (s_type cf.cf_type) (s_doc cf.cf_doc) cf.cf_name);
+		| ITType(cm,_) ->
+			let path = CompletionItem.CompletionModuleType.get_path cm in
+			Buffer.add_string b (Printf.sprintf "<i k=\"type\" p=\"%s\"%s>%s</i>\n" (s_type_path path) ("") cm.name);
+		| ITPackage(path,_) ->
+			Buffer.add_string b (Printf.sprintf "<i k=\"package\">%s</i>\n" (snd path))
+		| ITLiteral s ->
+			Buffer.add_string b (Printf.sprintf "<i k=\"literal\">%s</i>\n" s)
+		| ITTimer(s,_) ->
+			Buffer.add_string b (Printf.sprintf "<i k=\"timer\">%s</i>\n" s)
+		| ITTypeParameter c ->
+			Buffer.add_string b (Printf.sprintf "<i k=\"type\" p=\"%s\"%s>%s</i>\n" (s_type_path c.cl_path) ("") (snd c.cl_path));
+		| ITMetadata _ | ITModule _ | ITKeyword _ | ITAnonymous _ | ITExpression _ | ITDefine _ ->
+			(* compat: don't add *)
+			()
+	) il;
+	Buffer.add_string b "</il>";
+	Buffer.contents b
+
+let print_type t p doc =
+	let b = Buffer.create 0 in
+	if p = null_pos then
+		Buffer.add_string b "<type"
+	else begin
+		let error_printer file line = Printf.sprintf "%s:%d:" (Path.get_full_path file) line in
+		let epos = Lexer.get_error_pos error_printer p in
+		Buffer.add_string b ("<type p=\"" ^ (htmlescape epos) ^ "\"")
+	end;
+	Buffer.add_string b (maybe_print_doc doc);
+	Buffer.add_string b ">\n";
+	Buffer.add_string b (htmlescape (s_type (print_context()) t));
+	Buffer.add_string b "\n</type>\n";
+	Buffer.contents b
+
+let print_signatures tl =
+	let b = Buffer.create 0 in
+	List.iter (fun (((args,ret),_),doc) ->
+		Buffer.add_string b "<type";
+		Option.may (fun d -> Buffer.add_string b (Printf.sprintf " d=\"%s\"" (htmlescape (gen_doc_text d)))) doc;
+		Buffer.add_string b ">\n";
+		Buffer.add_string b (htmlescape (s_type (print_context()) (TFun(args,ret))));
+		Buffer.add_string b "\n</type>\n";
+	) tl;
+	Buffer.contents b
+
+let print_positions pl =
+	let b = Buffer.create 0 in
+	let error_printer file line = Printf.sprintf "%s:%d:" (Path.get_real_path file) line in
+	Buffer.add_string b "<list>\n";
+	List.iter (fun p ->
+		let epos = Lexer.get_error_pos error_printer p in
+		Buffer.add_string b "<pos>";
+		Buffer.add_string b epos;
+		Buffer.add_string b "</pos>\n";
+	) pl;
+	Buffer.add_string b "</list>";
+	Buffer.contents b
+
+(* New JSON stuff *)
+
+open Json
+
+let print_signature tl display_arg =
+	let st = s_type (print_context()) in
+	let s_arg (n,o,t) = Printf.sprintf "%s%s:%s" (if o then "?" else "") n (st t) in
+	let s_fun args ret = Printf.sprintf "(%s):%s" (String.concat ", " (List.map s_arg args)) (st ret) in
+	let siginf = List.map (fun (((args,ret),_),doc) ->
+		let label = s_fun args ret in
+		let parameters =
+			List.map (fun arg ->
+					let label = s_arg arg in
+					JObject [
+						"label",JString label
+					]
+			) args
+		in
+		l
