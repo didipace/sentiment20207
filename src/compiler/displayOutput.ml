@@ -194,4 +194,114 @@ let print_signature tl display_arg =
 					]
 			) args
 		in
-		l
+		let js = [
+			"label",JString label;
+			"parameters",JArray parameters;
+		] in
+		JObject (match doc with None -> js | Some d -> ("documentation",JString (gen_doc_text d)) :: js)
+	) tl in
+	let jo = JObject [
+		"signatures",JArray siginf;
+		"activeParameter",JInt (arg_index tl 0 display_arg);
+		"activeSignature",JInt 0;
+	] in
+	string_of_json jo
+
+(* Mode processing *)
+
+let find_doc t =
+	let doc = match follow t with
+		| TAnon an ->
+			begin match !(an.a_status) with
+				| Statics c -> c.cl_doc
+				| EnumStatics en -> en.e_doc
+				| AbstractStatics a -> a.a_doc
+				| _ -> None
+			end
+		| _ ->
+			None
+	in
+	doc
+
+let handle_syntax_completion com kind subj =
+	let open Parser in
+	let l,kind = match kind with
+		| SCClassRelation ->
+			[Extends;Implements],CRTypeRelation
+		| SCInterfaceRelation ->
+			[Extends],CRTypeRelation
+		| SCComment ->
+			[],CRTypeRelation
+		| SCTypeDecl mode ->
+			let in_import_hx = Filename.basename subj.s_insert_pos.pfile = "import.hx" in
+			let l = if in_import_hx then [] else [Private;Extern;Class;Interface;Enum;Abstract;Typedef;Final] in
+			let l = match mode with
+				| TCBeforePackage -> Package :: Import :: Using :: l
+				| TCAfterImport -> Import :: Using :: l
+				| TCAfterType -> l
+			in
+			l,CRTypeDecl
+		| SCAfterTypeFlag flags ->
+			let l = [Class;Interface] in
+			let l = if List.mem DPrivate flags then l else Private :: l in
+			let l = if List.mem DExtern flags then l else Extern :: l in
+			let l = if List.mem DFinal flags then l else
+				Final :: Enum :: Abstract :: Typedef :: l
+			in
+			l,CRTypeDecl
+	in
+	match l with
+	| [] ->
+		()
+	| _ ->
+		let l = List.map make_ci_keyword l in
+		match com.Common.json_out with
+		| None ->
+			let b = Buffer.create 0 in
+			Buffer.add_string b "<il>\n";
+			List.iter (fun item -> match item.ci_kind with
+				| ITKeyword kwd -> Buffer.add_string b (Printf.sprintf "<i k=\"keyword\">%s</i>" (s_keyword kwd));
+				| _ -> die "" __LOC__
+			) l;
+			Buffer.add_string b "</il>";
+			let s = Buffer.contents b in
+			raise (Completion s)
+		| Some api ->
+			let ctx = Genjson.create_context ~jsonrpc:api.jsonrpc GMFull in
+			api.send_result(fields_to_json ctx l kind subj)
+
+let handle_display_exception_old ctx dex = match dex with
+	| DisplayPackage pack ->
+		DisplayPosition.display_position#reset;
+		raise (Completion (String.concat "." pack))
+	| DisplayFields r ->
+		DisplayPosition.display_position#reset;
+		let fields = if !Timer.measure_times then begin
+			Timer.close_times();
+			(List.map (fun (name,value) ->
+				CompletionItem.make_ci_timer ("@TIME " ^ name) value
+			) (get_timer_fields !Helper.start_time)) @ r.fitems
+		end else
+			r.fitems
+		in
+		let s = match r.fkind with
+			| CRToplevel _
+			| CRTypeHint
+			| CRExtends
+			| CRImplements
+			| CRStructExtension _
+			| CRImport
+			| CRUsing
+			| CRNew
+			| CRPattern _
+			| CRTypeRelation
+			| CRTypeDecl ->
+				print_toplevel fields
+			| CRField _
+			| CRStructureField
+			| CRMetadata
+			| CROverride ->
+				print_fields fields
+		in
+		raise (Completion s)
+	| DisplayHover ({hitem = {CompletionItem.ci_type = Some (t,_)}} as ho
