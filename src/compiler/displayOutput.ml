@@ -304,4 +304,81 @@ let handle_display_exception_old ctx dex = match dex with
 				print_fields fields
 		in
 		raise (Completion s)
-	| DisplayHover ({hitem = {CompletionItem.ci_type = Some (t,_)}} as ho
+	| DisplayHover ({hitem = {CompletionItem.ci_type = Some (t,_)}} as hover) ->
+		DisplayPosition.display_position#reset;
+		let doc = CompletionItem.get_documentation hover.hitem in
+		raise (Completion (print_type t hover.hpos doc))
+	| DisplaySignatures (signatures,_,display_arg,_) ->
+		DisplayPosition.display_position#reset;
+		if ctx.com.display.dms_kind = DMSignature then
+			raise (Completion (print_signature signatures display_arg))
+		else
+			raise (Completion (print_signatures signatures))
+	| DisplayPositions pl ->
+		DisplayPosition.display_position#reset;
+		raise (Completion (print_positions pl))
+	| ModuleSymbols s | Metadata s ->
+		DisplayPosition.display_position#reset;
+		raise (Completion s)
+	| DisplayHover _ | DisplayNoResult ->
+		raise (Completion "")
+
+let handle_display_exception_json ctx dex api =
+	match dex with
+	| DisplayHover _ | DisplayPositions _ | DisplayFields _ | DisplayPackage _  | DisplaySignatures _ ->
+		DisplayPosition.display_position#reset;
+		let ctx = DisplayJson.create_json_context api.jsonrpc (match dex with DisplayFields _ -> true | _ -> false) in
+		api.send_result (DisplayException.to_json ctx dex)
+	| DisplayNoResult ->
+		api.send_result JNull
+	| _ ->
+		handle_display_exception_old ctx dex
+
+let handle_display_exception ctx dex = match ctx.com.json_out with
+	| Some api ->
+		handle_display_exception_json ctx dex api
+	| None ->
+		handle_display_exception_old ctx dex
+
+let handle_type_path_exception ctx p c is_import pos =
+	let open DisplayTypes.CompletionResultKind in
+	let com = ctx.com in
+	let fields =
+		try begin match c with
+			| None ->
+				DisplayPath.TypePathHandler.complete_type_path com p
+			| Some (c,cur_package) ->
+				let ctx = Typer.create com in
+				DisplayPath.TypePathHandler.complete_type_path_inner ctx p c cur_package is_import
+		end with Common.Abort(msg,p) ->
+			error ctx msg p;
+			None
+	in
+	begin match ctx.com.json_out,fields with
+	| None,None ->
+		()
+	| None,Some fields ->
+		raise (Completion (print_fields fields))
+	| Some api,None when is_legacy_completion com ->
+		api.send_result JNull
+	| Some api,fields ->
+		let fields = Option.default [] fields in
+		let ctx = DisplayJson.create_json_context api.jsonrpc false in
+		let path = match List.rev p with
+			| name :: pack -> List.rev pack,name
+			| [] -> [],""
+		in
+		let kind = CRField ((CompletionItem.make_ci_module path,pos,None,None)) in
+		api.send_result (DisplayException.fields_to_json ctx fields kind (DisplayTypes.make_subject None pos));
+	end
+
+let emit_diagnostics com =
+	let dctx = Diagnostics.run com in
+	let s = Json.string_of_json (DiagnosticsPrinter.json_of_diagnostics com dctx) in
+	DisplayPosition.display_position#reset;
+	raise (Completion s)
+
+let emit_statistics tctx =
+	let stats = Statistics.collect_statistics tctx [SFFile (DisplayPosition.display_position#get).pfile] true in
+	let s = Statistics.Printer.print_statistics stats in
+	raise (Completion s)
