@@ -14,4 +14,7 @@ class Issue9183 extends DisplayTestCase {
 		}
 	**/
 	function test(_) {
-		runHax
+		runHaxeJson([], DisplayMethods.SignatureHelp, {file: file, offset: offset(1), wasAutoTriggered: false});
+		assertSuccess();
+	}
+}
