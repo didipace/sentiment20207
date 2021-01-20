@@ -37,4 +37,26 @@ extern class Global {
 	**/
 	var value:Any;
 
-	@:pure function new(des
+	@:pure function new(descriptor:GlobalDescriptor, value:Any):Void;
+
+	/**
+		Old-style method that returns the value contained inside the global variable.
+	 */
+	@:pure function valueOf():Any;
+}
+
+typedef GlobalDescriptor = {
+	var value:ValueType;
+
+	/**
+		By default, this is false.
+	 */
+	var ?mutable:Bool;
+}
+
+enum abstract ValueType(String) {
+	var I32 = "i32";
+	var I64 = "i64";
+	var F32 = "f32";
+	var F64 = "f64";
+}
