@@ -22,21 +22,20 @@
 
 package php;
 
-@:native('Exception')
-extern class Exception implements Throwable {
-	public function new(?message:String, ?code:Int, ?previous:Throwable):Void;
+/**
+	@see http://php.net/manual/en/class.errorexception.php
+**/
+@:native('ErrorException')
+extern class ErrorException implements Throwable {
+	function new(?message:String, ?code:Int, ?severety:Int, ?filename:String, ?lineno:Int, ?previous:Throwable):Void;
 
-	private var message:String;
-	private var code:Int;
-	private var file:String;
-	private var line:Int;
-
+	final function getSeverity():Int;
 	final function getPrevious():Throwable; // Returns previous Throwable
-	function getMessage():String; // message of the exception
-	function getCode():Int; // code of the exception
-	function getFile():String; // source filename
-	function getLine():Int; // source line
-	function getTrace():NativeIndexedArray<NativeAssocArray<Dynamic>>; // an array of the backtrace
-	function getTraceAsString():String; // formatted string of trace
+	final function getMessage():String; // message of the exception
+	final function getCode():Int; // code of the exception
+	final function getFile():String; // source filename
+	final function getLine():Int; // source line
+	final function getTrace():NativeIndexedArray<NativeAssocArray<Dynamic>>; // an array of the backtrace
+	final function getTraceAsString():String; // formatted string of trace
 	@:phpMagic function __toString():String; // formatted string for display
 }
