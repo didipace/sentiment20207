@@ -140,4 +140,12 @@ class TestFileSystem extends utest.Test {
 		}
 	}
 
-	static function no
+	static function normPath(p:String, properCase = false):String {
+		if (Sys.systemName() == "Windows") {
+			// on windows, haxe returns lowercase paths with backslashes, drive letter uppercased
+			p = p.substr(0, 1).toUpperCase() + p.substr(1);
+			p = p.replace("/", "\\");
+		}
+		return p;
+	}
+}
