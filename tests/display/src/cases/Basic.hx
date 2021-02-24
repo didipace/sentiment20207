@@ -86,4 +86,31 @@ class Basic extends DisplayTestCase {
 			static var x{-6-}6:String;
 		}
 	**/
-	function testFieldDisplay(
+	function testFieldDisplay() {
+		eq("String", type(pos(1)));
+		eq("String", type(pos(2)));
+		eq("String", type(pos(3)));
+		eq("String", type(pos(4)));
+		eq("String", type(pos(5)));
+		eq("String", type(pos(6)));
+	}
+
+	/**
+		var a:Ar{-1-}ray;
+	**/
+	@:funcCode function testMissingParams() {
+		eq("Array<Array.T>", type(pos(1)));
+	}
+
+	/**
+		class Some {
+			function new(someName:Int) {}
+			function main() {
+				Some.new{-1-}
+			}
+		}
+	**/
+	function testCtorClosureType() {
+		eq("(someName : Int) -> cases.Some", type(pos(1)));
+	}
+}
