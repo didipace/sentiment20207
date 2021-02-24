@@ -13,4 +13,79 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SH
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+package haxe.ds;
+
+import python.Dict;
+import python.Syntax;
+
+class IntMap<T> implements haxe.Constraints.IMap<Int, T> {
+	private var h:Dict<Int, T>;
+
+	public function new():Void {
+		h = new Dict();
+	}
+
+	public function set(key:Int, value:T):Void {
+		h.set(key, value);
+	}
+
+	public inline function get(key:Int):Null<T> {
+		return h.get(key, null);
+	}
+
+	public inline function exists(key:Int):Bool {
+		return h.hasKey(key);
+	}
+
+	public function remove(key:Int):Bool {
+		if (!h.hasKey(key))
+			return false;
+		Syntax.delete(Syntax.arrayAccess(h, key));
+		return true;
+	}
+
+	public function keys():Iterator<Int> {
+		return h.keys().iter();
+	}
+
+	public function iterator():Iterator<T> {
+		return h.values().iter();
+	}
+
+	@:runtime public inline function keyValueIterator():KeyValueIterator<Int, T> {
+		return new haxe.iterators.MapKeyValueIterator(this);
+	}
+
+	public function copy():IntMap<T> {
+		var copied = new IntMap();
+		for (key in keys())
+			copied.set(key, get(key));
+		return copied;
+	}
+
+	public function toString():String {
+		var s = new StringBuf();
+		s.add("{");
+		var it = keys();
+		for (i in it) {
+			s.add(i);
+			s.add(" => ");
+			s.add(Std.string(get(i)));
+			if (it.hasNext())
+				s.add(", ");
+		}
+		s.add("}");
+		return s.toString();
+	}
+
+	public inline function clear():Void {
+		h.clear();
+	}
+}
