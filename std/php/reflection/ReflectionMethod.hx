@@ -26,4 +26,31 @@ import haxe.Constraints;
 import haxe.extern.Rest;
 
 @:native('ReflectionMethod')
-extern class ReflectionMethod extends ReflectionFunctionAbstra
+extern class ReflectionMethod extends ReflectionFunctionAbstract {
+	@:phpClassConst static final IS_STATIC:Int;
+	@:phpClassConst static final IS_PUBLIC:Int;
+	@:phpClassConst static final IS_PROTECTED:Int;
+	@:phpClassConst static final IS_PRIVATE:Int;
+	@:phpClassConst static final IS_ABSTRACT:Int;
+	@:phpClassConst static final IS_FINAL:Int;
+
+	// var class : String;
+	static function export(className:String, name:String, ?returnValue:Bool):String;
+
+	function new(cls:Dynamic, name:String):Void;
+	function getClosure(object:{}):Function;
+	function getDeclaringClass():ReflectionClass;
+	function getModifiers():Int;
+	function getPrototype():ReflectionMethod;
+	function invoke(object:{}, args:Rest<Dynamic>):Dynamic;
+	function invokeArgs(object:{}, args:NativeIndexedArray<Dynamic>):Dynamic;
+	function isAbstract():Bool;
+	function isConstructor():Bool;
+	function isDestructor():Bool;
+	function isFinal():Bool;
+	function isPrivate():Bool;
+	function isProtected():Bool;
+	function isPublic():Bool;
+	function isStatic():Bool;
+	function setAccessible(accessible:Bool):Void;
+}
