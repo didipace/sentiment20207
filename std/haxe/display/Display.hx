@@ -41,4 +41,98 @@ class DisplayMethods {
 	/**
 		The request is sent from the client to Haxe to resolve additional information for a given completion item.
 	**/
-	static inline var CompletionItemResolve = new HaxeRequestMethod<CompletionItemResolveParams, Completion
+	static inline var CompletionItemResolve = new HaxeRequestMethod<CompletionItemResolveParams, CompletionItemResolveResult>("display/completionItem/resolve");
+
+	/**
+		The find references request is sent from the client to Haxe to find locations that reference the symbol at a given text document position.
+	**/
+	static inline var FindReferences = new HaxeRequestMethod<FindReferencesParams, GotoDefinitionResult>("display/references");
+
+	/**
+		The goto definition request is sent from the client to Haxe to resolve the definition location(s) of a symbol at a given text document position.
+	**/
+	static inline var GotoDefinition = new HaxeRequestMethod<PositionParams, GotoDefinitionResult>("display/definition");
+
+	/**
+		The goto implementation request is sent from the client to Haxe to resolve the implementation location(s) of a symbol at a given text document position.
+	**/
+	static inline var GotoImplementation = new HaxeRequestMethod<PositionParams, GotoDefinitionResult>("display/implementation");
+
+	/**
+		The goto type definition request is sent from the client to Haxe to resolve the type definition location(s) of a symbol at a given text document position.
+	**/
+	static inline var GotoTypeDefinition = new HaxeRequestMethod<PositionParams, GotoTypeDefinitionResult>("display/typeDefinition");
+
+	/**
+		The hover request is sent from the client to Haxe to request hover information at a given text document position.
+	**/
+	static inline var Hover = new HaxeRequestMethod<PositionParams, HoverResult>("display/hover");
+
+	/**
+		This request is sent from the client to Haxe to determine the package for a given file, based on class paths configuration.
+	**/
+	static inline var DeterminePackage = new HaxeRequestMethod<FileParams, DeterminePackageResult>("display/package");
+
+	/**
+		The signature help request is sent from the client to Haxe to request signature information at a given cursor position.
+	**/
+	static inline var SignatureHelp = new HaxeRequestMethod<SignatureHelpParams, SignatureHelpResult>("display/signatureHelp");
+
+	/*
+		TODO:
+
+		- finish completion
+		- diagnostics
+		- codeLens
+		- workspaceSymbols ("project/symbol"?)
+	 */
+}
+
+/** Completion **/
+typedef CompletionParams = PositionParams & {
+	var wasAutoTriggered:Bool;
+
+	/** list of metas to include in responses **/
+	var ?meta:Array<String>;
+}
+
+typedef FieldResolution = {
+	/**
+		Whether it's valid to use the unqualified name of the field or not.
+		This is `false` if the identifier is shadowed.
+	**/
+	var isQualified:Bool;
+
+	/**
+		The qualifier that has to be inserted to use the field if `!isQualified`.
+		Can either be `this` or `super` for instance fields for the type name for `static` fields.
+	**/
+	var qualifier:String;
+}
+
+typedef DisplayLocal<T> = {
+	var id:Int;
+	var name:String;
+	var type:JsonType<T>;
+	var origin:LocalOrigin;
+	var capture:Bool;
+	var ?extra:{
+		var params:Array<JsonTypeParameter>;
+		var expr:JsonExpr;
+	};
+	var meta:JsonMetadata;
+	var pos:JsonPos;
+	var isInline:Bool;
+	var isFinal:Bool;
+}
+
+enum abstract LocalOrigin(Int) {
+	var LocalVariable;
+	var Argument;
+	var ForVariable;
+	var PatternVariable;
+	var CatchVariable;
+	var LocalFunction;
+}
+
+enum abstract ClassFieldOriginKind<T>(I
