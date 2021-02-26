@@ -135,4 +135,143 @@ enum abstract LocalOrigin(Int) {
 	var LocalFunction;
 }
 
-enum abstract ClassFieldOriginKind<T>(I
+enum abstract ClassFieldOriginKind<T>(Int) {
+	/**
+		The field is declared on the current type itself.
+	**/
+	var Self:ClassFieldOriginKind<JsonModuleType<T>>;
+
+	/**
+		The field is a static field brought into context via a static import
+		(`import pack.Module.Type.field`).
+	**/
+	var StaticImport:ClassFieldOriginKind<JsonModuleType<T>>;
+
+	/**
+		The field is declared on a parent type, such as:
+		- a super class field that is not overriden
+		- a forwarded abstract field
+	**/
+	var Parent:ClassFieldOriginKind<JsonModuleType<T>>;
+
+	/**
+		The field is a static extension method brought
+		into context with the `using` keyword.
+	**/
+	var StaticExtension:ClassFieldOriginKind<JsonModuleType<T>>;
+
+	/**
+		This field doesn't belong to any named type, just an anonymous structure.
+	**/
+	var AnonymousStructure:ClassFieldOriginKind<JsonAnon>;
+
+	/**
+		Special fields built into the compiler, such as:
+		- `code` on single-character Strings
+		- `bind()` on functions.
+	**/
+	var BuiltIn:ClassFieldOriginKind<NoData>;
+
+	/**
+		The origin of this class field is unknown.
+	**/
+	var Unknown:ClassFieldOriginKind<NoData>;
+}
+
+typedef ClassFieldOrigin<T> = {
+	var kind:ClassFieldOriginKind<T>;
+	var ?args:T;
+}
+
+typedef ClassFieldOccurrence<T> = {
+	var field:JsonClassField;
+	var resolution:FieldResolution;
+	var ?origin:ClassFieldOrigin<T>;
+}
+
+enum abstract EnumFieldOriginKind<T>(Int) {
+	/**
+		The enum value is declared on the current type itself.
+	**/
+	var Self:EnumFieldOriginKind<JsonModuleType<T>>;
+
+	/**
+		The enum value is brought into context via a static import
+		(`import pack.Module.Enum.Value`).
+	**/
+	var StaticImport:EnumFieldOriginKind<JsonModuleType<T>>;
+}
+
+typedef EnumFieldOrigin<T> = {
+	var kind:EnumFieldOriginKind<T>;
+	var ?args:T;
+}
+
+typedef EnumFieldOccurrence<T> = {
+	var field:JsonEnumField;
+	var resolution:FieldResolution;
+	var ?origin:EnumFieldOrigin<T>;
+}
+
+enum abstract Literal(String) {
+	var Null = "null";
+	var True = "true";
+	var False = "false";
+	var This = "this";
+	var Trace = "trace";
+}
+
+enum abstract DisplayModuleTypeKind(Int) {
+	var Class;
+	var Interface;
+	var Enum;
+	var Abstract;
+	var EnumAbstract;
+
+	/** A `typedef` that is just an alias for another type. **/
+	var TypeAlias;
+
+	/** A `typedef` that is an alias for an anonymous structure. **/
+	var Struct;
+
+	/** A type name introduced by `import as` / `import in` **/
+	// var ImportAlias;
+}
+
+typedef DisplayModuleType = {
+	var path:JsonTypePath;
+	var pos:JsonPos;
+	var isPrivate:Bool;
+	var params:Array<DisplayModuleTypeParameter>;
+	var meta:JsonMetadata;
+	var doc:JsonDoc;
+	var isExtern:Bool;
+	var isFinal:Bool;
+	var isAbstract:Bool;
+	var kind:DisplayModuleTypeKind;
+}
+
+typedef DisplayModuleTypeParameter = {
+	var name:String;
+	var meta:JsonMetadata;
+	var constraints:Array<JsonType<Dynamic>>;
+}
+
+typedef DisplayLiteral<T> = {
+	var name:String;
+}
+
+enum abstract MetadataTarget(String) {
+	var Class = "TClass";
+	var ClassField = "TClassField";
+	var Abstract = "TAbstract";
+	var AbstractField = "TAbstractField";
+	var Enum = "TEnum";
+	var Typedef = "TTypedef";
+	var AnyField = "TAnyField";
+	var Expr = "TExpr";
+	var TypeParameter = "TTypeParameter";
+}
+
+enum abstract Platform(String) {
+	var Cro
