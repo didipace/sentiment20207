@@ -274,4 +274,132 @@ enum abstract MetadataTarget(String) {
 }
 
 enum abstract Platform(String) {
-	var Cro
+	var Cross = "cross";
+	var Js = "js";
+	var Lua = "lua";
+	var Neko = "neko";
+	var Flash = "flash";
+	var Php = "php";
+	var Cpp = "cpp";
+	var Cs = "cs";
+	var Java = "java";
+	var Python = "python";
+	var Hl = "hl";
+	var Eval = "eval";
+}
+
+typedef Metadata = {
+	var name:String;
+	var doc:JsonDoc;
+	var parameters:Array<String>;
+	var platforms:Array<Platform>;
+	var targets:Array<MetadataTarget>;
+	var internal:Bool;
+	var ?origin:String;
+	var ?links:Array<String>;
+}
+
+typedef Define = {
+	var name:String;
+	var value:Null<String>;
+	var doc:JsonDoc;
+	var parameters:Array<String>;
+	var platforms:Array<Platform>;
+	var links:Array<String>;
+}
+
+typedef Keyword = {
+	var name:KeywordKind;
+}
+
+enum abstract KeywordKind(String) to String {
+	var Implements = "implements";
+	var Extends = "extends";
+	var Function = "function";
+	var Var = "var";
+	var If = "if";
+	var Else = "else";
+	var While = "while";
+	var Do = "do";
+	var For = "for";
+	var Break = "break";
+	var Return = "return";
+	var Continue = "continue";
+	var Switch = "switch";
+	var Case = "case";
+	var Default = "default";
+	var Try = "try";
+	var Catch = "catch";
+	var New = "new";
+	var Throw = "throw";
+	var Untyped = "untyped";
+	var Cast = "cast";
+	var Macro = "macro";
+	var Package = "package";
+	var Import = "import";
+	var Using = "using";
+	var Public = "public";
+	var Private = "private";
+	var Static = "static";
+	var Extern = "extern";
+	var Dynamic = "dynamic";
+	var Override = "override";
+	var Overload = "overload";
+	var Class = "class";
+	var Interface = "interface";
+	var Enum = "enum";
+	var Abstract = "abstract";
+	var Typedef = "typedef";
+	var Final = "final";
+	var Inline = "inline";
+}
+
+/* enum abstract PackageContentKind(Int) {
+	var Module;
+	var Package;
+}*/
+typedef Package = {
+	var path:JsonPackagePath;
+	// var ?contents:Array<{name:String, kind:PackageContentKind}>;
+}
+
+typedef Module = {
+	var path:JsonModulePath;
+	// var ?contents:Array<ModuleType>;
+}
+
+enum abstract DisplayItemKind<T>(String) {
+	var Local:DisplayItemKind<DisplayLocal<Dynamic>>;
+	var ClassField:DisplayItemKind<ClassFieldOccurrence<Dynamic>>;
+	var EnumField:DisplayItemKind<EnumFieldOccurrence<Dynamic>>;
+
+	/** Only for the enum values in enum abstracts, other fields use `ClassField`. **/
+	var EnumAbstractField:DisplayItemKind<ClassFieldOccurrence<Dynamic>>;
+
+	var Type:DisplayItemKind<DisplayModuleType>;
+	var Package:DisplayItemKind<Package>;
+	var Module:DisplayItemKind<Module>;
+	var Literal:DisplayItemKind<DisplayLiteral<Dynamic>>;
+	var Metadata:DisplayItemKind<Metadata>;
+	var Keyword:DisplayItemKind<Keyword>;
+	var AnonymousStructure:DisplayItemKind<JsonAnon>;
+	var Expression:DisplayItemKind<JsonTExpr>;
+	var TypeParameter:DisplayItemKind<DisplayModuleTypeParameter>;
+	var Define:DisplayItemKind<Define>;
+}
+
+typedef DisplayItem<T> = {
+	var kind:DisplayItemKind<T>;
+	var args:T;
+	var ?type:JsonType<Dynamic>;
+	var ?index:Int;
+}
+
+typedef DisplayItemOccurrence<T> = {
+	var range:Range;
+	var item:DisplayItem<T>;
+	var ?moduleType:JsonModuleType<Dynamic>;
+	var ?moduleTypeFollowed:JsonModuleType<Dynamic>;
+}
+
+typedef FieldCompletionS
