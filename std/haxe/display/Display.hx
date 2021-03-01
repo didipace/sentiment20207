@@ -402,4 +402,138 @@ typedef DisplayItemOccurrence<T> = {
 	var ?moduleTypeFollowed:JsonModuleType<Dynamic>;
 }
 
-typedef FieldCompletionS
+typedef FieldCompletionSubject<T> = DisplayItemOccurrence<T> & {
+	var ?iterator:{
+		var type:JsonType<Dynamic>;
+	};
+	var ?keyValueIterator:{
+		var key:JsonType<Dynamic>;
+		var value:JsonType<Dynamic>;
+	};
+}
+
+typedef ToplevelCompletion<T> = {
+	var ?expectedType:JsonType<T>;
+	var ?expectedTypeFollowed:JsonType<T>;
+	var ?compatibleTypes:Array<JsonType<Dynamic>>;
+}
+
+typedef StructExtensionCompletion = {
+	var isIntersectionType:Bool;
+}
+
+typedef PatternCompletion<T> = ToplevelCompletion<T> & {
+	var isOutermostPattern:Bool;
+}
+
+enum abstract CompletionModeKind<T>(Int) {
+	var Field:CompletionModeKind<FieldCompletionSubject<Dynamic>>;
+	var StructureField;
+	var Toplevel:CompletionModeKind<ToplevelCompletion<Dynamic>>;
+	var Metadata;
+	var TypeHint;
+	var Extends;
+	var Implements;
+	var StructExtension:CompletionModeKind<StructExtensionCompletion>;
+	var Import;
+	var Using;
+	var New;
+	var Pattern:CompletionModeKind<PatternCompletion<Dynamic>>;
+	var Override;
+	var TypeRelation;
+	var TypeDeclaration;
+}
+
+typedef CompletionMode<T> = {
+	var kind:CompletionModeKind<T>;
+	var ?args:T;
+}
+
+typedef CompletionResponse<T1, T2> = {
+	var items:Array<DisplayItem<T1>>;
+	var mode:CompletionMode<T2>;
+	var ?replaceRange:Range;
+	var ?isIncomplete:Bool;
+	var ?filterString:String;
+}
+
+typedef CompletionResult = Response<Null<CompletionResponse<Dynamic, Dynamic>>>;
+
+/** CompletionItem Resolve **/
+typedef CompletionItemResolveParams = {
+	var index:Int;
+};
+
+typedef CompletionItemResolveResult = Response<{
+	var item:DisplayItem<Dynamic>;
+}>;
+
+/** FindReferences **/
+typedef FindReferencesParams = PositionParams & {
+	var ?kind:FindReferencesKind;
+}
+
+enum abstract FindReferencesKind(String) to String {
+	/**
+		Find only direct references to the requested symbol.
+		Does not look for references to parent or overriding methods.
+	**/
+	var Direct = "direct";
+
+	/**
+		Find references to the base field and all the overidding fields in the inheritance chain.
+	**/
+	var WithBaseAndDescendants = "withBaseAndDescendants";
+
+	/**
+		Find references to the requested field and references to all
+		descendants of the requested field.
+	**/
+	var WithDescendants = "withDescendants";
+}
+
+/** GotoDefinition **/
+typedef GotoDefinitionResult = Response<Array<Location>>;
+
+/** GotoTypeDefinition **/
+typedef GotoTypeDefinitionResult = Response<Array<Location>>;
+
+/** Hover **/
+typedef HoverResult = Response<Null<HoverDisplayItemOccurence<Dynamic>>>;
+
+typedef HoverDisplayItemOccurence<T> = DisplayItemOccurrence<T> & {
+	var ?expected:{
+		var ?type:JsonType<Dynamic>;
+		var ?name:{
+			var name:String;
+			var kind:HoverExpectedNameKind;
+			var ?doc:String;
+		};
+	};
+}
+
+enum abstract HoverExpectedNameKind(Int) {
+	var FunctionArgument;
+	var StructureField;
+}
+
+/** DeterminePackage **/
+typedef DeterminePackageResult = Response<Array<String>>;
+
+/** SignatureHelp **/
+typedef SignatureHelpParams = PositionParams & {
+	var wasAutoTriggered:Bool;
+}
+
+typedef SignatureInformation = JsonFunctionSignature & {
+	var ?documentation:String;
+}
+
+enum abstract SignatureItemKind(Int) {
+	var Call;
+	var ArrayAccess;
+}
+
+typedef SignatureItem = {
+	var signatures:Array<SignatureInformation>;
+	var activeS
