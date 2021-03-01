@@ -536,4 +536,17 @@ enum abstract SignatureItemKind(Int) {
 
 typedef SignatureItem = {
 	var signatures:Array<SignatureInformation>;
-	var activeS
+	var activeSignature:Int;
+	var activeParameter:Int;
+	var kind:SignatureItemKind;
+}
+
+typedef SignatureHelpResult = Response<Null<SignatureItem>>;
+
+/** General types **/
+typedef PositionParams = FileParams & {
+	/** Unicode character offset in the file. **/
+	var offset:Int;
+
+	var ?contents:String;
+}
