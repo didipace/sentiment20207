@@ -112,4 +112,7 @@ private extern class NativeException {
 	@:noCompletion @:skipReflection private final StackTrace:String;
 	@:noCompletion @:skipReflection private final TargetSite:cs.system.reflection.MethodBase;
 	@:overload @:noCompletion @:skipReflection private function GetBaseException():cs.system.Exception;
-	@:overload @:noCompletion @:skipReflection private function GetObjectData(i
+	@:overload @:noCompletion @:skipReflection private function GetObjectData(info:cs.system.runtime.serialization.SerializationInfo, context:cs.system.runtime.serialization.StreamingContext):Void;
+	@:overload @:noCompletion @:skipReflection private function GetType():cs.system.Type;
+	@:overload @:noCompletion @:skipReflection private function ToString():cs.system.String;
+}
