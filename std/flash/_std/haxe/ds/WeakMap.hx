@@ -95,4 +95,47 @@ private class NativePropertyIterator {
 	function new() {}
 
 	public inline function hasNext():Bool {
-		var c = collection
+		var c = collection;
+		var i = index;
+		var result = untyped __has_next__(c, i);
+		collection = c;
+		index = i;
+		return result;
+	}
+
+	public inline function next():Dynamic {
+		var i = index;
+		var result = untyped __forin__(collection, i);
+		index = i;
+		return result;
+	}
+}
+
+private class NativeValueIterator {
+	var collection:Dynamic;
+	var index:Int = 0;
+
+	public static inline function iterator(collection:Dynamic):NativeValueIterator {
+		var result = new NativeValueIterator();
+		result.collection = collection;
+		return result;
+	}
+
+	function new() {}
+
+	public inline function hasNext():Bool {
+		var c = collection;
+		var i = index;
+		var result = untyped __has_next__(c, i);
+		collection = c;
+		index = i;
+		return result;
+	}
+
+	public inline function next():Dynamic {
+		var i = index;
+		var result = untyped __foreach__(collection, i);
+		index = i;
+		return result;
+	}
+}
