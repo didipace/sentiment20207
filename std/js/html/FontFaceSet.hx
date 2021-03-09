@@ -56,4 +56,18 @@ extern class FontFaceSet extends EventTarget {
 	/**
 		Indicates the font-face's loading status. It will be one of `'loading'` or `'loaded'`.
 	**/
-	var status(default,null) : F
+	var status(default,null) : FontFaceSetLoadStatus;
+
+	/** @throws DOMError */
+	function add( font : FontFace ) : Void;
+	function has( font : FontFace ) : Bool;
+	function delete( font : FontFace ) : Bool;
+	function clear() : Void;
+	function entries() : FontFaceSetIterator;
+	function values() : FontFaceSetIterator;
+	/** @throws DOMError */
+	function forEach( cb : FontFace -> FontFace -> FontFaceSet -> Void, ?thisArg : Dynamic ) : Void;
+	function load( font : String, text : String = " " ) : Promise<Array<FontFace>>;
+	/** @throws DOMError */
+	function check( font : String, text : String = " " ) : Bool;
+}
