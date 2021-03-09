@@ -44,3 +44,14 @@ extern class ProgressElement extends Element {
 	**/
 	var max : Float;
 	
+	/**
+		Returns a `double` value returning the result of dividing the current value (`value`) by the maximum value (`max`); if the progress bar is an indeterminate progress bar, it returns `-1`.
+	**/
+	var position(default,null) : Float;
+	
+	/**
+		Returns `NodeList` containing the list of `label` elements that are labels for this element.
+	**/
+	var labels(default,null) : NodeList;
+	
+}
