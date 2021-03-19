@@ -20,4 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/
+// This file is generated from mozilla\Notification.webidl. Do not edit!
+
+package js.html;
+
+enum abstract NotificationPermission(String) {
+	var DEFAULT = "default";
+	var DENIED = "denied";
+	var GRANTED = "granted";
+}
