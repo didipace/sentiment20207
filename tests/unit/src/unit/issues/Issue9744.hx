@@ -76,4 +76,36 @@ class NadakoB {
 class Issue9744 extends unit.Test {
 	#if (cs && fast_cast && erase_generics)
 	#else
-	function testAbstractOverAbstrac
+	function testAbstractOverAbstractSelf() {
+		var ref = new Ref();
+		eq(1, ref.value = 1);
+		eq(1, ref.value);
+	}
+	#end
+
+	function testUnopProperties() {
+		var vcs = new Vcs(true);
+		t(vcs.available);
+		f(!vcs.available);
+		t(!(vcs.available = false));
+
+		var ivcs:IVcs = new Vcs(true);
+		t(ivcs.available);
+		f(!ivcs.available);
+		t(!(ivcs.available = false));
+	}
+
+	#if eval
+	function testExternProperty() {
+		var nva = new NativeVirtualArray();
+		eq(1, nva.length);
+	}
+	#end
+
+	function testUnopResolve() {
+		var doc = Xml.parse('<node attr="1"/>');
+		var access = new haxe.xml.Access(doc.firstElement());
+		f(!access.has.attr);
+		t(!access.has.attra);
+	}
+}
