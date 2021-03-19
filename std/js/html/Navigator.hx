@@ -100,4 +100,26 @@ extern class Navigator {
 	var appVersion(default,null) : String;
 	var platform(default,null) : String;
 	var userAgent(default,null) : String;
-	var product(default,null) : Str
+	var product(default,null) : String;
+	var language(default,null) : String;
+	var languages(default,null) : Array<String>;
+	var onLine(default,null) : Bool;
+	var storage(default,null) : StorageManager;
+
+	@:overload( function( duration : Int ) : Bool {} )
+	function vibrate( pattern : Array<Int> ) : Bool;
+	function javaEnabled() : Bool;
+	/** @throws DOMError */
+	function getGamepads() : Array<Gamepad>;
+	/** @throws DOMError */
+	function requestMIDIAccess( ?options : js.html.midi.MIDIOptions ) : Promise<js.html.midi.MIDIAccess>;
+	/** @throws DOMError */
+	@:overload( function( url : String, ?data : js.lib.ArrayBufferView) : Bool {} )
+	@:overload( function( url : String, ?data : js.lib.ArrayBuffer) : Bool {} )
+	@:overload( function( url : String, ?data : FormData) : Bool {} )
+	@:overload( function( url : String, ?data : URLSearchParams) : Bool {} )
+	@:overload( function( url : String, ?data : String) : Bool {} )
+	function sendBeacon( url : String, ?data : Blob ) : Bool;
+	function requestMediaKeySystemAccess( keySystem : String, supportedConfigurations : Array<js.html.eme.MediaKeySystemConfiguration> ) : Promise<js.html.eme.MediaKeySystemAccess>;
+	function taintEnabled() : Bool;
+}
