@@ -54,4 +54,33 @@ abstract MyAbstract(Int) {
 abstract MyInlineAbstract(Int) {
 	public inline function new(a):Void this = a;
 
-	public inli
+	public inline function foo():Array<String> {
+		return [
+			abstract + 2,
+			abstract(),
+			abstract.hi()
+		];
+	}
+
+	public function hi() return "hi";
+
+	public function arr() return [abstract];
+
+	@:op(a()) function call() return "call";
+
+	@:op(a + b) function plus(b) return 'plus $b';
+
+	public function value():Int return this;
+}
+
+abstract AbGeneric<T>(T) {
+	public function new(a:T):Void {
+		this = a;
+	}
+	public function foo() {
+		return abstract.bar();
+	}
+	public function bar() {
+		return this;
+	}
+}
