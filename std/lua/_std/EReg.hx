@@ -155,4 +155,60 @@ class EReg {
 			if (bytesOffset > len(s)) {
 				break;
 			} else if (!matchFromByte(s, bytesOffset)) {
-				buf.add(sub(s, bytesOffset).mat
+				buf.add(sub(s, bytesOffset).match);
+				break;
+			}
+			var pos = m[1];
+			var length = m[2] - m[1];
+			buf.add(sub(s, bytesOffset, pos - 1).match);
+			buf.add(f(this));
+			if (length < 0) {
+				var charBytes = len(sub(s, pos).match.charAt(0));
+				buf.add(sub(s, pos, pos + charBytes - 1).match);
+				bytesOffset = pos + charBytes;
+			} else {
+				bytesOffset = m[2] + 1;
+			}
+		} while (global);
+		if (!global && bytesOffset > 1 && bytesOffset - 1 < len(s))
+			buf.add(sub(s, bytesOffset).match);
+		return buf.toString();
+	}
+
+	function map_old(s:String, f:EReg->String):String {
+		var offset = 0;
+		var buf = new StringBuf();
+		do {
+			if (offset >= s.length) {
+				break;
+			} else if (!matchSub(s, offset)) {
+				buf.add(s.substr(offset));
+				break;
+			}
+			var p = matchedPos();
+
+			buf.add(s.substr(offset, p.pos - offset));
+			buf.add(f(this));
+			if (p.len == 0) {
+				buf.add(s.substr(p.pos, 1));
+				offset = p.pos + 1;
+			} else
+				offset = p.pos + p.len;
+		} while (global);
+		if (!global && offset > 0 && offset < s.length)
+			buf.add(s.substr(offset));
+		return buf.toString();
+	}
+
+	public static function escape(s:String):String {
+		return escapeRegExpRe.map(s, function(r) return "\\" + r.matched(0));
+	}
+
+	static var escapeRegExpRe = ~/[\[\]{}()*+?.\\\^$|]/g;
+
+	static function __init__():Void {
+		if (Rex == null) {
+			throw "Rex is missing.  Please install lrexlib-pcre.";
+		}
+	}
+}
