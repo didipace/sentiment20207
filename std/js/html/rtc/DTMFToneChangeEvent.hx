@@ -29,4 +29,16 @@ package js.html.rtc;
 
 	Documentation [RTCDTMFToneChangeEvent](https://developer.mozilla.org/en-US/docs/Web/API/RTCDTMFToneChangeEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/RTCDTMFToneChangeEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <h
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/RTCDTMFToneChangeEvent>
+**/
+@:native("RTCDTMFToneChangeEvent")
+extern class DTMFToneChangeEvent extends js.html.Event {
+	
+	/**
+		A `DOMString` specifying the tone which has begun playing, or an empty string (`""`) if the previous tone has finished playing.
+	**/
+	var tone(default,null) : String;
+	
+	/** @throws DOMError */
+	function new( type : String, ?eventInitDict : DTMFToneChangeEventInit ) : Void;
+}
