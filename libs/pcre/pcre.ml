@@ -207,4 +207,98 @@ external size : regexp -> int = "pcre_size_stub"
 external studysize : regexp -> int = "pcre_studysize_stub"
 external capturecount : regexp -> int = "pcre_capturecount_stub"
 external backrefmax : regexp -> int = "pcre_backrefmax_stub"
-ext
+external namecount : regexp -> int = "pcre_namecount_stub"
+external names : regexp -> string array = "pcre_names_stub"
+external nameentrysize : regexp -> int = "pcre_nameentrysize_stub"
+external firstbyte : regexp -> firstbyte_info = "pcre_firstbyte_stub"
+external firsttable : regexp -> string option = "pcre_firsttable_stub"
+external lastliteral : regexp -> char option = "pcre_lastliteral_stub"
+external study_stat : regexp -> study_stat = "pcre_study_stat_stub" [@@noalloc]
+
+
+(* Compilation of patterns *)
+
+type chtables
+
+external maketables : unit -> chtables = "pcre_maketables_stub"
+
+(*  Internal use only! *)
+external pcre_study : regexp -> unit = "pcre_study_stub"
+
+external compile :
+  icflag -> chtables option -> string -> regexp = "pcre_compile_stub"
+
+external get_match_limit : regexp -> int option = "pcre_get_match_limit_stub"
+
+(* Internal use only! *)
+external set_imp_match_limit :
+  regexp -> int -> regexp = "pcre_set_imp_match_limit_stub" [@@noalloc]
+
+external get_match_limit_recursion :
+  regexp -> int option = "pcre_get_match_limit_recursion_stub"
+
+(* Internal use only! *)
+external set_imp_match_limit_recursion :
+  regexp -> int -> regexp = "pcre_set_imp_match_limit_recursion_stub" [@@noalloc]
+
+let regexp
+      ?(study = true) ?limit ?limit_recursion
+      ?(iflags = 0) ?flags ?chtables pat =
+  let rex =
+    match flags with
+    | Some flag_list -> compile (cflags flag_list) chtables pat
+    | _ -> compile iflags chtables pat
+  in
+  if study then pcre_study rex;
+  let rex =
+    match limit with
+    | None -> rex
+    | Some lim -> set_imp_match_limit rex lim
+  in
+  match limit_recursion with
+  | None -> rex
+  | Some lim -> set_imp_match_limit_recursion rex lim
+
+let regexp_or
+      ?study ?limit ?limit_recursion ?(iflags = 0) ?flags ?chtables pats =
+  let check pat =
+    try ignore (regexp ~study:false ~iflags ?flags ?chtables pat)
+    with Error error -> raise (Regexp_or (pat, error))
+  in
+  List.iter check pats;
+  let big_pat =
+    let cnv pat = "(?:" ^ pat ^ ")" in
+    String.concat "|" (List.rev (List.rev_map cnv pats))
+  in
+  regexp ?study ?limit ?limit_recursion ~iflags ?flags ?chtables big_pat
+
+let bytes_unsafe_blit_string str str_ofs bts bts_ofs len =
+  let str_bts = Bytes.unsafe_of_string str in
+  Bytes.unsafe_blit str_bts str_ofs bts bts_ofs len
+
+let string_unsafe_sub str ofs len =
+  let res = Bytes.create len in
+  bytes_unsafe_blit_string str ofs res 0 len;
+  Bytes.unsafe_to_string res
+
+let quote s =
+  let len = String.length s in
+  let buf = Bytes.create (len lsl 1) in
+  let pos = ref 0 in
+  for i = 0 to len - 1 do
+    match String.unsafe_get s i with
+    | '\\' | '^' | '$' | '.' | '[' | '|'
+    | '('  | ')' | '?' | '*' | '+' | '{' as c ->
+      Bytes.unsafe_set buf !pos '\\';
+      incr pos;
+      Bytes.unsafe_set buf !pos c;
+      incr pos
+    | c -> Bytes.unsafe_set buf !pos c; incr pos
+  done;
+  string_unsafe_sub (Bytes.unsafe_to_string buf) 0 !pos
+
+
+(* Matching of patterns and subpattern extraction *)
+
+(* Default regular expression when none is provided by the user *)
+let def_rex = regexp 
