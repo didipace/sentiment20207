@@ -62,4 +62,11 @@ extern class Gamepad {
 	/**
 		An array representing the controls with axes present on the device (e.g. analog thumb sticks).
 	**/
-	var 
+	var axes(default,null) : Array<Float>;
+	
+	/**
+		A `DOMHighResTimeStamp` representing the last time the data for this gamepad was updated.
+	**/
+	var timestamp(default,null) : Float;
+	
+}
