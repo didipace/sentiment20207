@@ -470,4 +470,85 @@ type subst =
   | LastParenMatch           (* The last matched group *)
 
 (* Information on substitution patterns *)
-type substitution = string     (* The s
+type substitution = string     (* The substitution string *)
+                  * int        (* Highest group number of backreferences *)
+                  * bool       (* Makes use of "LastParenMatch" *)
+                  * subst list (* The list of substitution elements *)
+
+(* Only used internally in "subst" *)
+exception FoundAt of int
+
+let zero = Char.code '0'
+
+let subst str =
+  let max_br = ref 0 in
+  let with_lp = ref false in
+  let lix = String.length str - 1 in
+  let rec loop acc n =
+    if lix < n then acc
+    else
+      try
+        for i = n to lix do
+          if String.unsafe_get str i = '$' then raise (FoundAt i)
+        done;
+        SubstString (n, lix - n + 1) :: acc
+      with FoundAt i ->
+        if i = lix then SubstString (n, lix - n + 1) :: acc
+        else
+          let i1 = i + 1 in
+          let acc = if n = i then acc else SubstString (n, i - n) :: acc in
+          match String.unsafe_get str i1 with
+          | '0'..'9' as c ->
+              let subpat_nr = ref (Char.code c - zero) in
+              (try
+                for j = i1 + 1 to lix do
+                  let c = String.unsafe_get str j in
+                  if c >= '0' && c <= '9' then
+                    subpat_nr := 10 * !subpat_nr + Char.code c - zero
+                  else raise (FoundAt j)
+                done;
+                max_br := max !subpat_nr !max_br;
+                Backref !subpat_nr :: acc
+              with FoundAt j ->
+                max_br := max !subpat_nr !max_br;
+                loop (Backref !subpat_nr :: acc) j)
+          | '!'  -> loop acc (i1 + 1)
+          | '$'  -> loop (SubstString (i1, 1) :: acc) (i1 + 1)
+          | '&'  -> loop (Match :: acc) (i1 + 1)
+          | '`'  -> loop (PreMatch :: acc) (i1 + 1)
+          | '\'' -> loop (PostMatch :: acc) (i1 + 1)
+          | '+'  ->
+              with_lp := true;
+              loop (LastParenMatch :: acc) (i1 + 1)
+          | _    -> loop acc i1 in
+  let subst_lst = loop [] 0 in
+  str, !max_br, !with_lp, subst_lst
+
+let def_subst = subst ""
+
+(* Calculates a list of tuples (str, offset, len) which contain
+   substrings to be copied on substitutions. Internal use only! *)
+let calc_trans_lst subgroups2 ovector subj templ subst_lst =
+  let prefix_len = Array.unsafe_get ovector 0 in
+  let last = Array.unsafe_get ovector 1 in
+  let coll (res_len, trans_lst as accu) =
+    let return_lst (_str, _ix, len as el) =
+      if len = 0 then accu else res_len + len, el :: trans_lst in
+    function
+    | SubstString (ix, len) -> return_lst (templ, ix, len)
+    | Backref 0 ->
+        let prog_name = Sys.argv.(0) in
+        return_lst (prog_name, 0, String.length prog_name)
+    | Backref n ->
+        let offset = n lsl 1 in
+        let start = Array.unsafe_get ovector offset in
+        let len = Array.unsafe_get ovector (offset + 1) - start in
+        return_lst (subj, start, len)
+    | Match -> return_lst (subj, prefix_len, last - prefix_len)
+    | PreMatch -> return_lst (subj, 0, prefix_len)
+    | PostMatch -> return_lst (subj, last, String.length subj - last)
+    | LastParenMatch ->
+        let subgroups2_2 = subgroups2 - 2 in
+        let pos = ref subgroups2_2 in
+        let ix = ref (Array.unsafe_get ovector subgroups2_2) in
+        whi
