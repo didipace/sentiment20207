@@ -301,4 +301,101 @@ let quote s =
 (* Matching of patterns and subpattern extraction *)
 
 (* Default regular expression when none is provided by the user *)
-let def_rex = regexp 
+let def_rex = regexp "\\s+"
+
+type substrings = string * int array
+
+type callout_data =
+  {
+    callout_number : int;
+    substrings : substrings;
+    start_match : int;
+    current_position : int;
+    capture_top : int;
+    capture_last : int;
+    pattern_position : int;
+    next_item_length : int;
+  }
+
+type callout = callout_data -> unit
+
+let get_subject (subj, _) = subj
+
+let num_of_subs (_, ovector) = Array.length ovector / 3
+
+let get_offset_start ovector str_num =
+  if str_num < 0 || str_num >= Array.length ovector / 3 then
+    invalid_arg "Pcre.get_offset_start: illegal offset";
+  let offset = str_num lsl 1 in
+  offset, Array.unsafe_get ovector offset
+
+let get_substring_aux (subj, ovector) offset start =
+  if start < 0 then raise Not_found
+  else
+    string_unsafe_sub subj start (Array.unsafe_get ovector (offset + 1) - start)
+
+let get_substring (_, ovector as substrings) str_num =
+  let offset, start = get_offset_start ovector str_num in
+  get_substring_aux substrings offset start
+
+let get_substring_ofs (_subj, ovector) str_num =
+  let offset, start = get_offset_start ovector str_num in
+  if start < 0 then raise Not_found
+  else start, Array.unsafe_get ovector (offset + 1)
+
+let unsafe_get_substring (_, ovector as substrings) str_num =
+  let offset = str_num lsl 1 in
+  try get_substring_aux substrings offset (Array.unsafe_get ovector offset)
+  with Not_found -> ""
+
+let get_substrings ?(full_match = true) (_, ovector as substrings) =
+  if full_match then
+    Array.init (Array.length ovector / 3) (unsafe_get_substring substrings)
+  else
+    let len = (Array.length ovector / 3) - 1 in
+    Array.init len (fun n -> unsafe_get_substring substrings (n + 1))
+
+let unsafe_get_opt_substring (_, ovector as substrings) str_num =
+  let offset = str_num lsl 1 in
+  try
+    let start = Array.unsafe_get ovector offset in
+    let str = get_substring_aux substrings offset start in
+    Some str
+  with Not_found -> None
+
+let get_opt_substrings ?(full_match = true) (_, ovector as substrings) =
+  if full_match then
+    Array.init (Array.length ovector / 3) (unsafe_get_opt_substring substrings)
+  else
+    let len = (Array.length ovector / 3) - 1 in
+    Array.init len (fun n -> unsafe_get_opt_substring substrings (n + 1))
+
+external get_stringnumber :
+  regexp -> string -> int = "pcre_get_stringnumber_stub"
+
+let get_named_substring rex name substrings =
+  get_substring substrings (get_stringnumber rex name)
+
+let get_named_substring_ofs rex name substrings =
+  get_substring_ofs substrings (get_stringnumber rex name)
+
+external unsafe_pcre_exec :
+  irflag ->
+  regexp ->
+  pos : int ->
+  subj_start : int ->
+  subj : string ->
+  int array ->
+  callout option ->
+  unit = "pcre_exec_stub_bc" "pcre_exec_stub"
+
+let make_ovector rex =
+  let subgroups1 = capturecount rex + 1 in
+  let subgroups2 = subgroups1 lsl 1 in
+  subgroups2, Array.make (subgroups1 + subgroups2) 0
+
+let pcre_exec ?(iflags = 0) ?flags ?(rex = def_rex) ?pat ?(pos = 0)
+              ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let _, ovector = make_ovector rex i
