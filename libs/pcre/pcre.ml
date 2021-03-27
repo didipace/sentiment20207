@@ -551,4 +551,77 @@ let calc_trans_lst subgroups2 ovector subj templ subst_lst =
         let subgroups2_2 = subgroups2 - 2 in
         let pos = ref subgroups2_2 in
         let ix = ref (Array.unsafe_get ovector subgroups2_2) in
-        whi
+        while !ix < 0 do
+          let pos_2 = !pos - 2 in
+          pos := pos_2;
+          ix := Array.unsafe_get ovector pos_2
+        done;
+        return_lst (subj, !ix, Array.unsafe_get ovector (!pos + 1) - !ix) in
+  List.fold_left coll (0, []) subst_lst
+
+let replace ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+            ?(pos = 0) ?(itempl = def_subst) ?templ ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let templ, max_br, with_lp, subst_lst =
+    match templ with
+    | Some str -> subst str
+    | _ -> itempl in
+  let subj_len = String.length subj in
+  if pos < 0 || pos > subj_len then invalid_arg "Pcre.replace: illegal offset";
+  let subgroups2, ovector = make_ovector rex in
+  let nsubs = (subgroups2 lsr 1) - 1 in
+  if max_br > nsubs then
+    failwith "Pcre.replace: backreference denotes nonexistent subpattern";
+  if with_lp && nsubs = 0 then failwith "Pcre.replace: no backreferences";
+  let rec loop full_len trans_lsts cur_pos =
+    if
+      cur_pos > subj_len ||
+      try
+        unsafe_pcre_exec
+          iflags rex ~pos:cur_pos ~subj_start:0 ~subj
+          ovector callout;
+        false
+      with Not_found -> true
+    then
+      let postfix_len = max (subj_len - cur_pos) 0 in
+      let left = pos + full_len in
+      let res = Bytes.create (left + postfix_len) in
+      bytes_unsafe_blit_string subj 0 res 0 pos;
+      bytes_unsafe_blit_string subj cur_pos res left postfix_len;
+      let inner_coll ofs (templ, ix, len) =
+        bytes_unsafe_blit_string templ ix res ofs len; ofs + len in
+      let coll ofs (res_len, trans_lst) =
+        let new_ofs = ofs - res_len in
+        let _ = List.fold_left inner_coll new_ofs trans_lst in
+        new_ofs in
+      let _ = List.fold_left coll left trans_lsts in
+      Bytes.unsafe_to_string res
+    else
+      let first = Array.unsafe_get ovector 0 in
+      let len = first - cur_pos in
+      let res_len, _ as trans_lst_el =
+        calc_trans_lst subgroups2 ovector subj templ subst_lst in
+      let trans_lsts =
+        if len > 0 then
+          trans_lst_el :: (len, [(subj, cur_pos, len)]) :: trans_lsts
+        else trans_lst_el :: trans_lsts in
+      let full_len = full_len + len + res_len in
+      let next = first + 1 in
+      let last = Array.unsafe_get ovector 1 in
+      if last < next then
+        if first < subj_len then
+          let new_trans_lsts = (1, [(subj, cur_pos + len, 1)]) :: trans_lsts in
+          loop (full_len + 1) new_trans_lsts next
+        else loop full_len trans_lsts next
+      else loop full_len trans_lsts last in
+  loop 0 [] pos
+
+let qreplace ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+             ?(pos = 0) ?(templ = "") ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let subj_len = String.length subj in
+  if pos < 0 || pos > subj_len then invalid_arg "Pcre.qreplace: illegal offset";
+  let templ_len = String.length templ in
+  let _, o
