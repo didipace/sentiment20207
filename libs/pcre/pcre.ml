@@ -398,4 +398,76 @@ let pcre_exec ?(iflags = 0) ?flags ?(rex = def_rex) ?pat ?(pos = 0)
               ?callout subj =
   let rex = match pat with Some str -> regexp str | _ -> rex in
   let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
-  let _, ovector = make_ovector rex i
+  let _, ovector = make_ovector rex in
+  unsafe_pcre_exec iflags rex ~pos ~subj_start:0 ~subj ovector callout;
+  ovector
+
+let exec ?iflags ?flags ?rex ?pat ?pos ?callout subj =
+  subj, pcre_exec ?iflags ?flags ?rex ?pat ?pos ?callout subj
+
+let next_match ?iflags ?flags ?rex ?pat ?(pos = 0) ?callout (subj, ovector) =
+  let pos = Array.unsafe_get ovector 1 + pos in
+  let subj_len = String.length subj in
+  if pos < 0 || pos > subj_len then
+    invalid_arg "Pcre.next_match: illegal offset";
+  subj, pcre_exec ?iflags ?flags ?rex ?pat ~pos ?callout subj
+
+let rec copy_lst ar n = function
+  | [] -> ar
+  | h :: t -> Array.unsafe_set ar n h; copy_lst ar (n - 1) t
+
+let exec_all ?(iflags = 0) ?flags ?(rex = def_rex) ?pat ?pos ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let (_, ovector as sstrs) = exec ~iflags ~rex ?pos ?callout subj in
+  let null_flags = iflags lor 0x0400 in
+  let subj_len = String.length subj in
+  let rec loop pos (subj, ovector as sstrs) n lst =
+    let maybe_ovector =
+      try
+        let first = Array.unsafe_get ovector 0 in
+        if first = pos && Array.unsafe_get ovector 1 = pos then
+          if pos = subj_len then None
+          else Some (pcre_exec ~iflags:null_flags ~rex ~pos ?callout subj)
+        else Some (pcre_exec ~iflags ~rex ~pos ?callout subj)
+      with Not_found -> None in
+    match maybe_ovector with
+    | Some ovector ->
+        let new_pos = Array.unsafe_get ovector 1 in
+        loop new_pos (subj, ovector) (n + 1) (sstrs :: lst)
+    | None -> copy_lst (Array.make (n + 1) sstrs) (n - 1) lst in
+  loop (Array.unsafe_get ovector 1) sstrs 0 []
+
+let extract ?iflags ?flags ?rex ?pat ?pos ?full_match ?callout subj =
+  get_substrings ?full_match (exec ?iflags ?flags ?rex ?pat ?pos ?callout subj)
+
+let extract_opt ?iflags ?flags ?rex ?pat ?pos ?full_match ?callout subj =
+  get_opt_substrings
+    ?full_match (exec ?iflags ?flags ?rex ?pat ?pos ?callout subj)
+
+let extract_all ?iflags ?flags ?rex ?pat ?pos ?full_match ?callout subj =
+  let many_sstrs = exec_all ?iflags ?flags ?rex ?pat ?pos ?callout subj in
+  Array.map (get_substrings ?full_match) many_sstrs
+
+let extract_all_opt ?iflags ?flags ?rex ?pat ?pos ?full_match ?callout subj =
+  let many_sstrs = exec_all ?iflags ?flags ?rex ?pat ?pos ?callout subj in
+  Array.map (get_opt_substrings ?full_match) many_sstrs
+
+let pmatch ?iflags ?flags ?rex ?pat ?pos ?callout subj =
+  try ignore (pcre_exec ?iflags ?flags ?rex ?pat ?pos ?callout subj); true
+  with Not_found -> false
+
+
+(* String substitution *)
+
+(* Elements of a substitution pattern *)
+type subst =
+  | SubstString of int * int (* Denotes a substring in the substitution *)
+  | Backref of int           (* nth backreference ($0 is program name!) *)
+  | Match                    (* The whole matched string *)
+  | PreMatch                 (* The string before the match *)
+  | PostMatch                (* The string after the match *)
+  | LastParenMatch           (* The last matched group *)
+
+(* Information on substitution patterns *)
+type substitution = string     (* The s
