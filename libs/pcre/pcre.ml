@@ -704,4 +704,71 @@ let substitute_substrings ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
         else (templ, 0, templ_len) :: subst_lst in
       let last = Array.unsafe_get ovector 1 in
       let full_len = full_len + len + templ_len in
-      let next = first
+      let next = first + 1 in
+      if last < next then
+        if first < subj_len then
+          loop (full_len + 1) ((subj, cur_pos + len, 1) :: subst_lst) next
+        else loop full_len subst_lst next
+      else loop full_len subst_lst last in
+  loop 0 [] pos
+
+let substitute ?iflags ?flags ?rex ?pat ?pos ?callout ~subst:str_subst subj =
+  let subst (subj, ovector) =
+    let first = Array.unsafe_get ovector 0 in
+    let last = Array.unsafe_get ovector 1 in
+    str_subst (string_unsafe_sub subj first (last - first)) in
+  substitute_substrings ?iflags ?flags ?rex ?pat ?pos ?callout ~subst subj
+
+let replace_first ?(iflags = 0) ?flags ?(rex = def_rex) ?pat ?(pos = 0)
+                  ?(itempl = def_subst) ?templ ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let templ, max_br, with_lp, subst_lst =
+    match templ with
+    | Some str -> subst str
+    | _ -> itempl in
+  let subgroups2, ovector = make_ovector rex in
+  let nsubs = (subgroups2 lsr 1) - 1 in
+  if max_br > nsubs then
+    failwith "Pcre.replace_first: backreference denotes nonexistent subpattern";
+  if with_lp && nsubs = 0 then failwith "Pcre.replace_first: no backreferences";
+  try
+    unsafe_pcre_exec iflags rex ~pos ~subj_start:0 ~subj ovector callout;
+    let res_len, trans_lst =
+      calc_trans_lst subgroups2 ovector subj templ subst_lst in
+    let first = Array.unsafe_get ovector 0 in
+    let last = Array.unsafe_get ovector 1 in
+    let rest = String.length subj - last in
+    let res = Bytes.create (first + res_len + rest) in
+    bytes_unsafe_blit_string subj 0 res 0 first;
+    let coll ofs (templ, ix, len) =
+      bytes_unsafe_blit_string templ ix res ofs len; ofs + len in
+    let ofs = List.fold_left coll first trans_lst in
+    bytes_unsafe_blit_string subj last res ofs rest;
+    Bytes.unsafe_to_string res
+  with Not_found -> string_copy subj
+
+let qreplace_first ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+                   ?(pos = 0) ?(templ = "") ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let _, ovector = make_ovector rex in
+  try
+    unsafe_pcre_exec iflags rex ~pos ~subj_start:0 ~subj ovector callout;
+    let first = Array.unsafe_get ovector 0 in
+    let last = Array.unsafe_get ovector 1 in
+    let len = String.length templ in
+    let rest = String.length subj - last in
+    let postfix_start = first + len in
+    let res = Bytes.create (postfix_start + rest) in
+    bytes_unsafe_blit_string subj 0 res 0 first;
+    bytes_unsafe_blit_string templ 0 res first len;
+    bytes_unsafe_blit_string subj last res postfix_start rest;
+    Bytes.unsafe_to_string res
+  with Not_found -> string_copy subj
+
+let substitute_substrings_first ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+                                ?(pos = 0) ?callout ~subst subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let _, ovector = make_ovector r
