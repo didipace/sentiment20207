@@ -624,4 +624,84 @@ let qreplace ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
   let subj_len = String.length subj in
   if pos < 0 || pos > subj_len then invalid_arg "Pcre.qreplace: illegal offset";
   let templ_len = String.length templ in
-  let _, o
+  let _, ovector = make_ovector rex in
+  let rec loop full_len subst_lst cur_pos =
+    if
+      cur_pos > subj_len ||
+      try
+        unsafe_pcre_exec
+          iflags rex ~pos:cur_pos ~subj_start:0 ~subj ovector callout;
+        false
+      with Not_found -> true
+    then
+      let postfix_len = max (subj_len - cur_pos) 0 in
+      let left = pos + full_len in
+      let res = Bytes.create (left + postfix_len) in
+      bytes_unsafe_blit_string subj 0 res 0 pos;
+      bytes_unsafe_blit_string subj cur_pos res left postfix_len;
+      let coll ofs = function
+        | Some (substr, ix, len) ->
+            let new_ofs = ofs - len in
+            bytes_unsafe_blit_string substr ix res new_ofs len;
+            new_ofs
+        | None ->
+            let new_ofs = ofs - templ_len in
+            bytes_unsafe_blit_string templ 0 res new_ofs templ_len;
+            new_ofs in
+      let _ = List.fold_left coll left subst_lst in
+      Bytes.unsafe_to_string res
+    else
+      let first = Array.unsafe_get ovector 0 in
+      let len = first - cur_pos in
+      let subst_lst =
+        if len > 0 then None :: Some (subj, cur_pos, len) :: subst_lst
+        else None :: subst_lst in
+      let last = Array.unsafe_get ovector 1 in
+      let full_len = full_len + len + templ_len in
+      let next = first + 1 in
+      if last < next then
+        if first < subj_len then
+          loop (full_len + 1) (Some (subj, cur_pos + len, 1) :: subst_lst) next
+        else loop full_len subst_lst next
+      else loop full_len subst_lst last in
+  loop 0 [] pos
+
+let substitute_substrings ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+                          ?(pos = 0) ?callout ~subst subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let subj_len = String.length subj in
+  if pos < 0 || pos > subj_len then invalid_arg "Pcre.substitute: illegal offset";
+  let _, ovector = make_ovector rex in
+  let rec loop full_len subst_lst cur_pos =
+    if
+      cur_pos > subj_len ||
+      try
+        unsafe_pcre_exec
+          iflags rex ~pos:cur_pos ~subj_start:0 ~subj ovector callout;
+        false
+      with Not_found -> true
+    then
+      let postfix_len = max (subj_len - cur_pos) 0 in
+      let left = pos + full_len in
+      let res = Bytes.create (left + postfix_len) in
+      bytes_unsafe_blit_string subj 0 res 0 pos;
+      bytes_unsafe_blit_string subj cur_pos res left postfix_len;
+      let coll ofs (templ, ix, len) =
+        let new_ofs = ofs - len in
+        bytes_unsafe_blit_string templ ix res new_ofs len;
+        new_ofs in
+      let _ = List.fold_left coll left subst_lst in
+      Bytes.unsafe_to_string res
+    else
+      let first = Array.unsafe_get ovector 0 in
+      let len = first - cur_pos in
+      let templ = subst (subj, ovector) in
+      let templ_len = String.length templ in
+      let subst_lst =
+        if len > 0 then
+          (templ, 0, templ_len) :: (subj, cur_pos, len) :: subst_lst
+        else (templ, 0, templ_len) :: subst_lst in
+      let last = Array.unsafe_get ovector 1 in
+      let full_len = full_len + len + templ_len in
+      let next = first
