@@ -771,4 +771,89 @@ let substitute_substrings_first ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
                                 ?(pos = 0) ?callout ~subst subj =
   let rex = match pat with Some str -> regexp str | _ -> rex in
   let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
-  let _, ovector = make_ovector r
+  let _, ovector = make_ovector rex in
+  try
+    unsafe_pcre_exec iflags rex ~pos ~subj_start:0 ~subj ovector callout;
+    let subj_len = String.length subj in
+    let prefix_len = Array.unsafe_get ovector 0 in
+    let last = Array.unsafe_get ovector 1 in
+    let templ = subst (subj, ovector) in
+    let postfix_len = subj_len - last in
+    let templ_len = String.length templ in
+    let postfix_start = prefix_len + templ_len in
+    let res = Bytes.create (postfix_start + postfix_len) in
+    bytes_unsafe_blit_string subj 0 res 0 prefix_len;
+    bytes_unsafe_blit_string templ 0 res prefix_len templ_len;
+    bytes_unsafe_blit_string subj last res postfix_start postfix_len;
+    Bytes.unsafe_to_string res
+  with Not_found -> string_copy subj
+
+let substitute_first ?iflags ?flags ?rex ?pat ?pos
+                     ?callout ~subst:str_subst subj =
+  let subst (subj, ovector) =
+    let first = Array.unsafe_get ovector 0 in
+    let last = Array.unsafe_get ovector 1 in
+    str_subst (string_unsafe_sub subj first (last - first)) in
+  substitute_substrings_first
+    ?iflags ?flags ?rex ?pat ?pos ?callout ~subst subj
+
+
+(* Splitting *)
+
+let internal_psplit flags rex max pos callout subj =
+  let subj_len = String.length subj in
+  if subj_len = 0 then []
+  else if max = 1 then [string_copy subj]
+  else
+    let subgroups2, ovector = make_ovector rex in
+
+    (* Adds contents of subgroups to the string accumulator *)
+    let handle_subgroups strs =
+      let strs = ref strs in
+      let i = ref 2 in
+      while !i < subgroups2 do
+        let first = Array.unsafe_get ovector !i in
+        incr i;
+        let last = Array.unsafe_get ovector !i in
+        let str =
+          if first < 0 then ""
+          else string_unsafe_sub subj first (last - first) in
+        strs := str :: !strs; incr i
+      done;
+      !strs in
+
+    (* Performs the recursive split *)
+    let rec loop strs cnt pos prematch =
+      let len = subj_len - pos in
+      if len < 0 then strs
+      else
+        (* Checks termination due to max restriction *)
+        if cnt = 0 then
+          if prematch &&
+            try
+              unsafe_pcre_exec
+                flags rex ~pos ~subj_start:pos ~subj ovector callout;
+              true
+            with Not_found -> false
+          then
+            let last = Array.unsafe_get ovector 1 in
+            let strs = handle_subgroups strs in
+            string_unsafe_sub subj last (subj_len - last) :: strs
+          else string_unsafe_sub subj pos len :: strs
+
+        (* Calculates next accumulator state for splitting *)
+        else
+          if
+            try
+              unsafe_pcre_exec
+                flags rex ~pos ~subj_start:pos ~subj ovector callout;
+              false
+            with Not_found -> true
+          then string_unsafe_sub subj pos len :: strs
+          else
+            let first = Array.unsafe_get ovector 0 in
+            let last = Array.unsafe_get ovector 1 in
+            if first = pos then
+              if last = pos then
+                let strs = if prematch then handle_subgroups strs else strs in
+            
