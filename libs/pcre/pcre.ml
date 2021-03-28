@@ -856,4 +856,79 @@ let internal_psplit flags rex max pos callout subj =
             if first = pos then
               if last = pos then
                 let strs = if prematch then handle_subgroups strs else strs in
-            
+                if len = 0 then "" :: strs
+                else if
+                  try
+                    unsafe_pcre_exec
+                      (flags lor 0x0410) rex ~pos ~subj_start:pos ~subj
+                      ovector callout;
+                    true
+                  with Not_found -> false
+                then
+                  let new_strs = handle_subgroups ("" :: strs) in
+                  loop new_strs (cnt - 1) (Array.unsafe_get ovector 1) false
+                else
+                  let new_strs = string_unsafe_sub subj pos 1 :: strs in
+                  loop new_strs (cnt - 1) (pos + 1) true
+              else
+                if prematch then loop (handle_subgroups strs) cnt last false
+                else loop (handle_subgroups ("" :: strs)) (cnt - 1) last false
+            else
+              let new_strs = string_unsafe_sub subj pos (first - pos) :: strs in
+              loop (handle_subgroups new_strs) (cnt - 1) last false in
+    loop [] (max - 1) pos false
+
+let rec strip_all_empty = function "" :: t -> strip_all_empty t | l -> l
+
+external isspace : char -> bool = "pcre_isspace_stub" [@@noalloc]
+
+let rec find_no_space ix len str =
+  if ix = len || not (isspace (String.unsafe_get str ix)) then ix
+  else find_no_space (ix + 1) len str
+
+let split ?(iflags = 0) ?flags ?rex ?pat ?(pos = 0) ?(max = 0) ?callout subj =
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let res =
+    match pat, rex with
+    | Some str, _ -> internal_psplit iflags (regexp str) max pos callout subj
+    | _, Some rex -> internal_psplit iflags rex max pos callout subj
+    | _ ->
+        (* special case for Perl-splitting semantics *)
+        let len = String.length subj in
+        if pos > len || pos < 0 then failwith "Pcre.split: illegal offset";
+        let new_pos = find_no_space pos len subj in
+        internal_psplit iflags def_rex max new_pos callout subj in
+  List.rev (if max = 0 then strip_all_empty res else res)
+
+let asplit ?iflags ?flags ?rex ?pat ?pos ?max ?callout subj =
+  Array.of_list (split ?iflags ?flags ?rex ?pat ?pos ?max ?callout subj)
+
+
+(* Full splitting *)
+
+type split_result = Text of string
+                  | Delim of string
+                  | Group of int * string
+                  | NoGroup
+
+let rec strip_all_empty_full = function
+  | Delim _ :: rest -> strip_all_empty_full rest
+  | l -> l
+
+let full_split ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
+               ?(pos = 0) ?(max = 0) ?callout subj =
+  let rex = match pat with Some str -> regexp str | _ -> rex in
+  let iflags = match flags with Some flags -> rflags flags | _ -> iflags in
+  let subj_len = String.length subj in
+  if subj_len = 0 then []
+  else if max = 1 then [Text (string_copy subj)]
+  else
+    let subgroups2, ovector = make_ovector rex in
+
+    (* Adds contents of subgroups to the string accumulator *)
+    let handle_subgroups strs =
+      let strs = ref strs in
+      let i = ref 2 in
+      while !i < subgroups2 do
+        let group_nr = !i lsr 1 in
+        let
