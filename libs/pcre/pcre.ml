@@ -931,4 +931,82 @@ let full_split ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
       let i = ref 2 in
       while !i < subgroups2 do
         let group_nr = !i lsr 1 in
-        let
+        let first = Array.unsafe_get ovector !i in
+        incr i;
+        let last = Array.unsafe_get ovector !i in
+        let str =
+          if first < 0 then NoGroup
+          else
+            let group_str = string_unsafe_sub subj first (last - first) in
+            Group (group_nr, group_str) in
+        strs := str :: !strs; incr i
+      done;
+      !strs in
+
+    (* Performs the recursive split *)
+    let rec loop strs cnt pos prematch =
+      let len = subj_len - pos in
+      if len < 0 then strs
+      else
+        (* Checks termination due to max restriction *)
+        if cnt = 0 then
+          if prematch &&
+            try
+              unsafe_pcre_exec
+                iflags rex ~pos ~subj_start:pos ~subj ovector callout;
+               true
+            with Not_found -> false
+          then
+            let first = Array.unsafe_get ovector 0 in
+            let last = Array.unsafe_get ovector 1 in
+            let delim = Delim (string_unsafe_sub subj first (last - first)) in
+            Text (string_unsafe_sub subj last (subj_len - last))
+              :: handle_subgroups (delim :: strs)
+          else
+            if len = 0 then strs
+            else Text (string_unsafe_sub subj pos len) :: strs
+
+        (* Calculates next accumulator state for splitting *)
+        else
+          if
+            try
+              unsafe_pcre_exec
+                iflags rex ~pos ~subj_start:pos ~subj ovector callout;
+              false
+            with Not_found -> true
+          then
+            if len = 0 then strs
+            else Text (string_unsafe_sub subj pos len) :: strs
+          else
+            let first = Array.unsafe_get ovector 0 in
+            let last = Array.unsafe_get ovector 1 in
+            if first = pos then
+              if last = pos then
+                if len = 0 then handle_subgroups (Delim "" :: strs)
+                else
+                  let empty_groups = handle_subgroups [] in
+                  if
+                    try
+                      unsafe_pcre_exec
+                        (iflags lor 0x0410) rex ~pos ~subj_start:pos ~subj
+                        ovector callout;
+                      true
+                    with Not_found -> false
+                  then
+                    let first = Array.unsafe_get ovector 0 in
+                    let last = Array.unsafe_get ovector 1 in
+                    let delim =
+                      Delim (string_unsafe_sub subj first (last - first)) in
+                    let new_strs =
+                      handle_subgroups (
+                        delim :: (if prematch then strs
+                                  else empty_groups @ (Delim "" :: strs))) in
+                    loop new_strs (cnt - 1) last false
+                  else
+                    let new_strs =
+                      Text (string_unsafe_sub subj pos 1)
+                        :: empty_groups @ Delim "" :: strs in
+                    loop new_strs (cnt - 1) (pos + 1) true
+              else
+                  let delim =
+                    Delim (string_unsafe_sub subj 
