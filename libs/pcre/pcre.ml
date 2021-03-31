@@ -1009,4 +1009,26 @@ let full_split ?(iflags = 0) ?flags ?(rex = def_rex) ?pat
                     loop new_strs (cnt - 1) (pos + 1) true
               else
                   let delim =
-                    Delim (string_unsafe_sub subj 
+                    Delim (string_unsafe_sub subj first (last - first)) in
+                  loop (handle_subgroups (delim :: strs)) cnt last false
+            else
+              let delim = Delim (string_unsafe_sub subj first (last - first)) in
+              let pre_strs =
+                Text (string_unsafe_sub subj pos (first - pos)) :: strs in
+              loop
+                (handle_subgroups (delim :: pre_strs)) (cnt - 1) last false in
+    let res = loop [] (max - 1) pos true in
+    List.rev (if max = 0 then strip_all_empty_full res else res)
+
+
+(* Additional convenience functions useful in combination with this library *)
+
+let foreach_line ?(ic = stdin) f =
+  try while true do f (input_line ic) done with End_of_file -> ()
+
+let foreach_file filenames f =
+  let do_with_file filename =
+    let file = open_in filename in
+    try f filename file; close_in file
+    with exn -> close_in file; raise exn in
+  List.iter do_with_file filenames
