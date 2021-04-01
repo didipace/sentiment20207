@@ -238,4 +238,84 @@ let handler =
 							if snd (t_infos mt).mt_path = typeName then
 								cc#get_json :: acc
 							else
-								loop mt
+								loop mtl
+					in
+					loop m.m_types
+			) [] contexts))
+		);
+		"server/moduleCreated", (fun hctx ->
+			let file = hctx.jsonrpc#get_string_param "file" in
+			let file = Path.get_full_path file in
+			let key = hctx.com.file_keys#get file in
+			let cs = hctx.display#get_cs in
+			List.iter (fun cc ->
+				Hashtbl.replace cc#get_removed_files key file
+			) cs#get_contexts;
+			hctx.send_result (jstring file);
+		);
+		"server/files", (fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let cc = hctx.display#get_cs#get_context sign in
+			let files = Hashtbl.fold (fun file cfile acc -> (file,cfile) :: acc) cc#get_files [] in
+			let files = List.sort (fun (file1,_) (file2,_) -> compare file1 file2) files in
+			let files = List.map (fun (fkey,cfile) ->
+				jobject [
+					"file",jstring cfile.c_file_path;
+					"time",jfloat cfile.c_time;
+					"pack",jstring (String.concat "." cfile.c_package);
+					"moduleName",jopt jstring cfile.c_module_name;
+				]
+			) files in
+			hctx.send_result (jarray files)
+		);
+		"server/invalidate", (fun hctx ->
+			let file = hctx.jsonrpc#get_string_param "file" in
+			let fkey = hctx.com.file_keys#get file in
+			let cs = hctx.display#get_cs in
+			cs#taint_modules fkey "server/invalidate";
+			cs#remove_files fkey;
+			hctx.send_result jnull
+		);
+		"server/configure", (fun hctx ->
+			let l = ref (List.map (fun (name,value) ->
+				let value = hctx.jsonrpc#get_bool "value" value in
+				try
+					ServerMessage.set_by_name name value;
+					jstring (Printf.sprintf "Printing %s %s" name (if value then "enabled" else "disabled"))
+				with Not_found ->
+					hctx.send_error [jstring ("Invalid print parame name: " ^ name)]
+			) (hctx.jsonrpc#get_opt_param (fun () -> (hctx.jsonrpc#get_object_param "print")) [])) in
+			hctx.jsonrpc#get_opt_param (fun () ->
+				let b = hctx.jsonrpc#get_bool_param "noModuleChecks" in
+				ServerConfig.do_not_check_modules := b;
+				l := jstring ("Module checks " ^ (if b then "disabled" else "enabled")) :: !l;
+				()
+			) ();
+			hctx.jsonrpc#get_opt_param (fun () ->
+				let b = hctx.jsonrpc#get_bool_param "legacyCompletion" in
+				ServerConfig.legacy_completion := b;
+				l := jstring ("Legacy completion " ^ (if b then "enabled" else "disabled")) :: !l;
+				()
+			) ();
+			hctx.send_result (jarray !l)
+		);
+		"server/memory",(fun hctx ->
+			let j = Memory.get_memory_json hctx.display#get_cs MCache in
+			hctx.send_result j
+		);
+		"server/memory/context",(fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let j = Memory.get_memory_json hctx.display#get_cs (MContext sign) in
+			hctx.send_result j
+		);
+		"server/memory/module",(fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let path = Path.parse_path (hctx.jsonrpc#get_string_param "path") in
+			let j = Memory.get_memory_json hctx.display#get_cs (MModule(sign,path)) in
+			hctx.send_result j
+		);
+		(* TODO: wait till gama complains about the naming, then change it to something else *)
+		"typer/compiledTypes", (fun hctx ->
+			hctx.com.callbacks#add_after_filters (fun () ->
+				let ctx = create_context GMFull in
+				let l = List.map 
