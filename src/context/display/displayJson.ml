@@ -149,4 +149,93 @@ let handler =
 			hctx.display#enable_display DMHover;
 		);
 		"display/package", (fun hctx ->
-			hctx.display#set_display_file false fals
+			hctx.display#set_display_file false false;
+			hctx.display#enable_display DMPackage;
+		);
+		"display/signatureHelp", (fun hctx ->
+			hctx.display#set_display_file (hctx.jsonrpc#get_bool_param "wasAutoTriggered") true;
+			hctx.display#enable_display DMSignature
+		);
+		"server/readClassPaths", (fun hctx ->
+			hctx.com.callbacks#add_after_init_macros (fun () ->
+				let cc = hctx.display#get_cs#get_context (Define.get_signature hctx.com.defines) in
+				cc#set_initialized true;
+				DisplayToplevel.read_class_paths hctx.com ["init"];
+				let files = hctx.display#get_cs#get_files in
+				hctx.send_result (jobject [
+					"files", jint (List.length files)
+				]);
+			)
+		);
+		"server/contexts", (fun hctx ->
+			let l = List.map (fun cc -> cc#get_json) hctx.display#get_cs#get_contexts in
+			let l = List.filter (fun json -> json <> JNull) l in
+			hctx.send_result (jarray l)
+		);
+		"server/modules", (fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let cc = hctx.display#get_cs#get_context sign in
+			let l = Hashtbl.fold (fun _ m acc ->
+				if m.m_extra.m_kind <> MFake then jstring (s_type_path m.m_path) :: acc else acc
+			) cc#get_modules [] in
+			hctx.send_result (jarray l)
+		);
+		"server/module", (fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let path = Path.parse_path (hctx.jsonrpc#get_string_param "path") in
+			let cc = hctx.display#get_cs#get_context sign in
+			let m = try
+				cc#find_module path
+			with Not_found ->
+				hctx.send_error [jstring "No such module"]
+			in
+			hctx.send_result (generate_module cc m)
+		);
+		"server/type", (fun hctx ->
+			let sign = Digest.from_hex (hctx.jsonrpc#get_string_param "signature") in
+			let path = Path.parse_path (hctx.jsonrpc#get_string_param "modulePath") in
+			let typeName = hctx.jsonrpc#get_string_param "typeName" in
+			let cc = hctx.display#get_cs#get_context sign in
+			let m = try
+				cc#find_module path
+			with Not_found ->
+				hctx.send_error [jstring "No such module"]
+			in
+			let rec loop mtl = match mtl with
+				| [] ->
+					hctx.send_error [jstring "No such type"]
+				| mt :: mtl ->
+					begin match mt with
+					| TClassDecl c -> c.cl_restore()
+					| _ -> ()
+					end;
+					let infos = t_infos mt in
+					if snd infos.mt_path = typeName then begin
+						let ctx = Genjson.create_context GMMinimum in
+						hctx.send_result (Genjson.generate_module_type ctx mt)
+					end else
+						loop mtl
+			in
+			loop m.m_types
+		);
+		"server/typeContexts", (fun hctx ->
+			let path = Path.parse_path (hctx.jsonrpc#get_string_param "modulePath") in
+			let typeName = hctx.jsonrpc#get_string_param "typeName" in
+			let contexts = hctx.display#get_cs#get_contexts in
+
+			hctx.send_result (jarray (List.fold_left (fun acc cc ->
+				match cc#find_module_opt path with
+				| None -> acc
+				| Some(m) ->
+					let rec loop mtl = match mtl with
+						| [] ->
+							acc
+						| mt :: mtl ->
+							begin match mt with
+							| TClassDecl c -> c.cl_restore()
+							| _ -> ()
+							end;
+							if snd (t_infos mt).mt_path = typeName then
+								cc#get_json :: acc
+							else
+								loop mt
