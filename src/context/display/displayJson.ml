@@ -318,4 +318,72 @@ let handler =
 		"typer/compiledTypes", (fun hctx ->
 			hctx.com.callbacks#add_after_filters (fun () ->
 				let ctx = create_context GMFull in
-				let l = List.map 
+				let l = List.map (generate_module_type ctx) hctx.com.types in
+				hctx.send_result (jarray l)
+			);
+		);
+	] in
+	List.iter (fun (s,f) -> Hashtbl.add h s f) l;
+	h
+
+let parse_input com input report_times =
+	let input =
+		JsonRpc.handle_jsonrpc_error (fun () -> JsonRpc.parse_request input) send_json
+	in
+	let jsonrpc = new jsonrpc_handler input in
+
+	let send_result json =
+		flush stdout;
+		flush stderr;
+		let fl = [
+			"result",json;
+			"timestamp",jfloat (Unix.gettimeofday ());
+		] in
+		let fl = if !report_times then begin
+			close_times();
+			let _,_,root = Timer.build_times_tree () in
+			begin match json_of_times root with
+			| None -> fl
+			| Some jo -> ("timers",jo) :: fl
+			end
+		end else fl in
+		let fl = if DynArray.length com.pass_debug_messages > 0 then
+			("passMessages",jarray (List.map jstring (DynArray.to_list com.pass_debug_messages))) :: fl
+		else
+			fl
+		in
+		let jo = jobject fl in
+		send_json (JsonRpc.result jsonrpc#get_id  jo)
+	in
+
+	let send_error jl =
+		send_json (JsonRpc.error jsonrpc#get_id 0 ~data:(Some (JArray jl)) "Compiler error")
+	in
+
+	com.json_out <- Some({
+		send_result = send_result;
+		send_error = send_error;
+		jsonrpc = jsonrpc
+	});
+
+	let cs = com.cs in
+
+	let display = new display_handler jsonrpc com cs in
+
+	let hctx = {
+		com = com;
+		jsonrpc = jsonrpc;
+		display = display;
+		send_result = send_result;
+		send_error = send_error;
+	} in
+
+	JsonRpc.handle_jsonrpc_error (fun () ->
+		let method_name = jsonrpc#get_method_name in
+		let f = try
+			Hashtbl.find handler method_name
+		with Not_found ->
+			raise_method_not_found jsonrpc#get_id method_name
+		in
+		f hctx
+	) send_json
