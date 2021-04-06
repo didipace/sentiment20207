@@ -33,4 +33,62 @@ class Exception extends PyException {
 	static function thrown(value:Any):Any {
 		if(Std.isOfType(value, Exception)) {
 			return (value:Exception).native;
-		} else if(Std.isOfType(value, BaseExcepti
+		} else if(Std.isOfType(value, BaseException)) {
+			return value;
+		} else {
+			var e = new ValueException(value);
+			e.__shiftStack();
+			return e;
+		}
+	}
+
+	public function new(message:String, ?previous:Exception, ?native:Any) {
+		super(message);
+		this.__previousException = previous;
+		if(native != null && Std.isOfType(native, BaseException)) {
+			__nativeException = native;
+			__nativeStack = NativeStackTrace.exceptionStack();
+		} else {
+			__nativeException = cast this;
+			__nativeStack = NativeStackTrace.callStack();
+		}
+	}
+
+	function unwrap():Any {
+		return __nativeException;
+	}
+
+	public function toString():String {
+		return message;
+	}
+
+	public function details():String {
+		return inline CallStack.exceptionToString(this);
+	}
+
+	@:noCompletion
+	@:ifFeature("haxe.Exception.get_stack")
+	inline function __shiftStack():Void {
+		__skipStack++;
+	}
+
+	function get_message():String {
+		return UBuiltins.str(this);
+	}
+
+	function get_previous():Null<Exception> {
+		return __previousException;
+	}
+
+	final function get_native():Any {
+		return __nativeException;
+	}
+
+	function get_stack():CallStack {
+		return switch __exceptionStack {
+			case null:
+				__exceptionStack = NativeStackTrace.toHaxe(__nativeStack, __skipStack);
+			case s: s;
+		}
+	}
+}
