@@ -146,4 +146,22 @@ module Printer = struct
 				else begin
 					let l =
 						("name",JString si.name) ::
-						("kind",JInt (t
+						("kind",JInt (to_int si.kind)) ::
+						("range", Genjson.generate_pos_as_range si.pos) ::
+						(match si.container_name with None -> [] | Some s -> ["containerName",JString s])
+					in
+					let l = if si.deprecated then ("isDeprecated",JBool true) :: l else l in
+					Some (JObject l)
+				end
+			) (DynArray.to_list l) in
+			if jl = [] then
+				acc
+			else
+				(JObject [
+					"file",JString file;
+					"symbols",JArray jl
+				]) :: acc
+		) [] symbols in
+		let js = JArray ja in
+		string_of_json js
+end
