@@ -20,12 +20,34 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\SVGPathSeg.webidl. Do not edit!
+package sys.net;
 
-package js.html.svg;
+@:coreApi
+@:keepInit
+class Host {
+	public var host(default, null):String;
 
-typedef PathSegMovetoRel = {
-	var x : Float;
-	var y : Float;
-	
-}
+	public var ip(default, null):Int;
+
+	public function new(name:String):Void {
+		host = name;
+		ip = host_resolve(untyped name.__s);
+	}
+
+	public function toString():String {
+		return new String(host_to_string(ip));
+	}
+
+	public function reverse():String {
+		return new String(host_reverse(ip));
+	}
+
+	public static function localhost():String {
+		return new String(host_local());
+	}
+
+	static function __init__():Void {
+		neko.Lib.load("std", "socket_init", 0)();
+	}
+
+	private static var host_resolve 
