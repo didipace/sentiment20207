@@ -98,4 +98,52 @@ class Lib {
 	public static function getDllExtension():String
 		return untyped __global__.__hxcpp_get_dll_extension();
 
-	public static fu
+	public static function getBinDirectory():String
+		return untyped __global__.__hxcpp_get_bin_dir();
+
+	/**
+		Returns bytes referencing the content of a string.
+		Use with extreme caution - changing constant strings will crash.
+		Changing one string can cause others to change unexpectedly.
+		Only really safe if you are using it read-only or if it comes from stringReference above
+	**/
+	public inline static function bytesReference(s:String):haxe.io.Bytes {
+		var bytes = new haxe.io.BytesData();
+		untyped bytes.__unsafeStringReference(s);
+		return haxe.io.Bytes.ofData(bytes);
+	}
+
+	/**
+		Print the specified value on the default output.
+	**/
+	public static function print(v:Dynamic):Void {
+		untyped __global__.__hxcpp_print(v);
+	}
+
+	/**
+		This function is used to make porting from neko to cpp easy.
+		It does not need to do anything because the c-code can work with any Dynamic
+	**/
+	public static function haxeToNeko(v:Dynamic):Dynamic {
+		return v;
+	}
+
+	/**
+		This function is used to make porting from neko to cpp easy.
+		It does not need to do anything because the c-code can work with any Dynamic
+	**/
+	public static function nekoToHaxe(v:Dynamic):Dynamic {
+		return v;
+	}
+
+	/**
+		Print the specified value on the default output followed by a newline character.
+	**/
+	public static function println(v:Dynamic):Void {
+		untyped __global__.__hxcpp_println(v);
+	}
+
+	public static function setFloatFormat(inFormat:String):Void {
+		untyped __global__.__hxcpp_set_float_format(inFormat);
+	}
+}
