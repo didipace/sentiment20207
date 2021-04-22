@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,23 +21,17 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HTMLOptionsCollection.webidl. Do not edit!
+// This file is generated from mozilla\WebGLRenderingContext.webidl. Do not edit!
 
-package js.html;
+package js.html.webgl;
 
 /**
-	`HTMLOptionsCollection` is an interface representing a collection of HTML option elements (in document order) and offers methods and properties for traversing the list as well as optionally altering its items. This type is returned solely by the "options" property of select.
+	The WebGLProgram is part of the WebGL API and is a combination of two compiled `WebGLShader`s consisting of a vertex shader and a fragment shader (both written in GLSL). These are then linked into a usable program.
 
-	Documentation [HTMLOptionsCollection](https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptionsCollection) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptionsCollection$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+	Documentation [WebGLProgram](https://developer.mozilla.org/en-US/docs/Web/API/WebGLProgram) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/WebGLProgram$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLOptionsCollection>
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/WebGLProgram>
 **/
-@:native("HTMLOptionsCollection")
-extern class HTMLOptionsCollection extends HTMLCollection {
-	var selectedIndex : Int;
-	
-	/** @throws DOMError */
-	function add( element : haxe.extern.EitherType<OptionElement,OptGroupElement>, ?before : haxe.extern.EitherType<Element,Int> ) : Void;
-	/** @throws DOMError */
-	function remove( index : Int ) : Void;
+@:native("WebGLProgram")
+extern class Program {
 }
