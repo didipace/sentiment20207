@@ -230,4 +230,92 @@ let check_overriding ctx c f =
 					display_error ctx.com msg p
 		in
 		if has_class_field_flag f CfOverload then begin
-			let overloads = Ov
+			let overloads = Overloads.get_overloads ctx.com csup i in
+			List.iter (fun (t,f2) ->
+				(* check if any super class fields are vars *)
+				match f2.cf_kind with
+				| Var _ ->
+					display_error ctx.com ("A variable named '" ^ f2.cf_name ^ "' was already declared in a superclass") f.cf_pos
+				| _ -> ()
+			) overloads;
+			List.iter (fun f ->
+				(* find the exact field being overridden *)
+				check_field f (fun csup i ->
+					List.find (fun (t,f2) ->
+						Overloads.same_overload_args f.cf_type (apply_params csup.cl_params params t) f f2
+					) overloads
+				) true
+			) (f :: f.cf_overloads)
+		end else
+			check_field f (fun csup i ->
+				let _, t, f2 = raw_class_field (fun f -> f.cf_type) csup params i in
+				t, f2) false
+
+let class_field_no_interf c i =
+	try
+		let f = PMap.find i c.cl_fields in
+		(fun t -> t),f.cf_type , f
+	with Not_found ->
+		match c.cl_super with
+		| None ->
+			raise Not_found
+		| Some (c,tl) ->
+			(* rec over class_field *)
+			let _, t , f = raw_class_field (fun f -> f.cf_type) c tl i in
+			let map = TClass.get_map_function c tl in
+			map,apply_params c.cl_params tl t , f
+
+let rec return_flow ctx e =
+	let error() =
+		display_error ctx.com (Printf.sprintf "Missing return: %s" (s_type (print_context()) ctx.ret)) e.epos; raise Exit
+	in
+	let return_flow = return_flow ctx in
+	match e.eexpr with
+	| TReturn _ | TThrow _ -> ()
+	| TParenthesis e | TMeta(_,e) ->
+		return_flow e
+	| TBlock el ->
+		let rec loop = function
+			| [] -> error()
+			| [e] -> return_flow e
+			| e :: _ when DeadEnd.has_dead_end e -> ()
+			| _ :: l -> loop l
+		in
+		loop el
+	| TIf (_,e1,Some e2) ->
+		return_flow e1;
+		return_flow e2;
+	| TSwitch (v,cases,Some e) ->
+		List.iter (fun (_,e) -> return_flow e) cases;
+		return_flow e
+	| TSwitch ({eexpr = TMeta((Meta.Exhaustive,_,_),_)},cases,None) ->
+		List.iter (fun (_,e) -> return_flow e) cases;
+	| TTry (e,cases) ->
+		return_flow e;
+		List.iter (fun (_,e) -> return_flow e) cases;
+	| TWhile({eexpr = (TConst (TBool true))},e,_) ->
+		(* a special case for "inifite" while loops that have no break *)
+		let rec loop e = match e.eexpr with
+			(* ignore nested loops to not accidentally get one of its breaks *)
+			| TWhile _ | TFor _ -> ()
+			| TBreak -> error()
+			| _ -> Type.iter loop e
+		in
+		loop e
+	| _ ->
+		if not (DeadEnd.has_dead_end e) then error()
+
+let check_global_metadata ctx meta f_add mpath tpath so =
+	let sl1 = full_dot_path2 mpath tpath in
+	let sl1,field_mode = match so with None -> sl1,false | Some s -> sl1 @ [s],true in
+	List.iter (fun (sl2,m,(recursive,to_types,to_fields)) ->
+		let add = ((field_mode && to_fields) || (not field_mode && to_types)) && (match_path recursive sl1 sl2) in
+		if add then f_add m
+	) ctx.g.global_metadata;
+	if ctx.is_display_file then delay ctx PCheckConstraint (fun () -> DisplayEmitter.check_display_metadata ctx meta)
+
+let check_module_types ctx m p t =
+	let t = t_infos t in
+	try
+		let path2 = ctx.com.type_to_module#find t.mt_path in
+		if m.m_path <> path2 && String.lowercase (s_type_path path2) = String.lowercase (s_type_path m.m_path) then typing_error ("Module " ^ s_type_path path2 ^ " is loaded with 
