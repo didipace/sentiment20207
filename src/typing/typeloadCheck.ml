@@ -318,4 +318,74 @@ let check_module_types ctx m p t =
 	let t = t_infos t in
 	try
 		let path2 = ctx.com.type_to_module#find t.mt_path in
-		if m.m_path <> path2 && String.lowercase (s_type_path path2) = String.lowercase (s_type_path m.m_path) then typing_error ("Module " ^ s_type_path path2 ^ " is loaded with 
+		if m.m_path <> path2 && String.lowercase (s_type_path path2) = String.lowercase (s_type_path m.m_path) then typing_error ("Module " ^ s_type_path path2 ^ " is loaded with a different case than " ^ s_type_path m.m_path) p;
+		let m2 = ctx.com.module_lut#find path2 in
+		let hex1 = Digest.to_hex m.m_extra.m_sign in
+		let hex2 = Digest.to_hex m2.m_extra.m_sign in
+		let s = if hex1 = hex2 then hex1 else Printf.sprintf "was %s, is %s" hex2 hex1 in
+		typing_error (Printf.sprintf "Type name %s is redefined from module %s (%s)" (s_type_path t.mt_path)  (s_type_path path2) s) p
+	with
+		Not_found ->
+			ctx.com.type_to_module#add t.mt_path m.m_path
+
+module Inheritance = struct
+	let is_basic_class_path path = match path with
+		| ([],("Array" | "String" | "Date" | "Xml")) -> true
+		| _ -> false
+
+	let check_extends ctx c t p = match follow t with
+		| TInst (csup,params) ->
+			if is_basic_class_path csup.cl_path && not ((has_class_flag c CExtern) && (has_class_flag csup CExtern)) then typing_error "Cannot extend basic class" p;
+			if extends csup c then typing_error "Recursive class" p;
+			begin match csup.cl_kind with
+				| KTypeParameter _ ->
+					if is_generic_parameter ctx csup then typing_error "Extending generic type parameters is no longer allowed in Haxe 4" p;
+					typing_error "Cannot extend type parameters" p
+				| _ -> csup,params
+			end
+		| _ -> typing_error "Should extend by using a class" p
+
+	let rec check_interface ctx missing c intf params =
+		List.iter (fun (i2,p2) ->
+			check_interface ctx missing c i2 (List.map (apply_params intf.cl_params params) p2)
+		) intf.cl_implements;
+		let p = c.cl_name_pos in
+		let check_field f =
+			let t = (apply_params intf.cl_params params f.cf_type) in
+			let is_overload = ref false in
+			let make_implicit_field () =
+				let cf = {f with cf_overloads = []; cf_type = apply_params intf.cl_params params f.cf_type} in
+				begin try
+					let cf' = PMap.find cf.cf_name c.cl_fields in
+					ctx.com.overload_cache#remove (c.cl_path,f.cf_name);
+					cf'.cf_overloads <- cf :: cf'.cf_overloads
+				with Not_found ->
+					TClass.add_field c cf
+				end;
+				cf
+			in
+			let is_method () = match f.cf_kind with
+				| Method _ -> true
+				| Var _ -> false
+			in
+			try
+				let map2, t2, f2 = class_field_no_interf c f.cf_name in
+				let t2, f2 =
+					if f2.cf_overloads <> [] || has_class_field_flag f2 CfOverload then
+						let overloads = Overloads.get_overloads ctx.com c f.cf_name in
+						is_overload := true;
+						List.find (fun (t1,f1) -> Overloads.same_overload_args t t1 f f1) overloads
+					else
+						t2, f2
+				in
+				delay ctx PForce (fun () ->
+					ignore(follow f2.cf_type); (* force evaluation *)
+					let p = f2.cf_name_pos in
+					let mkind = function
+						| MethNormal | MethInline -> 0
+						| MethDynamic -> 1
+						| MethMacro -> 2
+					in
+					if (has_class_field_flag f CfPublic) && not (has_class_field_flag f2 CfPublic) && not (Meta.has Meta.CompilerGenerated f.cf_meta) then
+						display_error ctx.com ("Field " ^ f.cf_name ^ " should be public as requested by " ^ s_type_path intf.cl_path) p
+					else if not (unify_kind f2.cf_kind f.cf_kind) || not (match f.cf_kind, f2.cf_kind with
