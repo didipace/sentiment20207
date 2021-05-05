@@ -456,4 +456,77 @@ module Inheritance = struct
 	let check_abstract_class ctx c csup params =
 		let missing = ref [] in
 		let map = apply_params csup.cl_params params in
-		let check_abstract_class_field cf1 t1
+		let check_abstract_class_field cf1 t1 =
+			try
+				let cf2 = PMap.find cf1.cf_name c.cl_fields in
+				if not (List.exists (fun cf2 ->
+					Overloads.same_overload_args t1 cf2.cf_type cf1 cf2
+				) (cf2 :: cf2.cf_overloads)) then
+					missing := (cf1,t1) :: !missing
+			with Not_found ->
+				missing := (cf1,t1) :: !missing
+		in
+		let cfl = TClass.get_all_fields csup params in
+		PMap.iter (fun _ (_,cf) ->
+			let cfl = Overloads.collect_overloads map csup cf.cf_name in
+			List.iter (fun (t,cf) ->
+				if (has_class_field_flag cf CfAbstract) then
+					check_abstract_class_field cf t
+			) cfl
+		) cfl;
+		match !missing with
+		| [] ->
+			()
+		| l when Diagnostics.error_in_diagnostics_run ctx.com c.cl_pos ->
+			let diag = {
+				mf_pos = c.cl_name_pos;
+				mf_on = TClassDecl c;
+				mf_fields = List.rev_map (fun (cf,t) -> (cf,t,CompletionType.from_type (Display.get_import_status ctx) t)) l;
+				mf_cause = AbstractParent(csup,params);
+			} in
+			let display = ctx.com.display_information in
+			display.module_diagnostics <- MissingFields diag :: display.module_diagnostics
+		| l ->
+			let singular = match l with [_] -> true | _ -> false in
+			display_error ctx.com (Printf.sprintf "This class extends abstract class %s but doesn't implement the following method%s" (s_type_path csup.cl_path) (if singular then "" else "s")) c.cl_name_pos;
+			display_error ctx.com (Printf.sprintf "Implement %s or make %s abstract as well" (if singular then "it" else "them") (s_type_path c.cl_path)) c.cl_name_pos;
+			let pctx = print_context() in
+			List.iter (fun (cf,_) ->
+				let s = match follow cf.cf_type with
+					| TFun(tl,tr) ->
+						String.concat ", " (List.map (fun (n,o,t) -> Printf.sprintf "%s:%s" n (s_type pctx t)) tl)
+					| t ->
+						s_type pctx t
+				in
+				display_error ctx.com (Printf.sprintf "... %s(%s)" cf.cf_name s) cf.cf_name_pos
+			) (List.rev !missing)
+
+	let set_heritance ctx c herits p =
+		let is_lib = Meta.has Meta.LibType c.cl_meta in
+		let ctx = { ctx with curclass = c; type_params = c.cl_params; } in
+		let old_meta = c.cl_meta in
+		let process_meta csup =
+			List.iter (fun m ->
+				match m with
+				| Meta.AutoBuild, el, p -> c.cl_meta <- (Meta.Build,el,{ c.cl_pos with pmax = c.cl_pos.pmin }(* prevent display metadata *)) :: m :: c.cl_meta
+				| _ -> ()
+			) csup.cl_meta;
+			if has_class_flag csup CFinal && not (((has_class_flag csup CExtern) && Meta.has Meta.Hack c.cl_meta) || (match c.cl_kind with KTypeParameter _ -> true | _ -> false)) then
+				typing_error ("Cannot extend a final " ^ if (has_class_flag c CInterface) then "interface" else "class") p;
+		in
+		let check_cancel_build csup =
+			match csup.cl_build() with
+			| Built -> ()
+			| state ->
+				(* for macros reason, our super class is not yet built - see #2177 *)
+				(* let's reset our build and delay it until we are done *)
+				c.cl_meta <- old_meta;
+				raise (Build_canceled state)
+		in
+		let has_interf = ref false in
+		(*
+			resolve imports before calling build_inheritance, since it requires full paths.
+			that means that typedefs are not working, but that's a fair limitation
+		*)
+		let resolve_imports (t,p) =
+			
