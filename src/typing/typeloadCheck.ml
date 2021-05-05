@@ -388,4 +388,72 @@ module Inheritance = struct
 					in
 					if (has_class_field_flag f CfPublic) && not (has_class_field_flag f2 CfPublic) && not (Meta.has Meta.CompilerGenerated f.cf_meta) then
 						display_error ctx.com ("Field " ^ f.cf_name ^ " should be public as requested by " ^ s_type_path intf.cl_path) p
-					else if not (unify_kind f2.cf_kind f.cf_kind) || not (match f.cf_kind, f2.cf_kind with
+					else if not (unify_kind f2.cf_kind f.cf_kind) || not (match f.cf_kind, f2.cf_kind with Var _ , Var _ -> true | Method m1, Method m2 -> mkind m1 = mkind m2 | _ -> false) then
+						display_error ctx.com ("Field " ^ f.cf_name ^ " has different property access than in " ^ s_type_path intf.cl_path ^ " (" ^ s_kind f2.cf_kind ^ " should be " ^ s_kind f.cf_kind ^ ")") p
+					else try
+						let map1 = TClass.get_map_function  intf params in
+						valid_redefinition ctx map1 map2 f2 t2 f (apply_params intf.cl_params params f.cf_type)
+					with
+						Unify_error l ->
+							if not (Meta.has Meta.CsNative c.cl_meta && (has_class_flag c CExtern)) then begin
+								display_error ctx.com ("Field " ^ f.cf_name ^ " has different type than in " ^ s_type_path intf.cl_path) p;
+								display_error ctx.com (compl_msg "Interface field is defined here") f.cf_pos;
+								display_error ctx.com (compl_msg (error_msg (Unify l))) p;
+							end
+				)
+			with Not_found ->
+				if (has_class_flag c CAbstract) && is_method() then begin
+					let cf = make_implicit_field () in
+					add_class_field_flag cf CfAbstract;
+				end else if has_class_field_flag f CfDefault then begin
+					let cf = make_implicit_field () in
+					cf.cf_expr <- None;
+					add_class_field_flag cf CfExtern;
+					add_class_field_flag cf CfOverride;
+				end else if not (has_class_flag c CInterface) then begin
+					if Diagnostics.error_in_diagnostics_run ctx.com c.cl_pos then
+						DynArray.add missing (f,t)
+					else begin
+						let msg = if !is_overload then
+							let ctx = print_context() in
+							let args = match follow f.cf_type with | TFun(args,_) -> String.concat ", " (List.map (fun (n,o,t) -> (if o then "?" else "") ^ n ^ " : " ^ (s_type ctx t)) args) | _ -> die "" __LOC__ in
+							"No suitable overload for " ^ f.cf_name ^ "( " ^ args ^ " ), as needed by " ^ s_type_path intf.cl_path ^ " was found"
+						else
+							("Field " ^ f.cf_name ^ " needed by " ^ s_type_path intf.cl_path ^ " is missing")
+						in
+						display_error ctx.com msg p
+					end
+				end
+		in
+		let check_field _ cf =
+			check_field cf;
+			if has_class_field_flag cf CfOverload then
+				List.iter check_field (List.rev cf.cf_overloads)
+		in
+		PMap.iter check_field intf.cl_fields
+
+	let check_interfaces ctx c =
+		match c.cl_path with
+		| "Proxy" :: _ , _ -> ()
+		| _ when (has_class_flag c CExtern) && Meta.has Meta.CsNative c.cl_meta -> ()
+		| _ ->
+		List.iter (fun (intf,params) ->
+			let missing = DynArray.create () in
+			check_interface ctx missing c intf params;
+			if DynArray.length missing > 0 then begin
+				let l = DynArray.to_list missing in
+				let diag = {
+					mf_pos = c.cl_name_pos;
+					mf_on = TClassDecl c;
+					mf_fields = List.map (fun (cf,t) -> (cf,t,CompletionType.from_type (Display.get_import_status ctx) t)) l;
+					mf_cause = ImplementedInterface(intf,params);
+				} in
+				let display = ctx.com.display_information in
+				display.module_diagnostics <- MissingFields diag :: display.module_diagnostics
+			end
+		) c.cl_implements
+
+	let check_abstract_class ctx c csup params =
+		let missing = ref [] in
+		let map = apply_params csup.cl_params params in
+		let check_abstract_class_field cf1 t1
