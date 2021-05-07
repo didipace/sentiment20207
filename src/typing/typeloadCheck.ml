@@ -600,4 +600,58 @@ module Inheritance = struct
 						check_cancel_build intf;
 						process_meta intf;
 					)
-				
+				| TDynamic t ->
+					if c.cl_dynamic <> None then typing_error "Cannot have several dynamics" p;
+					if not (has_class_flag c CExtern) then display_error ctx.com "In haxe 4, implements Dynamic is only supported on externs" p;
+					c.cl_dynamic <- Some t;
+					(fun () -> ())
+				| _ ->
+					typing_error "Should implement by using an interface" p
+			end
+		in
+		let fl = ExtList.List.filter_map (fun (is_extends,(ct,p)) ->
+			try
+				let t = try
+					Typeload.load_instance ~allow_display:true ctx (ct,p) false
+				with DisplayException(DisplayFields ({fkind = CRTypeHint} as r)) ->
+					(* We don't allow `implements` on interfaces. Just raise fields completion with no fields. *)
+					if not is_extends && (has_class_flag c CInterface) then raise_fields [] CRImplements r.fsubject;
+					let l = List.filter (fun item -> match item.ci_kind with
+						| ITType({kind = Interface} as cm,_) -> (not is_extends || (has_class_flag c CInterface)) && CompletionModuleType.get_path cm <> c.cl_path
+						| ITType({kind = Class} as cm,_) ->
+							is_extends && not (has_class_flag c CInterface) && CompletionModuleType.get_path cm <> c.cl_path &&
+							(not cm.is_final || Meta.has Meta.Hack c.cl_meta) &&
+							(not (is_basic_class_path (cm.pack,cm.name)) || ((has_class_flag c CExtern) && cm.is_extern))
+						| _ -> false
+					) r.fitems in
+					raise_fields l (if is_extends then CRExtends else CRImplements) r.fsubject
+				in
+				Some (check_herit t is_extends p)
+			with Error(Module_not_found(([],name)),p) when ctx.com.display.dms_kind <> DMNone ->
+				if Diagnostics.error_in_diagnostics_run ctx.com p then DisplayToplevel.handle_unresolved_identifier ctx name p true;
+				None
+		) herits in
+		fl
+end
+
+let check_final_vars ctx e =
+	let final_vars = Hashtbl.create 0 in
+	List.iter (fun cf -> match cf.cf_kind with
+		| Var _ when (has_class_field_flag cf CfFinal) && cf.cf_expr = None ->
+			Hashtbl.add final_vars cf.cf_name cf
+		| _ ->
+			()
+	) ctx.curclass.cl_ordered_fields;
+	if Hashtbl.length final_vars > 0 then begin
+		let rec find_inits e = match e.eexpr with
+			| TBinop(OpAssign,{eexpr = TField({eexpr = TConst TThis},fa)},e2) ->
+				Hashtbl.remove final_vars (field_name fa);
+				find_inits e2;
+			| _ ->
+				Type.iter find_inits e
+		in
+		find_inits e;
+		Hashtbl.iter (fun _ cf ->
+			display_error ctx.com ("final field " ^ cf.cf_name ^ " must be initialized immediately or in the constructor") cf.cf_pos;
+		) final_vars
+	end
