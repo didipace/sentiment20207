@@ -529,4 +529,75 @@ module Inheritance = struct
 			that means that typedefs are not working, but that's a fair limitation
 		*)
 		let resolve_imports (t,p) =
-			
+			match t.tpackage with
+			| _ :: _ -> t,p
+			| [] ->
+				try
+					let path_matches lt = snd (t_path lt) = t.tname in
+					let lt = try
+						List.find path_matches ctx.m.curmod.m_types
+					with Not_found ->
+						let t,pi = List.find (fun (lt,_) -> path_matches lt) ctx.m.module_imports in
+						ImportHandling.mark_import_position ctx pi;
+						t
+					in
+					{ t with tpackage = fst (t_path lt) },p
+				with
+					Not_found -> t,p
+		in
+		let herits = ExtList.List.filter_map (function
+			| HExtends t -> Some(true,resolve_imports t)
+			| HImplements t -> Some(false,resolve_imports t)
+			| t -> None
+		) herits in
+		let herits = List.filter (ctx.g.do_inherit ctx c p) herits in
+		(* Pass 1: Check and set relations *)
+		let check_herit t is_extends p =
+			let rec check_interfaces_or_delay () =
+				match c.cl_build() with
+				| BuildMacro pending ->
+					(* Ok listen... we're still building this class, which means we can't check its interfaces yet. However,
+					   we do want to check them at SOME point. So we use this pending list which was maybe designed for this
+					   purpose. However, we STILL have to delay the check because at the time pending is handled, the class
+					   is not built yet. See issue #10847. *)
+					pending := (fun () -> delay ctx PConnectField check_interfaces_or_delay) :: !pending
+				| _ ->
+					check_interfaces ctx c
+			in
+			if is_extends then begin
+				if c.cl_super <> None then typing_error "Cannot extend several classes" p;
+				let csup,params = check_extends ctx c t p in
+				if (has_class_flag c CInterface) then begin
+					if not (has_class_flag csup CInterface) then typing_error "Cannot extend by using a class" p;
+					c.cl_implements <- (csup,params) :: c.cl_implements;
+					if not !has_interf then begin
+						if not is_lib then delay ctx PConnectField check_interfaces_or_delay;
+						has_interf := true;
+					end
+				end else begin
+					if (has_class_flag csup CInterface) then typing_error "Cannot extend by using an interface" p;
+					c.cl_super <- Some (csup,params)
+				end;
+				(fun () ->
+					check_cancel_build csup;
+					process_meta csup;
+				)
+			end else begin match follow t with
+				| TInst ({ cl_path = [],"ArrayAccess" } as ca,[t]) when (has_class_flag ca CExtern) ->
+					if c.cl_array_access <> None then typing_error "Duplicate array access" p;
+					c.cl_array_access <- Some t;
+					(fun () -> ())
+				| TInst (intf,params) ->
+					if extends intf c then typing_error "Recursive class" p;
+					if (has_class_flag c CInterface) then typing_error "Interfaces cannot implement another interface (use extends instead)" p;
+					if not (has_class_flag intf CInterface) then typing_error "You can only implement an interface" p;
+					c.cl_implements <- (intf, params) :: c.cl_implements;
+					if not !has_interf && not is_lib && not (Meta.has (Meta.Custom "$do_not_check_interf") c.cl_meta) then begin
+						delay ctx PConnectField check_interfaces_or_delay;
+						has_interf := true;
+					end;
+					(fun () ->
+						check_cancel_build intf;
+						process_meta intf;
+					)
+				
