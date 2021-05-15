@@ -10,4 +10,8 @@ package flash.display;
 	private function get_x() : Float;
 	private function get_y() : Float;
 	function requestContext3D(?context3DRenderMode : String, ?profile : flash.display3D.Context3DProfile) : Void;
-	@:require(flash12) function requestContext3DMatch
+	@:require(flash12) function requestContext3DMatchingProfiles(profiles : flash.Vector<String>) : Void;
+	private function set_visible(value : Bool) : Bool;
+	private function set_x(value : Float) : Float;
+	private function set_y(value : Float) : Float;
+}
