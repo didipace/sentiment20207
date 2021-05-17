@@ -14,4 +14,8 @@ class Issue10646 extends TestCase {
 			}
 		});
 		Assert.notNull(nekoCtx);
-		runHaxeJsonCb([], ServerMet
+		runHaxeJsonCb([], ServerMethods.ContextMemory, {signature: nekoCtx.signature}, function(mem) {
+			Assert.isNull(mem.leaks);
+		});
+	}
+}
