@@ -64,4 +64,99 @@ let configure gen (should_convert:texpr->bool) =
 					| TLocal _, false ->
 						cond, []
 					| _ ->
-						let va
+						let var = mk_temp "switch" cond_etype in
+						let cond = run cond in
+						let cond = if should_cache then mk_cast cond_etype cond else cond in
+						mk_local var cond.epos, [ mk (TVar (var,Some cond)) basic.tvoid cond.epos ]
+				in
+
+				let mk_eq cond =
+					mk (TBinop (Ast.OpEq, local, cond)) basic.tbool cond.epos
+				in
+
+				let rec mk_many_cond conds =
+					match conds with
+					| cond :: [] ->
+						mk_eq cond
+					| cond :: tl ->
+						mk (TBinop (Ast.OpBoolOr, mk_eq (run cond), mk_many_cond tl)) basic.tbool cond.epos
+					| [] ->
+						Globals.die "" __LOC__
+				in
+
+				let mk_many_cond conds =
+					let ret = mk_many_cond conds in
+					(*
+						this might be considered a hack. But since we're on a syntax filter and
+						the condition is guaranteed to not have run twice, we can really run the
+						expr filters again for it (to change e.g. OpEq accordingly)
+					*)
+					gen.gexpr_filters#run ret
+				in
+
+				let rec loop cases =
+					match cases with
+					| (conds, e) :: [] ->
+						mk (TIf (mk_many_cond conds, run e, Option.map run default)) e.etype e.epos
+					| (conds, e) :: tl ->
+						mk (TIf (mk_many_cond conds, run e, Some (loop tl))) e.etype e.epos
+					| [] ->
+						match default with
+						| None ->
+							raise Exit
+						| Some d ->
+							run d
+				in
+
+				try
+					{ e with eexpr = TBlock (fst_block @ [loop cases]) }
+				with Exit ->
+					{ e with eexpr = TBlock [] }
+			end
+
+		(*
+			Convert a switch on a non-class enum (e.g. native enums) to the native switch,
+			effectively chancing `switch enumIndex(e) { case 1: ...; case 2: ...; }` to
+			`switch e { case MyEnum.A: ...; case MyEnum.B: ...; }`, which is supported natively
+			by some target languages like Java and C#.
+		*)
+		| TSwitch (cond, cases, default) ->
+			begin
+				try
+					match (simplify_expr cond).eexpr with
+					| TEnumIndex enum
+					| TCall  ({ eexpr = TField (_, FStatic ({ cl_path = [],"Type" }, { cf_name = "enumIndex" })) }, [enum]) ->
+						let real_enum =
+							match enum.etype with
+							| TEnum (e, _) -> e
+							| _ -> raise Not_found
+						in
+						if Meta.has Meta.Class real_enum.e_meta then
+							raise Not_found;
+
+						let fields = Hashtbl.create (List.length real_enum.e_names) in
+						PMap.iter (fun _ ef -> Hashtbl.add fields ef.ef_index ef) real_enum.e_constrs;
+
+						let enum_expr = Texpr.Builder.make_typeexpr (TEnumDecl real_enum) e.epos in
+						let cases = List.map (fun (patterns, body) ->
+							let patterns = List.map (fun e ->
+								match e.eexpr with
+								| TConst (TInt i) ->
+									let ef = Hashtbl.find fields (Int32.to_int i) in
+									{ e with eexpr = TField (enum_expr, FEnum (real_enum, ef)); etype = TEnum (real_enum, List.map (fun _ -> t_dynamic) real_enum.e_params) }
+								| _ ->
+									raise Not_found
+							) patterns in
+							let body = run body in
+							patterns, body
+						) cases in
+						{ e with eexpr = TSwitch (enum, cases, Option.map run default) }
+					| _ ->
+						raise Not_found
+				with Not_found ->
+					Type.map_expr run e
+			end
+		| _ ->
+			Type.map_expr run e
+	in
+	gen.gsyntax_f
