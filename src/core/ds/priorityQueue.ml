@@ -52,4 +52,4 @@ let fold queue f acc =
 	loop queue acc
 
 let merge queue1 queue2 =
-	fold queue1 inse
+	fold queue1 insert queue2
