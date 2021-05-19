@@ -159,4 +159,4 @@ let configure gen (should_convert:texpr->bool) =
 		| _ ->
 			Type.map_expr run e
 	in
-	gen.gsyntax_f
+	gen.gsyntax_filters#add name (PCustom priority) run
