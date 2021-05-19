@@ -36,4 +36,29 @@ w.setFastSend(true);
 s.setBlocking(false);
 
 // select after accept
-var se
+var select = sys.net.Socket.select([s], [s], [s], 0.01);
+select.read.length == 0;
+select.write.length == 0;
+select.others.length == 0;
+
+// write
+w.output.writeByte(97);
+w.output.writeByte(98);
+w.output.writeByte(99);
+w.close();
+
+// read
+c.waitForRead();
+var select = sys.net.Socket.select([c], [c], [c]);
+select.read.length == 1;
+select.write.length == 1;
+select.others.length == 0;
+c.read() == "abc";
+#end
+
+c.close();
+s.close();
+
+#else
+1 == 1;
+#end
