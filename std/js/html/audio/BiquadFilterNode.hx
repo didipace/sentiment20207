@@ -101,4 +101,41 @@ extern class BiquadFilterNode extends AudioNode {
 					<tr>
 						<code>allpass</code>
 						<td>Standard second-order allpass filter. It lets all frequencies through, but changes the phase-relationship between the various frequencies.</td>
-						<td>The frequency with the maximal group delay, that is, the 
+						<td>The frequency with the maximal group delay, that is, the frequency where the center of the phase transition occurs.</td>
+						<td>Controls how sharp the transition is at the medium frequency. The larger this parameter is, the sharper and larger the transition will be.</td>
+						<td>Not used</td>
+					</tr>
+				
+			</table>
+			
+	**/
+	var type : BiquadFilterType;
+	
+	/**
+		Is an a-rate `AudioParam`, a double representing a frequency in the current filtering algorithm measured in hertz (Hz).
+	**/
+	var frequency(default,null) : AudioParam;
+	
+	/**
+		Is an a-rate `AudioParam` representing detuning of the frequency in cents.
+	**/
+	var detune(default,null) : AudioParam;
+	
+	/**
+		Is an a-rate `AudioParam`, a double representing a Q factor, or quality factor.
+	**/
+	var Q(default,null) : AudioParam;
+	
+	/**
+		Is an a-rate `AudioParam`, a double representing the gain used in the current filtering algorithm.
+	**/
+	var gain(default,null) : AudioParam;
+	
+	/** @throws DOMError */
+	function new( context : BaseAudioContext, ?options : BiquadFilterOptions ) : Void;
+	
+	/**
+		From the current filter parameter settings this method calculates the frequency response for frequencies specified in the provided array of frequencies.
+	**/
+	function getFrequencyResponse( frequencyHz : js.lib.Float32Array, magResponse : js.lib.Float32Array, phaseResponse : js.lib.Float32Array ) : Void;
+}
