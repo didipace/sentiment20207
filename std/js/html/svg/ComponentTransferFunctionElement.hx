@@ -20,32 +20,17 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\CustomEvent.webidl. Do not edit!
+// This file is generated from mozilla\SVGComponentTransferFunctionElement.webidl. Do not edit!
 
-package js.html;
+package js.html.svg;
 
 /**
-	This interface inherits properties from its parent, `Event`:
+	The `SVGComponentTransferFunctionElement` interface defines a base interface used by the component transfer function interfaces.
 
-	Documentation [CustomEvent](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+	Documentation [SVGComponentTransferFunctionElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGComponentTransferFunctionElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGComponentTransferFunctionElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent>
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGComponentTransferFunctionElement>
 **/
-@:native("CustomEvent")
-extern class CustomEvent extends Event {
-	
-	/**
-		Any data passed when initializing the event.
-	**/
-	var detail(default,null) : Dynamic;
-	
-	/** @throws DOMError */
-	function new( type : String, ?eventInitDict : CustomEventInit ) : Void;
-	
-	/**
-		
-		 Initializes a `CustomEvent` object. If the event has already being dispatched, this method does nothing.
-		 
-	**/
-	function initCustomEvent( type : String, canBubble : Bool = false, cancelable : Bool = false, ?detail : Dynamic ) : Void;
-}
+@:native("SVGComponentTransferFunctionElement")
+extern class ComponentTransferFunctionElement extends Element {
+	static inline var SVG_FECOMPONENTTRANSFER_TYPE_UNKNOWN : Int = 
