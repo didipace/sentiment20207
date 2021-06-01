@@ -71,4 +71,118 @@ class JsonParser {
 		while (true) {
 			var c = nextChar();
 			switch (c) {
-				case 
+				case ' '.code, '\r'.code, '\n'.code, '\t'.code:
+				// loop
+				case '{'.code:
+					var obj = {}, field = null, comma:Null<Bool> = null;
+					while (true) {
+						var c = nextChar();
+						switch (c) {
+							case ' '.code, '\r'.code, '\n'.code, '\t'.code:
+							// loop
+							case '}'.code:
+								if (field != null || comma == false)
+									invalidChar();
+								return obj;
+							case ':'.code:
+								if (field == null)
+									invalidChar();
+								Reflect.setField(obj, field, parseRec());
+								field = null;
+								comma = true;
+							case ','.code:
+								if (comma) comma = false else invalidChar();
+							case '"'.code:
+								if (field != null || comma) invalidChar();
+								field = parseString();
+							default:
+								invalidChar();
+						}
+					}
+				case '['.code:
+					var arr = [], comma:Null<Bool> = null;
+					while (true) {
+						var c = nextChar();
+						switch (c) {
+							case ' '.code, '\r'.code, '\n'.code, '\t'.code:
+							// loop
+							case ']'.code:
+								if (comma == false) invalidChar();
+								return arr;
+							case ','.code:
+								if (comma) comma = false else invalidChar();
+							default:
+								if (comma) invalidChar();
+								pos--;
+								arr.push(parseRec());
+								comma = true;
+						}
+					}
+				case 't'.code:
+					var save = pos;
+					if (nextChar() != 'r'.code || nextChar() != 'u'.code || nextChar() != 'e'.code) {
+						pos = save;
+						invalidChar();
+					}
+					return true;
+				case 'f'.code:
+					var save = pos;
+					if (nextChar() != 'a'.code || nextChar() != 'l'.code || nextChar() != 's'.code || nextChar() != 'e'.code) {
+						pos = save;
+						invalidChar();
+					}
+					return false;
+				case 'n'.code:
+					var save = pos;
+					if (nextChar() != 'u'.code || nextChar() != 'l'.code || nextChar() != 'l'.code) {
+						pos = save;
+						invalidChar();
+					}
+					return null;
+				case '"'.code:
+					return parseString();
+				case '0'.code, '1'.code, '2'.code, '3'.code, '4'.code, '5'.code, '6'.code, '7'.code, '8'.code, '9'.code, '-'.code:
+					return parseNumber(c);
+				default:
+					invalidChar();
+			}
+		}
+	}
+
+	function parseString() {
+		var start = pos;
+		var buf:StringBuf = null;
+		#if target.unicode
+		var prev = -1;
+		inline function cancelSurrogate() {
+			// invalid high surrogate (not followed by low surrogate)
+			buf.addChar(0xFFFD);
+			prev = -1;
+		}
+		#end
+		while (true) {
+			var c = nextChar();
+			if (c == '"'.code)
+				break;
+			if (c == '\\'.code) {
+				if (buf == null) {
+					buf = new StringBuf();
+				}
+				buf.addSub(str, start, pos - start - 1);
+				c = nextChar();
+				#if target.unicode
+				if (c != "u".code && prev != -1)
+					cancelSurrogate();
+				#end
+				switch (c) {
+					case "r".code:
+						buf.addChar("\r".code);
+					case "n".code:
+						buf.addChar("\n".code);
+					case "t".code:
+						buf.addChar("\t".code);
+					case "b".code:
+						buf.addChar(8);
+					case "f".code:
+						buf.addChar(12);
+					case "/".code, '\\'.code, '"'.code:
