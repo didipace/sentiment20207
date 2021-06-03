@@ -186,3 +186,131 @@ class JsonParser {
 					case "f".code:
 						buf.addChar(12);
 					case "/".code, '\\'.code, '"'.code:
+						buf.addChar(c);
+					case 'u'.code:
+						var uc:Int = Std.parseInt("0x" + str.substr(pos, 4));
+						pos += 4;
+						#if !target.unicode
+						if (uc <= 0x7F)
+							buf.addChar(uc);
+						else if (uc <= 0x7FF) {
+							buf.addChar(0xC0 | (uc >> 6));
+							buf.addChar(0x80 | (uc & 63));
+						} else if (uc <= 0xFFFF) {
+							buf.addChar(0xE0 | (uc >> 12));
+							buf.addChar(0x80 | ((uc >> 6) & 63));
+							buf.addChar(0x80 | (uc & 63));
+						} else {
+							buf.addChar(0xF0 | (uc >> 18));
+							buf.addChar(0x80 | ((uc >> 12) & 63));
+							buf.addChar(0x80 | ((uc >> 6) & 63));
+							buf.addChar(0x80 | (uc & 63));
+						}
+						#else
+						if (prev != -1) {
+							if (uc < 0xDC00 || uc > 0xDFFF)
+								cancelSurrogate();
+							else {
+								buf.addChar(((prev - 0xD800) << 10) + (uc - 0xDC00) + 0x10000);
+								prev = -1;
+							}
+						} else if (uc >= 0xD800 && uc <= 0xDBFF)
+							prev = uc;
+						else
+							buf.addChar(uc);
+						#end
+					default:
+						throw "Invalid escape sequence \\" + String.fromCharCode(c) + " at position " + (pos - 1);
+				}
+				start = pos;
+			}
+			#if !(target.unicode)
+			// ensure utf8 chars are not cut
+			else if (c >= 0x80) {
+				pos++;
+				if (c >= 0xFC)
+					pos += 4;
+				else if (c >= 0xF8)
+					pos += 3;
+				else if (c >= 0xF0)
+					pos += 2;
+				else if (c >= 0xE0)
+					pos++;
+			}
+			#end
+		else if (StringTools.isEof(c))
+			throw "Unclosed string";
+		}
+		#if target.unicode
+		if (prev != -1)
+			cancelSurrogate();
+		#end
+		if (buf == null) {
+			return str.substr(start, pos - start - 1);
+		} else {
+			buf.addSub(str, start, pos - start - 1);
+			return buf.toString();
+		}
+	}
+
+	inline function parseNumber(c:Int):Dynamic {
+		var start = pos - 1;
+		var minus = c == '-'.code, digit = !minus, zero = c == '0'.code;
+		var point = false, e = false, pm = false, end = false;
+		while (true) {
+			c = nextChar();
+			switch (c) {
+				case '0'.code:
+					if (zero && !point)
+						invalidNumber(start);
+					if (minus) {
+						minus = false;
+						zero = true;
+					}
+					digit = true;
+				case '1'.code, '2'.code, '3'.code, '4'.code, '5'.code, '6'.code, '7'.code, '8'.code, '9'.code:
+					if (zero && !point)
+						invalidNumber(start);
+					if (minus)
+						minus = false;
+					digit = true;
+					zero = false;
+				case '.'.code:
+					if (minus || point || e)
+						invalidNumber(start);
+					digit = false;
+					point = true;
+				case 'e'.code, 'E'.code:
+					if (minus || zero || e)
+						invalidNumber(start);
+					digit = false;
+					e = true;
+				case '+'.code, '-'.code:
+					if (!e || pm)
+						invalidNumber(start);
+					digit = false;
+					pm = true;
+				default:
+					if (!digit)
+						invalidNumber(start);
+					pos--;
+					end = true;
+			}
+			if (end)
+				break;
+		}
+
+		var f = Std.parseFloat(str.substr(start, pos - start));
+		if(point) {
+			return f;
+		} else {
+			var i = Std.int(f);
+			return if (i == f) i else f;
+		}
+	}
+
+	inline function nextChar() {
+		return StringTools.fastCodeAt(str, pos++);
+	}
+
+	function inval
