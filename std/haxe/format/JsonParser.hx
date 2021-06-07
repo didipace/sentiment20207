@@ -313,4 +313,12 @@ class JsonParser {
 		return StringTools.fastCodeAt(str, pos++);
 	}
 
-	function inval
+	function invalidChar() {
+		pos--; // rewind
+		throw "Invalid char " + StringTools.fastCodeAt(str, pos) + " at position " + pos;
+	}
+
+	function invalidNumber(start:Int) {
+		throw "Invalid number at position " + start + ": " + str.substr(start, pos - start);
+	}
+}
