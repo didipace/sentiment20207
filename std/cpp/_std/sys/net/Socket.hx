@@ -143,4 +143,124 @@ class Socket {
 	}
 
 	public function close():Void {
-		NativeSocket.socket_close(__
+		NativeSocket.socket_close(__s);
+		untyped {
+			var input:SocketInput = cast input;
+			var output:SocketOutput = cast output;
+			input.__s = null;
+			output.__s = null;
+		}
+		input.close();
+		output.close();
+	}
+
+	public function read():String {
+		var bytes:haxe.io.BytesData = NativeSocket.socket_read(__s);
+		if (bytes == null)
+			return "";
+		var arr:Array<cpp.Char> = cast bytes;
+		return NativeString.fromPointer(Pointer.ofArray(arr));
+	}
+
+	public function write(content:String):Void {
+		NativeSocket.socket_write(__s, haxe.io.Bytes.ofString(content).getData());
+	}
+
+	public function connect(host:Host, port:Int):Void {
+		try {
+			if (host.ip == 0 && host.host != "0.0.0.0") {
+				// hack, hack, hack
+				var ipv6:haxe.io.BytesData = Reflect.field(host, "ipv6");
+				if (ipv6 != null) {
+					close();
+					__s = NativeSocket.socket_new_ip(false, true);
+					init();
+					NativeSocket.socket_connect_ipv6(__s, ipv6, port);
+				} else
+					throw "Unresolved host";
+			} else
+				NativeSocket.socket_connect(__s, host.ip, port);
+		} catch (s:String) {
+			if (s == "Invalid socket handle")
+				throw "Failed to connect on " + host.toString() + ":" + port;
+			else if (s == "Blocking") {
+				// Do nothing, this is not a real error, it simply indicates
+				// that a non-blocking connect is in progress
+			} else
+				cpp.Lib.rethrow(s);
+		}
+	}
+
+	public function listen(connections:Int):Void {
+		NativeSocket.socket_listen(__s, connections);
+	}
+
+	public function shutdown(read:Bool, write:Bool):Void {
+		NativeSocket.socket_shutdown(__s, read, write);
+	}
+
+	public function bind(host:Host, port:Int):Void {
+		if (host.ip == 0 && host.host != "0.0.0.0") {
+			var ipv6:haxe.io.BytesData = Reflect.field(host, "ipv6");
+			if (ipv6 != null) {
+				close();
+				__s = NativeSocket.socket_new_ip(false, true);
+				init();
+				NativeSocket.socket_bind_ipv6(__s, ipv6, port);
+			} else
+				throw "Unresolved host";
+		} else
+			NativeSocket.socket_bind(__s, host.ip, port);
+	}
+
+	public function accept():Socket {
+		var c = NativeSocket.socket_accept(__s);
+		var s = Type.createEmptyInstance(Socket);
+		s.__s = c;
+		s.input = new SocketInput(c);
+		s.output = new SocketOutput(c);
+		return s;
+	}
+
+	public function peer():{host:Host, port:Int} {
+		var a:Dynamic = NativeSocket.socket_peer(__s);
+		if (a == null) {
+			return null;
+		}
+		var h = new Host("127.0.0.1");
+		untyped h.ip = a[0];
+		return {host: h, port: a[1]};
+	}
+
+	public function host():{host:Host, port:Int} {
+		var a:Dynamic = NativeSocket.socket_host(__s);
+		if (a == null) {
+			return null;
+		}
+		var h = new Host("127.0.0.1");
+		untyped h.ip = a[0];
+		return {host: h, port: a[1]};
+	}
+
+	public function setTimeout(timeout:Float):Void {
+		__timeout = timeout;
+		NativeSocket.socket_set_timeout(__s, timeout);
+	}
+
+	public function waitForRead():Void {
+		select([this], null, null, null);
+	}
+
+	public function setBlocking(b:Bool):Void {
+		__blocking = b;
+		NativeSocket.socket_set_blocking(__s, b);
+	}
+
+	public function setFastSend(b:Bool):Void {
+		__fastSend = b;
+		NativeSocket.socket_set_fast_send(__s, b);
+	}
+
+	public static function select(read:Array<Socket>, write:Array<Socket>, others:Array<Socket>,
+			?timeout:Float):{read:Array<Socket>, write:Array<Socket>, others:Array<Socket>} {
+		var neko_array = NativeSo
