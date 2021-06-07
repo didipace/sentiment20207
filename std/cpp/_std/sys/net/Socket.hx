@@ -263,4 +263,11 @@ class Socket {
 
 	public static function select(read:Array<Socket>, write:Array<Socket>, others:Array<Socket>,
 			?timeout:Float):{read:Array<Socket>, write:Array<Socket>, others:Array<Socket>} {
-		var neko_array = NativeSo
+		var neko_array = NativeSocket.socket_select(read, write, others, timeout);
+		if (neko_array == null)
+			throw "Select error";
+		return @:fixed {
+			read:neko_array[0], write:neko_array[1], others:neko_array[2]
+		};
+	}
+}
