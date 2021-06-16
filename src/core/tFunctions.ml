@@ -345,3 +345,100 @@ let dynamify_monos t =
 		match t with
 		| TMono { tm_type = None } ->
 			t_dynamic
+		| _ ->
+			map loop t
+	in
+	loop t
+
+exception ApplyParamsRecursion
+
+(* substitute parameters with other types *)
+let apply_params ?stack cparams params t =
+	match cparams with
+	| [] -> t
+	| _ ->
+	let rec loop l1 l2 =
+		match l1, l2 with
+		| [] , [] -> []
+		| {ttp_type = TLazy f} as tp :: l1, _ -> loop ({tp with ttp_type = lazy_type f} :: l1) l2
+		| tp :: l1 , t2 :: l2 -> (tp.ttp_type,t2) :: loop l1 l2
+		| _ -> die "" __LOC__
+	in
+	let subst = loop cparams params in
+	let rec loop t =
+		try
+			List.assq t subst
+		with Not_found ->
+		match t with
+		| TMono r ->
+			(match r.tm_type with
+			| None -> t
+			| Some t -> loop t)
+		| TEnum (e,tl) ->
+			(match tl with
+			| [] -> t
+			| _ -> TEnum (e,List.map loop tl))
+		| TType (t2,tl) ->
+			(match tl with
+			| [] -> t
+			| _ ->
+				let new_applied_params = List.map loop tl in
+				(match stack with
+				| None -> ()
+				| Some stack ->
+					List.iter (fun (subject, old_applied_params) ->
+						(*
+							E.g.:
+							```
+							typedef Rec<T> = { function method():Rec<Array<T>> }
+							```
+							We need to make sure that we are not applying the result of previous
+							application to the same place, which would mean the result of current
+							application would go into `apply_params` again and then again and so on.
+
+							Argument `stack` holds all previous results of `apply_params` to typedefs in current
+							unification process.
+
+							Imagine we are trying to unify `Rec<Int>` with something.
+
+							Once `apply_params Array<T> Int Rec<Array<T>>` is called for the first time the result
+							will be `Rec< Array<Int> >`. Store `Array<Int>` into `stack`
+
+							Then the next params application looks like this:
+								`apply_params Array<T> Array<Int> Rec<Array<T>>`
+							Notice the second argument is actually the result of a previous `apply_params` call.
+							And the result of the current call is `Rec< Array<Array<Int>> >`.
+
+							The third call would be:
+								`apply_params Array<T> Array<Array<Int>> Rec<Array<T>>`
+							and so on.
+
+							To stop infinite params application we need to check that we are trying to apply params
+							produced by the previous `apply_params Array<Int> _ Rec<Array<T>>` to the same `Rec<Array<T>>`
+						*)
+						if
+							subject == t (* Check the place that we're applying to is the same `Rec<Array<T>>` *)
+							&& old_applied_params == params (* Check that params we're applying are the same params
+																produced by the previous call to
+																`apply_params Array<T> _ Rec<Array<T>>` *)
+						then
+							raise ApplyParamsRecursion
+					) !stack;
+					stack := (t, new_applied_params) :: !stack;
+				);
+				TType (t2,new_applied_params))
+		| TAbstract (a,tl) ->
+			(match tl with
+			| [] -> t
+			| _ -> TAbstract (a,List.map loop tl))
+		| TInst (c,tl) ->
+			(match tl with
+			| [] ->
+				t
+			| [TMono r] ->
+				(match r.tm_type with
+				| Some tt when t == tt ->
+					(* for dynamic *)
+					let pt = mk_mono() in
+					let t = TInst (c,[pt]) in
+					(match pt with TMono r -> !mono
