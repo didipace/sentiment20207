@@ -207,4 +207,141 @@ let null_class =
 let null_field = mk_field "" t_dynamic null_pos null_pos
 
 let null_abstract = {
-	a_path = ([],"
+	a_path = ([],"");
+	a_module = null_module;
+	a_pos = null_pos;
+	a_name_pos = null_pos;
+	a_private = true;
+	a_doc = None;
+	a_meta = [];
+	a_params = [];
+	a_using = [];
+	a_restore = (fun () -> ());
+	a_ops = [];
+	a_unops = [];
+	a_impl = None;
+	a_this = t_dynamic;
+	a_from = [];
+	a_from_field = [];
+	a_to = [];
+	a_to_field = [];
+	a_array = [];
+	a_read = None;
+	a_write = None;
+	a_call = None;
+	a_enum = false;
+}
+
+let add_dependency ?(skip_postprocess=false) m mdep =
+	if m != null_module && m != mdep then begin
+		m.m_extra.m_deps <- PMap.add mdep.m_id mdep m.m_extra.m_deps;
+		(* In case the module is cached, we'll have to run post-processing on it again (issue #10635) *)
+		if not skip_postprocess then m.m_extra.m_processed <- 0
+	end
+
+let arg_name (a,_) = a.v_name
+
+let t_infos t : tinfos =
+	match t with
+	| TClassDecl c -> Obj.magic c
+	| TEnumDecl e -> Obj.magic e
+	| TTypeDecl t -> Obj.magic t
+	| TAbstractDecl a -> Obj.magic a
+
+let t_path t = (t_infos t).mt_path
+
+let rec extends c csup =
+	if c == csup || List.exists (fun (i,_) -> extends i csup) c.cl_implements then
+		true
+	else match c.cl_super with
+		| None -> false
+		| Some (c,_) -> extends c csup
+
+let add_descendant c descendant =
+	c.cl_descendants <- descendant :: c.cl_descendants
+
+let lazy_type f =
+	match !f with
+	| LAvailable t -> t
+	| LProcessing f | LWait f -> f()
+
+let lazy_available t = LAvailable t
+let lazy_processing f = LProcessing f
+let lazy_wait f = LWait f
+
+let map loop t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| None -> t
+		| Some t -> loop t) (* erase*)
+	| TEnum (_,[]) | TInst (_,[]) | TType (_,[]) | TAbstract (_,[]) ->
+		t
+	| TEnum (e,tl) ->
+		TEnum (e, List.map loop tl)
+	| TInst (c,tl) ->
+		TInst (c, List.map loop tl)
+	| TType (t2,tl) ->
+		TType (t2,List.map loop tl)
+	| TAbstract (a,tl) ->
+		TAbstract (a,List.map loop tl)
+	| TFun (tl,r) ->
+		TFun (List.map (fun (s,o,t) -> s, o, loop t) tl,loop r)
+	| TAnon a ->
+		let fields = PMap.map (fun f -> { f with cf_type = loop f.cf_type }) a.a_fields in
+		mk_anon ~fields a.a_status
+	| TLazy f ->
+		let ft = lazy_type f in
+		let ft2 = loop ft in
+		if ft == ft2 then t else ft2
+	| TDynamic t2 ->
+		if t == t2 then	t else TDynamic (loop t2)
+
+let iter loop t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| None -> ()
+		| Some t -> loop t)
+	| TEnum (_,[]) | TInst (_,[]) | TType (_,[]) ->
+		()
+	| TEnum (e,tl) ->
+		List.iter loop tl
+	| TInst (c,tl) ->
+		List.iter loop tl
+	| TType (t2,tl) ->
+		List.iter loop tl
+	| TAbstract (a,tl) ->
+		List.iter loop tl
+	| TFun (tl,r) ->
+		List.iter (fun (_,_,t) -> loop t) tl;
+		loop r
+	| TAnon a ->
+		PMap.iter (fun _ f -> loop f.cf_type) a.a_fields
+	| TLazy f ->
+		let ft = lazy_type f in
+		loop ft
+	| TDynamic t2 ->
+		if t != t2 then	loop t2
+
+let duplicate t =
+	let monos = ref [] in
+	let rec loop t =
+		match t with
+		| TMono { tm_type = None } ->
+			(try
+				List.assq t !monos
+			with Not_found ->
+				let m = mk_mono() in
+				monos := (t,m) :: !monos;
+				m)
+		| _ ->
+			map loop t
+	in
+	loop t
+
+let dynamify_monos t =
+	let rec loop t =
+		match t with
+		| TMono { tm_type = None } ->
+			t_dynamic
