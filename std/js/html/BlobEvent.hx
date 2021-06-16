@@ -20,4 +20,25 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated 
+// This file is generated from mozilla\BlobEvent.webidl. Do not edit!
+
+package js.html;
+
+/**
+	The `BlobEvent` interface represents events associated with a `Blob`. These blobs are typically, but not necessarily,  associated with media content.
+
+	Documentation [BlobEvent](https://developer.mozilla.org/en-US/docs/Web/API/BlobEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/BlobEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/BlobEvent>
+**/
+@:native("BlobEvent")
+extern class BlobEvent extends Event {
+	
+	/**
+		A `Blob` representing the data associated with the event. The event was fired on the `EventTarget` because of something happening on that specific `Blob`.
+	**/
+	var data(default,null) : Blob;
+	
+	/** @throws DOMError */
+	function new( type : String, ?eventInitDict : BlobEventInit ) : Void;
+}
