@@ -441,4 +441,129 @@ let apply_params ?stack cparams params t =
 					(* for dynamic *)
 					let pt = mk_mono() in
 					let t = TInst (c,[pt]) in
-					(match pt with TMono r -> !mono
+					(match pt with TMono r -> !monomorph_bind_ref r t | _ -> die "" __LOC__);
+					t
+				| _ -> TInst (c,List.map loop tl))
+			| _ ->
+				TInst (c,List.map loop tl))
+		| TFun (tl,r) ->
+			TFun (List.map (fun (s,o,t) -> s, o, loop t) tl,loop r)
+		| TAnon a ->
+			let fields = PMap.map (fun f -> { f with cf_type = loop f.cf_type }) a.a_fields in
+			mk_anon ~fields a.a_status
+		| TLazy f ->
+			let ft = lazy_type f in
+			let ft2 = loop ft in
+			if ft == ft2 then
+				t
+			else
+				ft2
+		| TDynamic t2 ->
+			if t == t2 then
+				t
+			else
+				TDynamic (loop t2)
+	in
+	loop t
+
+let apply_typedef td tl =
+	apply_params td.t_params tl td.t_type
+
+let monomorphs eparams t =
+	apply_params eparams (List.map (fun _ -> mk_mono()) eparams) t
+
+let apply_params_stack = ref []
+
+let try_apply_params_rec cparams params t success =
+	let old_stack = !apply_params_stack in
+	try
+		let result = success (apply_params ~stack:apply_params_stack cparams params t) in
+		apply_params_stack := old_stack;
+		result
+	with
+		| ApplyParamsRecursion ->
+			apply_params_stack := old_stack;
+		| err ->
+			apply_params_stack := old_stack;
+			raise err
+
+let rec follow t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| Some t -> follow t
+		| _ -> t)
+	| TLazy f ->
+		follow (lazy_type f)
+	| TType (t,tl) ->
+		follow (apply_typedef t tl)
+	| TAbstract({a_path = [],"Null"},[t]) ->
+		follow t
+	| _ -> t
+
+let follow_once t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| None -> t
+		| Some t -> t)
+	| TAbstract _ | TEnum _ | TInst _ | TFun _ | TAnon _ | TDynamic _ ->
+		t
+	| TType (t,tl) ->
+		apply_typedef t tl
+	| TLazy f ->
+		lazy_type f
+
+let rec follow_without_null t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| Some t -> follow_without_null t
+		| _ -> t)
+	| TLazy f ->
+		follow_without_null (lazy_type f)
+	| TType (t,tl) ->
+		follow_without_null (apply_typedef t tl)
+	| _ -> t
+
+let rec follow_without_type t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| Some t -> follow_without_type t
+		| _ -> t)
+	| TLazy f ->
+		follow_without_type (lazy_type f)
+	| TAbstract({a_path = [],"Null"},[t]) ->
+		follow_without_type t
+	| _ -> t
+
+let rec ambiguate_funs t =
+	match follow t with
+	| TFun _ -> TFun ([], t_dynamic)
+	| _ -> map ambiguate_funs t
+
+let rec is_nullable ?(no_lazy=false) = function
+	| TMono r ->
+		(match r.tm_type with None -> false | Some t -> is_nullable ~no_lazy t)
+	| TAbstract ({ a_path = ([],"Null") },[_]) ->
+		true
+	| TLazy f ->
+		(match !f with
+		| LAvailable t -> is_nullable ~no_lazy t
+		| _ when no_lazy -> raise Exit
+		| _ -> is_nullable (lazy_type f)
+		)
+	| TType (t,tl) ->
+		is_nullable ~no_lazy (apply_typedef t tl)
+	| TFun _ ->
+		false
+(*
+	Type parameters will most of the time be nullable objects, so we don't want to make it hard for users
+	to have to specify Null<T> all over the place, so while they could be a basic type, let's assume they will not.
+
+	This will still cause issues with inlining and haxe.rtti.Generic. In that case proper explicit Null<T> is required to
+	work correctly with basic types. This could still be fixed by redoing a nullability inference on the typed AST.
+
+	| TInst ({ cl_kind = KTypeParameter },_) -> false
+*)
