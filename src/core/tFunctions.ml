@@ -674,4 +674,121 @@ let tconst_to_const = function
 
 let has_ctor_constraint c = match c.cl_kind with
 	| KTypeParameter tl ->
-		List.exists (fun t -> match follow t
+		List.exists (fun t -> match follow t with
+			| TAnon a when PMap.mem "new" a.a_fields -> true
+			| TAbstract({a_path=["haxe"],"Constructible"},_) -> true
+			| _ -> false
+		) tl;
+	| _ -> false
+
+(* ======= Field utility ======= *)
+
+let field_name f =
+	match f with
+	| FAnon f | FInstance (_,_,f) | FStatic (_,f) | FClosure (_,f) -> f.cf_name
+	| FEnum (_,f) -> f.ef_name
+	| FDynamic n -> n
+
+let extract_field = function
+	| FAnon f | FInstance (_,_,f) | FStatic (_,f) | FClosure (_,f) -> Some f
+	| _ -> None
+
+let is_physical_var_field f =
+	match f.cf_kind with
+	| Var { v_read = AccNormal | AccInline | AccNo } | Var { v_write = AccNormal | AccNo } -> true
+	| Var _ -> Meta.has Meta.IsVar f.cf_meta
+	| _ -> false
+
+let is_physical_field f =
+	match f.cf_kind with
+	| Method _ -> true
+	| _ -> is_physical_var_field f
+
+let field_type f =
+	match f.cf_params with
+	| [] -> f.cf_type
+	| l -> monomorphs l f.cf_type
+
+let rec raw_class_field build_type c tl i =
+	let apply = apply_params c.cl_params tl in
+	try
+		let f = PMap.find i c.cl_fields in
+		Some (c,tl), build_type f , f
+	with Not_found -> try (match c.cl_constructor with
+		| Some ctor when i = "new" -> Some (c,tl), build_type ctor,ctor
+		| _ -> raise Not_found)
+	with Not_found -> try
+		match c.cl_super with
+		| None ->
+			raise Not_found
+		| Some (c,tl) ->
+			let c2 , t , f = raw_class_field build_type c (List.map apply tl) i in
+			c2, apply_params c.cl_params tl t , f
+	with Not_found ->
+		match c.cl_kind with
+		| KTypeParameter tl ->
+			let rec loop = function
+				| [] ->
+					raise Not_found
+				| t :: ctl ->
+					match follow t with
+					| TAnon a ->
+						(try
+							let f = PMap.find i a.a_fields in
+							None, build_type f, f
+						with
+							Not_found -> loop ctl)
+					| TInst (c,tl) ->
+						(try
+							let c2, t , f = raw_class_field build_type c (List.map apply tl) i in
+							c2, apply_params c.cl_params tl t, f
+						with
+							Not_found -> loop ctl)
+					| _ ->
+						loop ctl
+			in
+			loop tl
+		| _ ->
+			if not (has_class_flag c CInterface) then raise Not_found;
+			(*
+				an interface can implements other interfaces without
+				having to redeclare its fields
+			*)
+			let rec loop = function
+				| [] ->
+					raise Not_found
+				| (c,tl) :: l ->
+					try
+						let c2, t , f = raw_class_field build_type c (List.map apply tl) i in
+						c2, apply_params c.cl_params tl t, f
+					with
+						Not_found -> loop l
+			in
+			loop c.cl_implements
+
+let class_field = raw_class_field field_type
+
+let quick_field t n =
+	match follow t with
+	| TInst (c,tl) ->
+		let c, _, f = raw_class_field (fun f -> f.cf_type) c tl n in
+		(match c with None -> FAnon f | Some (c,tl) -> FInstance (c,tl,f))
+	| TAnon a ->
+		(match !(a.a_status) with
+		| EnumStatics e ->
+			let ef = PMap.find n e.e_constrs in
+			FEnum(e,ef)
+		| Statics c ->
+			FStatic (c,PMap.find n c.cl_statics)
+		| AbstractStatics a ->
+			begin match a.a_impl with
+				| Some c ->
+					let cf = PMap.find n c.cl_statics in
+					FStatic(c,cf) (* is that right? *)
+				| _ ->
+					raise Not_found
+			end
+		| _ ->
+			FAnon (PMap.find n a.a_fields))
+	| TDynamic _ ->
+		FD
