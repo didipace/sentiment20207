@@ -567,3 +567,111 @@ let rec is_nullable ?(no_lazy=false) = function
 
 	| TInst ({ cl_kind = KTypeParameter },_) -> false
 *)
+	| TAbstract (a,_) when Meta.has Meta.CoreType a.a_meta ->
+		not (Meta.has Meta.NotNull a.a_meta)
+	| TAbstract (a,tl) ->
+		not (Meta.has Meta.NotNull a.a_meta) && is_nullable (apply_params a.a_params tl a.a_this)
+	| _ ->
+		true
+
+let rec is_null ?(no_lazy=false) = function
+	| TMono r ->
+		(match r.tm_type with None -> false | Some t -> is_null ~no_lazy t)
+	| TAbstract ({ a_path = ([],"Null") },[t]) ->
+		not (is_nullable ~no_lazy (follow t))
+	| TLazy f ->
+		(match !f with
+		| LAvailable t -> is_null ~no_lazy t
+		| _ when no_lazy -> raise Exit
+		| _ -> is_null (lazy_type f)
+		)
+	| TType (t,tl) ->
+		is_null ~no_lazy (apply_typedef t tl)
+	| _ ->
+		false
+
+(* Determines if we have a Null<T>. Unlike is_null, this returns true even if the wrapped type is nullable itself. *)
+let rec is_explicit_null = function
+	| TMono r ->
+		(match r.tm_type with None -> false | Some t -> is_explicit_null t)
+	| TAbstract ({ a_path = ([],"Null") },[t]) ->
+		true
+	| TLazy f ->
+		is_explicit_null (lazy_type f)
+	| TType (t,tl) ->
+		is_explicit_null (apply_typedef t tl)
+	| _ ->
+		false
+
+let rec has_mono t = match t with
+	| TMono r ->
+		(match r.tm_type with None -> true | Some t -> has_mono t)
+	| TInst(_,pl) | TEnum(_,pl) | TAbstract(_,pl) | TType(_,pl) ->
+		List.exists has_mono pl
+	| TDynamic _ ->
+		false
+	| TFun(args,r) ->
+		has_mono r || List.exists (fun (_,_,t) -> has_mono t) args
+	| TAnon a ->
+		PMap.fold (fun cf b -> has_mono cf.cf_type || b) a.a_fields false
+	| TLazy f ->
+		has_mono (lazy_type f)
+
+let concat e1 e2 =
+	let e = (match e1.eexpr, e2.eexpr with
+		| TBlock el1, TBlock el2 -> TBlock (el1@el2)
+		| TBlock el, _ -> TBlock (el @ [e2])
+		| _, TBlock el -> TBlock (e1 :: el)
+		| _ , _ -> TBlock [e1;e2]
+	) in
+	mk e e2.etype (punion e1.epos e2.epos)
+
+let extract_param_type tp = tp.ttp_type
+let extract_param_types = List.map extract_param_type
+let extract_param_name tp = tp.ttp_name
+let lookup_param n l =
+	let rec loop l = match l with
+		| [] ->
+			raise Not_found
+		| tp :: l ->
+			if n = tp.ttp_name then tp.ttp_type else loop l
+	in
+	loop l
+
+let mk_type_param n t def = {
+	ttp_name = n;
+	ttp_type = t;
+	ttp_default = def;
+}
+
+let type_of_module_type = function
+	| TClassDecl c -> TInst (c,extract_param_types c.cl_params)
+	| TEnumDecl e -> TEnum (e,extract_param_types e.e_params)
+	| TTypeDecl t -> TType (t,extract_param_types t.t_params)
+	| TAbstractDecl a -> TAbstract (a,extract_param_types a.a_params)
+
+let rec module_type_of_type = function
+	| TInst(c,_) -> TClassDecl c
+	| TEnum(en,_) -> TEnumDecl en
+	| TType(t,_) -> TTypeDecl t
+	| TAbstract(a,_) -> TAbstractDecl a
+	| TLazy f -> module_type_of_type (lazy_type f)
+	| TMono r ->
+		(match r.tm_type with
+		| Some t -> module_type_of_type t
+		| _ -> raise Exit)
+	| _ ->
+		raise Exit
+
+let tconst_to_const = function
+	| TInt i -> Int (Int32.to_string i, None)
+	| TFloat s -> Float (s, None)
+	| TString s -> String(s,SDoubleQuotes)
+	| TBool b -> Ident (if b then "true" else "false")
+	| TNull -> Ident "null"
+	| TThis -> Ident "this"
+	| TSuper -> Ident "super"
+
+let has_ctor_constraint c = match c.cl_kind with
+	| KTypeParameter tl ->
+		List.exists (fun t -> match follow t
