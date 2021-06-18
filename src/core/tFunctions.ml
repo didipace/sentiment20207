@@ -791,4 +791,65 @@ let quick_field t n =
 		| _ ->
 			FAnon (PMap.find n a.a_fields))
 	| TDynamic _ ->
-		FD
+		FDynamic n
+	| TEnum _  | TMono _ | TAbstract _ | TFun _ ->
+		raise Not_found
+	| TLazy _ | TType _ ->
+		die "" __LOC__
+
+let quick_field_dynamic t s =
+	try quick_field t s
+	with Not_found -> FDynamic s
+
+let rec get_constructor_class c tl =
+	match c.cl_constructor, c.cl_super with
+	| Some cf, _ -> (cf,c,tl)
+	| None, None -> raise Not_found
+	| None, Some (csup,tlsup) -> get_constructor_class csup (List.map (apply_params c.cl_params tl) tlsup)
+
+let rec get_constructor c =
+	match c.cl_constructor, c.cl_super with
+	| Some c, _ -> c
+	| None, None -> raise Not_found
+	| None, Some (csup,_) -> get_constructor csup
+
+let has_constructor c =
+	try
+		ignore(get_constructor c);
+		true
+	with Not_found -> false
+
+let is_module_fields_class c =
+	match c.cl_kind with KModuleFields _ -> true | _ -> false
+
+let is_pos_outside_class c p =
+	p.pfile <> c.cl_pos.pfile || p.pmax < c.cl_pos.pmin || p.pmin > c.cl_pos.pmax
+
+let resolve_typedef t =
+	match t with
+	| TClassDecl _ | TEnumDecl _ | TAbstractDecl _ -> t
+	| TTypeDecl td ->
+		match follow td.t_type with
+		| TEnum (e,_) -> TEnumDecl e
+		| TInst (c,_) -> TClassDecl c
+		| TAbstract (a,_) -> TAbstractDecl a
+		| _ -> t
+
+(**
+	Check if type `t` has meta `m`.
+	Does not follow typedefs, monomorphs etc.
+*)
+let type_has_meta t m =
+	match t with
+		| TMono _ | TFun _ | TAnon _ | TDynamic _ | TLazy _ -> false
+		| TEnum ({ e_meta = metadata }, _)
+		| TInst ({ cl_meta = metadata }, _)
+		| TType ({ t_meta = metadata }, _)
+		| TAbstract ({ a_meta = metadata }, _) -> has_meta m metadata
+
+(* tvar *)
+
+let var_extra params e = {
+	v_params = params;
+	v_expr = e;
+}
