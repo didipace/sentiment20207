@@ -48,4 +48,6 @@
     <option testMovie="Custom" />
     <option testMovieCommand="" />
   </options>
-  <!
+  <!-- Plugin storage -->
+  <storage />
+</project>
