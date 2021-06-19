@@ -20,40 +20,22 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package sys.db;
+package eval.vm;
 
-class Sqlite {
-	static var type:Class<cs.system.data.IDbConnection>;
+/**
+	The memory management counters are returned in a stat record.
+	The total amount of memory allocated by the program since it was started is (in words) minor_words + major_words - promoted_words. Multiply by the word size (4 on a 32-bit machine, 8 on a 64-bit machine) to get the number of bytes.
+**/
+typedef Stat = {
+	/**
+		Number of words allocated in the minor heap since the program was started. This number is accurate in byte-code programs, but only an approximation in programs compiled to native code.
+	**/
+	var minor_words:Float;
 
-	public static function open(file:String):sys.db.Connection {
-		var cnxString = 'Data Source=$file';
-		if (type == null) {
-			var t = null;
-			var assemblies = cs.system.AppDomain.CurrentDomain.GetAssemblies();
-			for (i in 0...assemblies.Length) {
-				var a = assemblies[i];
-				t = a.GetType('Mono.Data.Sqlite.SqliteConnection');
-				if (t == null)
-					t = a.GetType('System.Data.SQLite.SQLiteConnection');
-				if (t != null) {
-					break;
-				}
-			}
+	/**
+		Number of words allocated in the minor heap that survived a minor collection and were moved to the major heap since the program was started.
+	**/
+	var promoted_words:Float;
 
-			if (t == null) {
-				var asm = cs.system.reflection.Assembly.Load('Mono.Data.Sqlite');
-				t = asm.GetType('Mono.Data.Sqlite.SqliteConnection');
-			}
-
-			if (t != null)
-				type = cast cs.Lib.fromNativeType(t);
-		}
-
-		if (type == null) {
-			throw "No ADO.NET SQLite provider was found!";
-		}
-		var ret = Type.createInstance(type, [cnxString]);
-		ret.Open();
-		return cs.db.AdoNet.create(ret, 'SQLite');
-	}
-}
+	/**
+		Number of words allocated in the major heap, including the promo
