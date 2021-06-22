@@ -139,4 +139,58 @@ typedef Control = {
 			* 0x080 Calling of finalisation functions.
 			* 0x100 Bytecode executable and shared library search at start-up.
 			* 0x200 Computation of compaction-triggering condition.
-			* 0x400 Output GC statistics at program exit. Default
+			* 0x400 Output GC statistics at program exit. Default: 0.
+	**/
+	var verbose:Int;
+
+	/**
+		Heap compaction is triggered when the estimated amount of "wasted" memory is more than max_overhead percent of the amount of live data. If max_overhead is set to 0, heap compaction is triggered at the end of each major GC cycle (this setting is intended for testing purposes only). If max_overhead >= 1000000, compaction is never triggered. If compaction is permanently disabled, it is strongly suggested to set allocation_policy to 1. Default: 500.
+	**/
+	var max_overhead:Int;
+
+	/**
+		The maximum size of the stack (in words). This is only relevant to the byte-code runtime, as the native code runtime uses the operating system's stack. Default: 1024k.
+	**/
+	var stack_limit:Int;
+
+	/**
+		The policy used for allocating in the heap. Possible values are 0 and 1. 0 is the next-fit policy, which is quite fast but can result in fragmentation. 1 is the first-fit policy, which can be slower in some cases but can be better for programs with fragmentation problems. Default: 0.
+	**/
+	var allocation_policy:Int;
+}
+
+/**
+	Memory management control and statistics; finalised values.
+**/
+extern class Gc {
+	/**
+		Return the total number of bytes allocated since the program was started. It is returned as a float to avoid overflow problems with int on 32-bit machines.
+	**/
+	static function allocated_bytes():Float;
+
+	/**
+		Perform a full major collection and compact the heap. Note that heap compaction is a lengthy operation.
+	**/
+	static function compact():Void;
+
+	/**
+		Return (minor_words, promoted_words, major_words). This function is as fast as quick_stat.
+	**/
+	static function counters():{minor_words:Float, promoted_words:Float, major_words:Float};
+
+	/**
+		Registers f as a finalisation function for v. v must be heap-allocated. f will be called with v as argument at some point between the first time v becomes unreachable (including through weak pointers) and the time v is collected by the GC. Several functions can be registered for the same value, or even several instances of the same function. Each instance will be called once (or never, if the program terminates before v becomes unreachable).
+		The GC will call the finalisation functions in the order of deallocation. When several values become unreachable at the same time (i.e. during the same GC cycle), the finalisation functions will be called in the reverse order of the corresponding calls to finalise. If finalise is called in the same order as the values are allocated, that means each value is finalised before the values it depends upon. Of course, this becomes false if additional dependencies are introduced by assignments.
+
+		In the presence of multiple OCaml threads it should be assumed that any particular finaliser may be executed in any of the threads.
+	**/
+	static function finalise<T>(f:T->Void, v:T):Void;
+
+	/**
+		Do a minor collection, finish the current major collection cycle, and perform a complete new cycle. This will collect all currently unreachable blocks.
+	**/
+	static function full_major():Void;
+
+	/**
+		Return the current values of the GC parameters in a control record.
+	**/
