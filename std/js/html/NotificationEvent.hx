@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,18 +21,25 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\MouseEvent.webidl. Do not edit!
+// This file is generated from mozilla\NotificationEvent.webidl. Do not edit!
 
 package js.html;
 
-typedef MouseEventInit = EventModifierInit & {
-	var ?button : Int;
-	var ?buttons : Int;
-	var ?clientX : Int;
-	var ?clientY : Int;
-	var ?movementX : Int;
-	var ?movementY : Int;
-	var ?relatedTarget : EventTarget;
-	var ?screenX : Int;
-	var ?screenY : Int;
+/**
+	The parameter passed into the `onnotificationclick` handler, the `NotificationEvent` interface represents a notification click event that is dispatched on the `ServiceWorkerGlobalScope` of a `ServiceWorker`.
+
+	Documentation [NotificationEvent](https://developer.mozilla.org/en-US/docs/Web/API/NotificationEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/NotificationEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/NotificationEvent>
+**/
+@:native("NotificationEvent")
+extern class NotificationEvent extends ExtendableEvent {
+	
+	/**
+		Returns a `Notification` object representing the notification that was clicked to fire the event.
+	**/
+	var notification(default,null) : Notification;
+	
+	/** @throws DOMError */
+	function new( type : String, eventInitDict : NotificationEventInit ) : Void;
 }
