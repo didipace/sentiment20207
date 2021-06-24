@@ -194,3 +194,40 @@ extern class Gc {
 	/**
 		Return the current values of the GC parameters in a control record.
 	**/
+	static function get():Control;
+
+	/**
+		Do a minor collection and finish the current major collection cycle.
+	**/
+	static function major():Void;
+
+	/**
+		Do a minor collection and a slice of major collection. n is the size of the slice: the GC will do enough work to free (on average) n words of memory. If n = 0, the GC will try to do enough work to ensure that the next automatic slice has no work to do. This function returns an unspecified integer (currently: 0).
+	**/
+	static function major_slice():Void;
+
+	/**
+		Trigger a minor collection.
+	**/
+	static function minor():Void;
+
+	/**
+		Print the current values of the memory management counters (in human-readable form) into the channel argument.
+	**/
+	static function print_stat(out_channel:haxe.io.Output):Void;
+
+	/**
+		Same as stat except that live_words, live_blocks, free_words, free_blocks, largest_free, and fragments are set to 0. This function is much faster than stat because it does not need to go through the heap.
+	**/
+	static function quick_stat():Stat;
+
+	/**
+		Changes the GC parameters according to the control record r.
+	**/
+	static function set(r:Control):Void;
+
+	/**
+		Return the current values of the memory management counters in a stat record. This function examines every heap block to get the statistics.
+	**/
+	static function stat():Stat;
+}
