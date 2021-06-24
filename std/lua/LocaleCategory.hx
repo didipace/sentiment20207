@@ -20,11 +20,13 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/**
-	An abstract type that represents a Class.
+package lua;
 
-	See `Type` for the Haxe Reflection API.
-
-	@see https://haxe.org/manual/types-class-instance.html
-**/
-@:coreType @:runtimeValue abstract Class<T> {}
+enum abstract LocaleCategory(String) {
+	var All = "all";
+	var Collate = "collate";
+	var Ctype = "ctype";
+	var Monetary = "monetary";
+	var Numeric = "numeric";
+	var Time = "time";
+}
