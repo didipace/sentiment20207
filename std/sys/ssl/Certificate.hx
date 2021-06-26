@@ -20,14 +20,40 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package lua.lib.luv.fs;
+package sys.ssl;
 
-@:luaRequire("luv")
-extern class FileSystemPoll {
-	static function new_fs_poll():FileSystemPoll;
-	@:native("new_fs_poll") function new():Void;
+extern class Certificate {
+	static function loadFile(file:String):Certificate;
 
-	function start(path:String, interval:Int, cb:String->Bool->Void):Bool;
-	function stop():Bool;
-	function getpath():String;
+	static function loadPath(path:String):Certificate;
+
+	static function fromString(str:String):Certificate;
+
+	static function loadDefaults():Certificate;
+
+	var commonName(get, null):Null<String>;
+
+	var altNames(get, null):Array<String>;
+
+	var notBefore(get, null):Date;
+
+	var notAfter(get, null):Date;
+
+	function subject(field:String):Null<String>;
+
+	function issuer(field:String):Null<String>;
+
+	function next():Null<Certificate>;
+
+	function add(pem:String):Void;
+
+	function addDER(der:haxe.io.Bytes):Void;
+
+	private function get_commonName():Null<String>;
+
+	private function get_altNames():Array<String>;
+
+	private function get_notBefore():Date;
+
+	private function get_notAfter():Date;
 }
