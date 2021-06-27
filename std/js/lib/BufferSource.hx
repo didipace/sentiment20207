@@ -14,4 +14,33 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRI
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+package js.lib;
+
+import haxe.extern.EitherType;
+
+/**
+	`BufferSource` is a typedef used to represent objects that are either themselves an [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer),
+	or which are a [TypedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray) providing an [ArrayBufferView](https://developer.mozilla.org/en-US/docs/Web/API/ArrayBufferView).
+
+	This is a helper type to simplify the specification. It isn't an interface and there are no objects implementing it.
+
+	Documentation [BufferSource](https://developer.mozilla.org/en-US/docs/Web/API/BufferSource) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/BufferSource$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/BufferSource>
+ */
+abstract BufferSource(Dynamic) from ArrayBuffer from ArrayBufferView {
+	
+	public var byteLength(get, never): Int;
+
+	@:pure
+	inline function get_byteLength(): Int {
+		return this.byteLength;
+	}
+	
+}
