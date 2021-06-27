@@ -20,12 +20,41 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\ChannelMergerNode.webidl. Do not edit!
+package php;
 
-package js.html.audio;
+/**
+	This class contains externs for native PHP constants defined in global namespace.
+	For native PHP functions in global namespace see `php.Global`.
+**/
+@:phpGlobal
+extern class Const {
+	/**
+		If this constant is defined and equals `true` then Haxe will not set error handler automatically.
+	**/
+	static final HAXE_CUSTOM_ERROR_HANDLER:Bool;
 
-@:native("ChannelMergerNode")
-extern class ChannelMergerNode extends AudioNode {
-	/** @throws DOMError */
-	function new( context : BaseAudioContext, ?options : ChannelMergerOptions ) : Void;
-}
+	/**
+		@see http://php.net/manual/en/reserved.constants.php
+	**/
+	static final PHP_VERSION_ID:Int;
+
+	static final PHP_OS:String;
+	static final PHP_SAPI:String;
+	static final PHP_BINARY:String;
+	static final PHP_EOL:String;
+	static final PHP_INT_MAX:Int;
+	static final PHP_INT_MIN:Int;
+	static final PHP_INT_SIZE:Int;
+
+	/**
+		@see http://php.net/manual/en/language.constants.predefined.php
+	**/
+	static final __LINE__:Int;
+
+	static final __FILE__:String;
+	static final __DIR__:String;
+	static final __FUNCTION__:String;
+	static final __CLASS__:String;
+	static final __TRAIT__:String;
+	static final __METHOD__:String;
+	static fin
