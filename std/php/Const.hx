@@ -180,4 +180,116 @@ extern class Const {
 	**/
 	static final PREG_NO_ERROR:Int;
 
-	static final PREG_INTERNAL_E
+	static final PREG_INTERNAL_ERROR:Int;
+	static final PREG_BACKTRACK_LIMIT_ERROR:Int;
+	static final PREG_RECURSION_LIMIT_ERROR:Int;
+	static final PREG_BAD_UTF8_ERROR:Int;
+	static final PREG_BAD_UTF8_OFFSET_ERROR:Int;
+	static final PREG_JIT_STACKLIMIT_ERROR:Int;
+
+	/**
+		@see http://php.net/manual/en/function.htmlspecialchars.php
+	**/
+	static final ENT_COMPAT:Int;
+
+	static final ENT_QUOTES:Int;
+	static final ENT_NOQUOTES:Int;
+	static final ENT_IGNORE:Int;
+	static final ENT_SUBSTITUTE:Int;
+	static final ENT_DISALLOWED:Int;
+	static final ENT_HTML401:Int;
+	static final ENT_XML1:Int;
+	static final ENT_XHTML:Int;
+	static final ENT_HTML5:Int;
+
+	/**
+		@see http://php.net/manual/en/function.str-pad.php
+	**/
+	static final STR_PAD_RIGHT:Int;
+
+	static final STR_PAD_LEFT:Int;
+	static final STR_PAD_BOTH:Int;
+
+	/**
+		@see http://php.net/manual/en/function.feof.php
+	**/
+	static final SEEK_SET:Int;
+
+	static final SEEK_CUR:Int;
+	static final SEEK_END:Int;
+
+	/**
+		@see http://php.net/manual/en/function.stream-socket-server.php
+	**/
+	static final STREAM_SERVER_BIND:Int;
+
+	static final STREAM_SERVER_LISTEN:Int;
+
+	/**
+		@see http://php.net/manual/en/function.stream-socket-client.php
+	**/
+	static final STREAM_CLIENT_CONNECT:Int;
+
+	static final STREAM_CLIENT_ASYNC_CONNECT:Int;
+	static final STREAM_CLIENT_PERSISTENT:Int;
+
+	/**
+		@see http://php.net/manual/en/sockets.constants.php
+	**/
+	static final SOCK_STREAM:Int;
+
+	static final SOCK_DGRAM:Int;
+	static final SOCK_SEQPACKET:Int;
+	static final SOCK_RAW:Int;
+	static final SOCK_RDM:Int;
+	static final AF_INET:Int;
+	static final AF_INET6:Int;
+	static final AF_UNIX:Int;
+	static final SOL_TCP:Int;
+	static final SOL_SOCKET:Int;
+	static final SO_RCVTIMEO:Int;
+	static final SO_SNDTIMEO:Int;
+	static final TCP_NODELAY:Int;
+	static final PHP_BINARY_READ:Int;
+
+	/**
+		@see http://php.net/manual/en/function.session-status.php
+	**/
+	static final PHP_SESSION_DISABLED:Int;
+	static final PHP_SESSION_NONE:Int;
+	static final PHP_SESSION_ACTIVE:Int;
+
+	/**
+		@see http://php.net/manual/en/json.constants.php
+	**/
+	static final JSON_ERROR_NONE:Int;
+
+	static final JSON_ERROR_DEPTH:Int;
+	static final JSON_ERROR_STATE_MISMATCH:Int;
+	static final JSON_ERROR_CTRL_CHAR:Int;
+	static final JSON_ERROR_SYNTAX:Int;
+	static final JSON_ERROR_UTF8:Int;
+	static final JSON_ERROR_RECURSION:Int;
+	static final JSON_ERROR_INF_OR_NAN:Int;
+	static final JSON_ERROR_UNSUPPORTED_TYPE:Int;
+	static final JSON_HEX_TAG:Int;
+	static final JSON_HEX_AMP:Int;
+	static final JSON_HEX_APOS:Int;
+	static final JSON_HEX_QUOT:Int;
+	static final JSON_FORCE_OBJECT:Int;
+	static final JSON_NUMERIC_CHECK:Int;
+	static final JSON_BIGINT_AS_STRING:Int;
+	static final JSON_PRETTY_PRINT:Int;
+	static final JSON_UNESCAPED_SLASHES:Int;
+	static final JSON_UNESCAPED_UNICODE:Int;
+	static final JSON_PARTIAL_OUTPUT_ON_ERROR:Int;
+	static final JSON_PRESERVE_ZERO_FRACTION:Int;
+
+	/**
+		@see http://php.net/manual/en/mysqli.constants.php
+	**/
+	static final MYSQLI_READ_DEFAULT_GROUP:Int;
+
+	static final MYSQLI_READ_DEFAULT_FILE:Int;
+	static final MYSQLI_OPT_CONNECT_TIMEOUT:Int;
+	static final MYSQLI
