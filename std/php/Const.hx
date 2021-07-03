@@ -371,4 +371,106 @@ extern class Const {
 	static final MYSQLI_REFRESH_LOG:Int;
 	static final MYSQLI_REFRESH_TABLES:Int;
 	static final MYSQLI_REFRESH_HOSTS:Int;
-	static final MYSQLI_REFRESH_STATU
+	static final MYSQLI_REFRESH_STATUS:Int;
+	static final MYSQLI_REFRESH_THREADS:Int;
+	static final MYSQLI_REFRESH_SLAVE:Int;
+	static final MYSQLI_REFRESH_MASTER:Int;
+	static final MYSQLI_TRANS_COR_AND_CHAIN:Int;
+	static final MYSQLI_TRANS_COR_AND_NO_CHAIN:Int;
+	static final MYSQLI_TRANS_COR_RELEASE:Int;
+	static final MYSQLI_TRANS_COR_NO_RELEASE:Int;
+	static final MYSQLI_TRANS_START_READ_ONLY:Int;
+	static final MYSQLI_TRANS_START_READ_WRITE:Int;
+	static final MYSQLI_TRANS_START_CONSISTENT_SNAPSHOT:Int;
+
+	/**
+		@see http://php.net/manual/en/sqlite3.constants.php
+	**/
+	static final SQLITE3_ASSOC:Int;
+
+	static final SQLITE3_NUM:Int;
+	static final SQLITE3_BOTH:Int;
+	static final SQLITE3_INTEGER:Int;
+	static final SQLITE3_FLOAT:Int;
+	static final SQLITE3_TEXT:Int;
+	static final SQLITE3_BLOB:Int;
+	static final SQLITE3_NULL:Int;
+	static final SQLITE3_OPEN_READONLY:Int;
+	static final SQLITE3_OPEN_READWRITE:Int;
+	static final SQLITE3_OPEN_CREATE:Int;
+
+	/**
+		@see http://php.net/manual/en/function.glob.php
+	**/
+	static final GLOB_MARK:Int;
+
+	static final GLOB_NOSORT:Int;
+	static final GLOB_NOCHECK:Int;
+	static final GLOB_NOESCAPE:Int;
+	static final GLOB_BRACE:Int;
+	static final GLOB_ONLYDIR:Int;
+	static final GLOB_ERR:Int;
+
+	/**
+		@see http://php.net/manual/en/zlib.constants.php
+	**/
+	static final FORCE_GZIP:Int;
+
+	static final FORCE_DEFLATE:Int;
+	static final ZLIB_ENCODING_RAW:Int;
+	static final ZLIB_ENCODING_DEFLATE:Int;
+	static final ZLIB_ENCODING_GZIP:Int;
+	static final ZLIB_FILTERED:Int;
+	static final ZLIB_HUFFMAN_ONLY:Int;
+	static final ZLIB_FIXED:Int;
+	static final ZLIB_RLE:Int;
+	static final ZLIB_DEFAULT_STRATEGY:Int;
+	static final ZLIB_BLOCK:Int;
+	static final ZLIB_NO_FLUSH:Int;
+	static final ZLIB_PARTIAL_FLUSH:Int;
+	static final ZLIB_SYNC_FLUSH:Int;
+	static final ZLIB_FULL_FLUSH:Int;
+	static final ZLIB_FINISH:Int;
+
+	/**
+		@see http://php.net/manual/en/outcontrol.constants.php
+	**/
+	static final PHP_OUTPUT_HANDLER_CLEAN:Int;
+	static final PHP_OUTPUT_HANDLER_CLEANABLE:Int;
+	static final PHP_OUTPUT_HANDLER_CONT:Int;
+	static final PHP_OUTPUT_HANDLER_END:Int;
+	static final PHP_OUTPUT_HANDLER_FINAL:Int;
+	static final PHP_OUTPUT_HANDLER_FLUSH:Int;
+	static final PHP_OUTPUT_HANDLER_FLUSHABLE:Int;
+	static final PHP_OUTPUT_HANDLER_REMOVABLE:Int;
+	static final PHP_OUTPUT_HANDLER_START:Int;
+	static final PHP_OUTPUT_HANDLER_STDFLAGS:Int;
+	static final PHP_OUTPUT_HANDLER_WRITE:Int;
+
+	/**
+		@see http://php.net/manual/en/function.flock.php
+	**/
+	static final LOCK_EX:Int;
+	static final LOCK_NB:Int;
+	static final LOCK_SH:Int;
+	static final LOCK_UN:Int;
+
+	/**
+		@see http://php.net/manual/en/function.fnmatch.php
+	**/
+	static final FNM_CASEFOLD:Int;
+	static final FNM_NOESCAPE:Int;
+	static final FNM_PATHNAME:Int;
+	static final FNM_PERIOD:Int;
+
+	/**
+		@see http://php.net/manual/en/function.parse-ini-file.php
+	**/
+	static final INI_SCANNER_NORMAL:Int;
+	static final INI_SCANNER_RAW:Int;
+	static final INI_SCANNER_TYPED:Int;
+
+	/**
+		@see http://php.net/manual/en/function.pathinfo.php
+	**/
+	static final PATHINFO_BASENAME:Int;
