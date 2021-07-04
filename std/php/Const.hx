@@ -474,3 +474,94 @@ extern class Const {
 		@see http://php.net/manual/en/function.pathinfo.php
 	**/
 	static final PATHINFO_BASENAME:Int;
+	static final PATHINFO_DIRNAME:Int;
+	static final PATHINFO_EXTENSION:Int;
+	static final PATHINFO_FILENAME:Int;
+
+	/**
+		@see http://php.net/manual/en/function.dns-get-record.php
+	**/
+	static final DNS_A:Int;
+	static final DNS_AAAA:Int;
+	static final DNS_ALL:Int;
+	static final DNS_ANY:Int;
+	static final DNS_CAA:Int;
+	static final DNS_CNAME:Int;
+	static final DNS_HINFO:Int;
+	static final DNS_MX:Int;
+	static final DNS_NS:Int;
+	static final DNS_PTR:Int;
+	static final DNS_SOA:Int;
+	static final DNS_TXT:Int;
+
+	/**
+		@see http://php.net/manual/en/intl.constants.php
+	**/
+	static final IDNA_ALLOW_UNASSIGNED:Int;
+	static final IDNA_CHECK_BIDI:Int;
+	static final IDNA_CHECK_CONTEXTJ:Int;
+	static final IDNA_DEFAULT:Int;
+	static final IDNA_ERROR_BIDI:Int;
+	static final IDNA_ERROR_CONTEXTJ:Int;
+	static final IDNA_ERROR_DISALLOWED:Int;
+	static final IDNA_ERROR_DOMAIN_NAME_TOO_LONG:Int;
+	static final IDNA_ERROR_EMPTY_LABEL:Int;
+	static final IDNA_ERROR_HYPHEN_3_4:Int;
+	static final IDNA_ERROR_INVALID_ACE_LABEL:Int;
+	static final IDNA_ERROR_LABEL_HAS_DOT:Int;
+	static final IDNA_ERROR_LABEL_TOO_LONG:Int;
+	static final IDNA_ERROR_LEADING_COMBINING_MARK:Int;
+	static final IDNA_ERROR_LEADING_HYPHEN:Int;
+	static final IDNA_ERROR_PUNYCODE:Int;
+	static final IDNA_ERROR_TRAILING_HYPHEN:Int;
+	static final IDNA_NONTRANSITIONAL_TO_ASCII:Int;
+	static final IDNA_NONTRANSITIONAL_TO_UNICODE:Int;
+	static final IDNA_USE_STD3_RULES:Int;
+	static final INTL_ICU_VERSION:String;
+	static final INTL_IDNA_VARIANT_2003:Int;
+	static final INTL_IDNA_VARIANT_UTS46:Int;
+	static final INTL_MAX_LOCALE_LEN:Int;
+
+	/**
+		@see http://php.net/manual/en/array.constants.php
+	**/
+	static final CASE_LOWER:Int;
+	static final CASE_UPPER:Int;
+	static final EXTR_IF_EXISTS:Int;
+	static final EXTR_OVERWRITE:Int;
+	static final EXTR_PREFIX_ALL:Int;
+	static final EXTR_PREFIX_IF_EXISTS:Int;
+	static final EXTR_PREFIX_INVALID:Int;
+	static final EXTR_PREFIX_SAME:Int;
+	static final EXTR_REFS:Int;
+	static final EXTR_SKIP:Int;
+	static final SORT_ASC:Int;
+	static final SORT_DESC:Int;
+	static final SORT_FLAG_CASE:Int;
+	static final SORT_LOCALE_STRING:Int;
+	static final SORT_NATURAL:Int;
+	static final SORT_NUMERIC:Int;
+	static final SORT_REGULAR:Int;
+	static final SORT_STRING:Int;
+
+	/**
+		@see http://php.net/manual/en/filter.constants.php
+	**/
+	static final FILTER_CALLBACK:Int;
+	static final FILTER_DEFAULT:Int;
+	static final FILTER_FLAG_ALLOW_FRACTION:Int;
+	static final FILTER_FLAG_ALLOW_HEX:Int;
+	static final FILTER_FLAG_ALLOW_OCTAL:Int;
+	static final FILTER_FLAG_ALLOW_SCIENTIFIC:Int;
+	static final FILTER_FLAG_ALLOW_THOUSAND:Int;
+	static final FILTER_FLAG_EMAIL_UNICODE:Int;
+	static final FILTER_FLAG_EMPTY_STRING_NULL:Int;
+	static final FILTER_FLAG_ENCODE_AMP:Int;
+	static final FILTER_FLAG_ENCODE_HIGH:Int;
+	static final FILTER_FLAG_ENCODE_LOW:Int;
+	static final FILTER_FLAG_HOST_REQUIRED:Int;
+	static final FILTER_FLAG_HOSTNAME:Int;
+	static final FILTER_FLAG_IPV4:Int;
+	static final FILTER_FLAG_IPV6:Int;
+	static final FILTER_FLAG_NO_ENCODE_QUOTES:Int;
+	static
