@@ -649,4 +649,32 @@ extern class Const {
 		@see http://php.net/manual/en/ftp.constants.php
 	**/
 	static final FTP_ASCII: Int;
-	static final FTP_
+	static final FTP_AUTORESUME: Int;
+	static final FTP_AUTOSEEK: Int;
+	static final FTP_BINARY: Int;
+	static final FTP_FAILED: Int;
+	static final FTP_FINISHED: Int;
+	static final FTP_IMAGE: Int;
+	static final FTP_MOREDATA: Int;
+	static final FTP_TEXT: Int;
+	static final FTP_TIMEOUT_SEC: Int;
+	static final FTP_USEPASVADDRESS: Bool;
+
+	/**
+		@see http://php.net/manual/en/misc.constants.php
+	**/
+	static final CONNECTION_ABORTED: Int;
+	static final CONNECTION_NORMAL: Int;
+	static final CONNECTION_TIMEOUT: Int;
+
+	/**
+		@see http://php.net/manual/fr/filesystem.constants.php
+	**/
+	static final FILE_APPEND: Int;
+	static final FILE_BINARY: Int;
+	static final FILE_IGNORE_NEW_LINES: Int;
+	static final FILE_NO_DEFAULT_CONTEXT: Int;
+	static final FILE_SKIP_EMPTY_LINES: Int;
+	static final FILE_TEXT: Int;
+	static final FILE_USE_INCLUDE_PATH: Int;
+}
