@@ -19,4 +19,15 @@ a.or(3) == 4;
 a.load() == 7;
 
 a.xor(2) == 7;
-a.load
+a.load() == 5;
+
+a.compareExchange(0, 0) == 5;
+a.load() == 5;
+a.compareExchange(5, 0) == 5;
+a.load() == 0;
+
+a.exchange(10) == 0;
+a.load() == 10;
+#else
+0 == 0; // prevent "no assertions" warning
+#end
