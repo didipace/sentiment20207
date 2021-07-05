@@ -27,4 +27,53 @@ package js.html.svg;
 /**
 	The `SVGFETurbulenceElement` interface corresponds to the `feTurbulence` element.
 
-	Documentation [SVGFETurbu
+	Documentation [SVGFETurbulenceElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGFETurbulenceElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGFETurbulenceElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGFETurbulenceElement>
+**/
+@:native("SVGFETurbulenceElement")
+extern class FETurbulenceElement extends Element {
+	static inline var SVG_TURBULENCE_TYPE_UNKNOWN : Int = 0;
+	static inline var SVG_TURBULENCE_TYPE_FRACTALNOISE : Int = 1;
+	static inline var SVG_TURBULENCE_TYPE_TURBULENCE : Int = 2;
+	static inline var SVG_STITCHTYPE_UNKNOWN : Int = 0;
+	static inline var SVG_STITCHTYPE_STITCH : Int = 1;
+	static inline var SVG_STITCHTYPE_NOSTITCH : Int = 2;
+	
+	
+	/**
+		An `SVGAnimatedNumber` corresponding to the X component of the `baseFrequency` attribute of the given element.
+	**/
+	var baseFrequencyX(default,null) : AnimatedNumber;
+	
+	/**
+		An `SVGAnimatedNumber` corresponding to the Y component of the `baseFrequency` attribute of the given element.
+	**/
+	var baseFrequencyY(default,null) : AnimatedNumber;
+	
+	/**
+		An `SVGAnimatedInteger` corresponding to the `numOctaves` attribute of the given element.
+	**/
+	var numOctaves(default,null) : AnimatedInteger;
+	
+	/**
+		An `SVGAnimatedNumber` corresponding to the `seed` attribute of the given element.
+	**/
+	var seed(default,null) : AnimatedNumber;
+	
+	/**
+		An `SVGAnimatedEnumeration` corresponding to the `stitchTiles` attribute of the given element. It takes one of the `SVG_STITCHTYPE_*` constants defined on this interface.
+	**/
+	var stitchTiles(default,null) : AnimatedEnumeration;
+	
+	/**
+		An `SVGAnimatedEnumeration` corresponding to the `type` attribute of the given element. It takes one of the `SVG_TURBULENCE_TYPE_*` constants defined on this interface.
+	**/
+	var type(default,null) : AnimatedEnumeration;
+	var x(default,null) : AnimatedLength;
+	var y(default,null) : AnimatedLength;
+	var width(default,null) : AnimatedLength;
+	var height(default,null) : AnimatedLength;
+	var result(default,null) : AnimatedString;
+	
+}
