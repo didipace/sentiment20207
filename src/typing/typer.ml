@@ -225,4 +225,101 @@ let rec unify_min_raise ctx (el:texpr list) : t =
 			let tr = match UnifyMinT.unify_min' default_unification_context common_types rets with
 			| UnifyMinOk t ->
 				t
-			| UnifyMinError(l,index) -
+			| UnifyMinError(l,index) ->
+				raise Exit
+			in
+			TFun(Array.to_list args,tr)
+		with Exit ->
+			(* Second pass: Get all base types (interfaces, super classes and their interfaces) of most general type.
+			   Then for each additional type filter all types that do not unify. *)
+			let common_types = UnifyMinT.collect_base_types t in
+			let dyn_types = List.fold_left (fun acc t ->
+				let rec loop c =
+					Meta.has Meta.UnifyMinDynamic c.cl_meta || (match c.cl_super with None -> false | Some (c,_) -> loop c)
+				in
+				match t with
+				| TInst (c,params) when params <> [] && loop c ->
+					TInst (c,List.map (fun _ -> t_dynamic) params) :: acc
+				| _ -> acc
+			) [] common_types in
+			let common_types = (match List.rev dyn_types with [] -> common_types | l -> common_types @ l) in
+			let el = List.tl el in
+			let tl = List.map (fun e -> e.etype) el in
+			begin match UnifyMinT.unify_min' default_unification_context common_types tl with
+			| UnifyMinOk t ->
+				t
+			| UnifyMinError(l,index) ->
+				raise_typing_error (Unify l) (List.nth el index).epos
+			end
+
+let unify_min ctx el =
+	try unify_min_raise ctx el
+	with Error (Unify l,p) ->
+		if not ctx.untyped then display_error ctx.com (error_msg (Unify l)) p;
+		(List.hd el).etype
+
+let unify_min_for_type_source ctx el src =
+	match src with
+	| Some WithType.ImplicitReturn when List.exists (fun e -> ExtType.is_void (follow e.etype)) el ->
+		ctx.com.basic.tvoid
+	| _ ->
+		unify_min ctx el
+
+let rec type_ident_raise ctx i p mode with_type =
+	let is_set = match mode with MSet _ -> true | _ -> false in
+	match i with
+	| "true" ->
+		let acc = AKExpr (mk (TConst (TBool true)) ctx.t.tbool p) in
+		if mode = MGet then
+			acc
+		else
+			AKNo(acc,p)
+	| "false" ->
+		let acc = AKExpr (mk (TConst (TBool false)) ctx.t.tbool p) in
+		if mode = MGet then
+			acc
+		else
+			AKNo(acc,p)
+	| "this" ->
+		let acc = AKExpr(get_this ctx p) in
+		begin match mode with
+		| MSet _ ->
+			add_class_field_flag ctx.curfield CfModifiesThis;
+			begin match ctx.curclass.cl_kind with
+			| KAbstractImpl _ ->
+				if not (assign_to_this_is_allowed ctx) then
+					typing_error "Abstract 'this' value can only be modified inside an inline function" p;
+				acc
+			| _ ->
+				AKNo(acc,p)
+			end
+		| MCall _ ->
+			begin match ctx.curclass.cl_kind with
+			| KAbstractImpl _ ->
+				acc
+			| _ ->
+				AKNo(acc,p)
+			end
+		| MGet ->
+			acc
+		end;
+	| "abstract" ->
+		begin match mode, ctx.curclass.cl_kind with
+			| MSet _, KAbstractImpl ab -> typing_error "Property 'abstract' is read-only" p;
+			| (MGet, KAbstractImpl ab)
+			| (MCall _, KAbstractImpl ab) ->
+				let tl = extract_param_types ab.a_params in
+				let e = get_this ctx p in
+				let e = {e with etype = TAbstract (ab,tl)} in
+				AKExpr e
+			| _ ->
+				typing_error "Property 'abstract' is reserved and only available in abstracts" p
+		end
+	| "super" ->
+		let t = (match ctx.curclass.cl_super with
+			| None -> typing_error "Current class does not have a superclass" p
+			| Some (c,params) -> TInst(c,params)
+		) in
+		(match ctx.curfun with
+		| FunMember | FunConstructor -> ()
+		| FunMemberAbstract -> typing_error "Cannot access super inside an abstract function"
