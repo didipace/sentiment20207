@@ -322,4 +322,79 @@ let rec type_ident_raise ctx i p mode with_type =
 		) in
 		(match ctx.curfun with
 		| FunMember | FunConstructor -> ()
-		| FunMemberAbstract -> typing_error "Cannot access super inside an abstract function"
+		| FunMemberAbstract -> typing_error "Cannot access super inside an abstract function" p
+		| FunStatic -> typing_error "Cannot access super inside a static function" p;
+		| FunMemberClassLocal | FunMemberAbstractLocal -> typing_error "Cannot access super inside a local function" p);
+		AKExpr (mk (TConst TSuper) t p)
+	| "null" ->
+		let acc =
+			(* Hack for #10787 *)
+			if ctx.com.platform = Cs then
+				AKExpr (null (spawn_monomorph ctx p) p)
+			else begin
+				let tnull () = ctx.t.tnull (spawn_monomorph ctx p) in
+				let t = match with_type with
+					| WithType.WithType(t,_) ->
+						begin match follow t with
+						| TMono r ->
+							(* If our expected type is a monomorph, bind it to Null<?>. *)
+							Monomorph.do_bind r (tnull())
+						| _ ->
+							(* Otherwise there's no need to create a monomorph, we can just type the null literal
+							the way we expect it. *)
+							()
+						end;
+						t
+					| _ ->
+						tnull()
+				in
+				AKExpr (null t p)
+			end
+		in
+		if mode = MGet then acc else AKNo(acc,p)
+	| _ ->
+	try
+		let v = PMap.find i ctx.locals in
+		(match v.v_extra with
+		| Some ve ->
+			let (params,e) = (ve.v_params,ve.v_expr) in
+			let t = apply_params params (Monomorph.spawn_constrained_monos (fun t -> t) params) v.v_type in
+			(match e with
+			| Some ({ eexpr = TFunction f } as e) when ctx.com.display.dms_inline ->
+				begin match mode with
+					| MSet _ -> typing_error "Cannot set inline closure" p
+					| MGet -> typing_error "Cannot create closure on inline closure" p
+					| MCall _ ->
+						(* create a fake class with a fake field to emulate inlining *)
+						let c = mk_class ctx.m.curmod (["local"],v.v_name) e.epos null_pos in
+						let cf = { (mk_field v.v_name v.v_type e.epos null_pos) with cf_params = params; cf_expr = Some e; cf_kind = Method MethInline } in
+						add_class_flag c CExtern;
+						c.cl_fields <- PMap.add cf.cf_name cf PMap.empty;
+						let e = mk (TConst TNull) (TInst (c,[])) p in
+						AKField (FieldAccess.create e cf (FHInstance(c,[])) true p)
+				end
+			| _ ->
+				AKExpr (mk (TLocal v) t p))
+		| _ ->
+			AKExpr (mk (TLocal v) v.v_type p))
+	with Not_found -> try
+		(* member variable lookup *)
+		if ctx.curfun = FunStatic then raise Not_found;
+		let c , t , f = class_field ctx ctx.curclass (extract_param_types ctx.curclass.cl_params) i p in
+		field_access ctx mode f (match c with None -> FHAnon | Some (c,tl) -> FHInstance (c,tl)) (get_this ctx p) p
+	with Not_found -> try
+		(* static variable lookup *)
+		let f = PMap.find i ctx.curclass.cl_statics in
+		let is_impl = has_class_field_flag f CfImpl in
+		let is_enum = has_class_field_flag f CfEnum in
+		if is_impl && not (has_class_field_flag ctx.curfield CfImpl) && not is_enum then
+			typing_error (Printf.sprintf "Cannot access non-static field %s from static method" f.cf_name) p;
+		let e,fa = match ctx.curclass.cl_kind with
+			| KAbstractImpl a when is_impl && not is_enum ->
+				let tl = extract_param_types a.a_params in
+				let e = get_this ctx p in
+				let e = {e with etype = TAbstract(a,tl)} in
+				e,FHAbstract(a,tl,ctx.curclass)
+			| _ ->
+				let e = type_type ctx ctx.curclass.cl_path p in
+				e,
