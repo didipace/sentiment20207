@@ -397,4 +397,99 @@ let rec type_ident_raise ctx i p mode with_type =
 				e,FHAbstract(a,tl,ctx.curclass)
 			| _ ->
 				let e = type_type ctx ctx.curclass.cl_path p in
-				e,
+				e,FHStatic ctx.curclass
+		in
+		field_access ctx mode f fa e p
+	with Not_found -> try
+		(* module-level statics *)
+		(match ctx.m.curmod.m_statics with
+		| None -> raise Not_found
+		| Some c ->
+			let f = PMap.find i c.cl_statics in
+			let e = type_module_type ctx (TClassDecl c) None p in
+			field_access ctx mode f (FHStatic c) e p
+		)
+	with Not_found -> try
+		let wrap e =
+			let acc = AKExpr e in
+			if is_set then
+				AKNo(acc,p)
+			else
+				acc
+		in
+		(* lookup imported enums *)
+		let rec loop l =
+			match l with
+			| [] -> raise Not_found
+			| (t,pt) :: l ->
+				match t with
+				| TAbstractDecl ({a_impl = Some c} as a) when a.a_enum ->
+					begin try
+						let cf = PMap.find i c.cl_statics in
+						if not (has_class_field_flag cf CfEnum) then
+							loop l
+						else begin
+							let et = type_module_type ctx (TClassDecl c) None p in
+							let inline = match cf.cf_kind with
+								| Var {v_read = AccInline} -> true
+								|  _ -> false
+							in
+							let fa = FieldAccess.create et cf (FHAbstract(a,extract_param_types a.a_params,c)) inline p in
+							ImportHandling.mark_import_position ctx pt;
+							AKField fa
+						end
+					with Not_found ->
+						loop l
+					end
+				| TClassDecl _ | TAbstractDecl _ ->
+					loop l
+				| TTypeDecl t ->
+					(match follow t.t_type with
+					| TEnum (e,_) -> loop ((TEnumDecl e,pt) :: l)
+					| TAbstract (a,_) when a.a_enum -> loop ((TAbstractDecl a,pt) :: l)
+					| _ -> loop l)
+				| TEnumDecl e ->
+					try
+						let ef = PMap.find i e.e_constrs in
+						let et = type_module_type ctx t None p in
+						ImportHandling.mark_import_position ctx pt;
+						wrap (mk (TField (et,FEnum (e,ef))) (enum_field_type ctx e ef p) p)
+					with
+						Not_found -> loop l
+		in
+		(try loop (List.rev_map (fun t -> t,null_pos) ctx.m.curmod.m_types) with Not_found -> loop ctx.m.module_imports)
+	with Not_found ->
+		(* lookup imported globals *)
+		let t, name, pi = PMap.find i ctx.m.module_globals in
+		ImportHandling.mark_import_position ctx pi;
+		let e = type_module_type ctx t None p in
+		type_field_default_cfg ctx e name p mode with_type
+
+and type_ident ctx i p mode with_type =
+	try
+		type_ident_raise ctx i p mode with_type
+	with Not_found -> try
+		(* lookup type *)
+		if is_lower_ident i p then raise Not_found;
+		let e = (try type_type ctx ([],i) p with Error (Module_not_found ([],name),_) when name = i -> raise Not_found) in
+		AKExpr e
+	with Not_found ->
+		let resolved_to_type_parameter = ref false in
+		try
+			let t = List.find (fun tp -> tp.ttp_name = i) ctx.type_params in
+			resolved_to_type_parameter := true;
+			let c = match follow (extract_param_type t) with TInst(c,_) -> c | _ -> die "" __LOC__ in
+			if TypeloadCheck.is_generic_parameter ctx c && Meta.has Meta.Const c.cl_meta then begin
+				let e = type_module_type ctx (TClassDecl c) None p in
+				AKExpr {e with etype = (extract_param_type t)}
+			end else
+				raise Not_found
+		with Not_found ->
+			if ctx.untyped then begin
+				if i = "__this__" then
+					AKExpr (mk (TConst TThis) ctx.tthis p)
+				else
+					let t = mk_mono() in
+					AKExpr ((mk (TIdent i)) t p)
+			end else begin
+				if ctx.curfun = FunStatic && PMap.mem i ctx.curclass.cl_fields then typing_e
