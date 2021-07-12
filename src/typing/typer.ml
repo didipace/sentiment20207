@@ -561,4 +561,79 @@ and handle_efield ctx e p0 mode with_type =
 							in
 							let pack,name,sub,p = loop [] None path in
 							let mpath = (pack,name) in
-							if ctx.com.module_lut#mem mpath 
+							if ctx.com.module_lut#mem mpath then
+								let tname = Option.default name sub in
+								raise (Error (Type_not_found (mpath,tname,Not_defined),p))
+							else
+								raise (Error (Module_not_found mpath,p))
+						end
+					with Not_found ->
+						(* if there was no module name part, last guess is that we're trying to get package completion *)
+						if ctx.in_display then begin
+							let sl = List.map (fun part -> part.name) path in
+							if is_legacy_completion ctx.com then
+								raise (Parser.TypePath (sl,None,false,p))
+							else
+								DisplayToplevel.collect_and_raise ctx TKType WithType.no_value (CRToplevel None) (String.concat "." sl,p0) p0
+						end;
+						raise e
+	in
+
+	(* loop through the given EField expression to figure out whether it's a dot-path that we have to resolve,
+	   or a field access chain *)
+	let rec loop dot_path_acc (e,p) =
+		match e with
+		| EField (e,s,EFNormal) ->
+			(* field access - accumulate and check further *)
+			loop ((mk_dot_path_part s p) :: dot_path_acc) e
+		| EConst (Ident i) ->
+			(* it's a dot-path, so it might be either fully-qualified access (pack.Class.field)
+			   or normal field access of a local/global/field identifier, proceed figuring this out *)
+			dot_path (mk_dot_path_part i p) dot_path_acc mode with_type
+		| EField ((eobj,pobj),s,EFSafe) ->
+			(* safe navigation field access - definitely NOT a fully-qualified access,
+			   create safe navigation chain from the object expression *)
+			let acc_obj = type_access ctx eobj pobj MGet WithType.value in
+			let eobj = acc_get ctx acc_obj in
+			let eobj, tempvar = match (Texpr.skip eobj).eexpr with
+				| TLocal _ | TTypeExpr _ | TConst _ ->
+					eobj, None
+				| _ ->
+					let v = alloc_var VGenerated "tmp" eobj.etype eobj.epos in
+					let temp_var = mk (TVar(v, Some eobj)) ctx.t.tvoid v.v_pos in
+					let eobj = mk (TLocal v) v.v_type v.v_pos in
+					eobj, Some temp_var
+			in
+			let access = field_chain ctx ((mk_dot_path_part s p) :: dot_path_acc) (AKExpr eobj) mode with_type in
+			AKSafeNav {
+				sn_pos = p;
+				sn_base = eobj;
+				sn_temp_var = tempvar;
+				sn_access = access;
+			}
+		| _ ->
+			(* non-ident expr occured: definitely NOT a fully-qualified access,
+			   resolve the field chain against this expression *)
+			(match (type_access ctx e p MGet WithType.value) with
+			| AKSafeNav sn ->
+				(* further field access continues the safe navigation chain (after a non-field access inside the chain) *)
+				AKSafeNav { sn with sn_access = field_chain ctx dot_path_acc sn.sn_access mode with_type }
+			| e ->
+				field_chain ctx dot_path_acc e mode with_type)
+	in
+	loop [] (e,p0)
+
+and type_access ctx e p mode with_type =
+	match e with
+	| EConst (Ident s) ->
+		type_ident ctx s p mode with_type
+	| EField (e1,"new",efk_todo) ->
+		let e1 = type_expr ctx e1 WithType.value in
+		begin match e1.eexpr with
+			| TTypeExpr (TClassDecl c) ->
+				begin match mode with
+				| MSet _ -> typing_error "Cannot set constructor" p;
+				| MCall _ -> typing_error ("Cannot call constructor like this, use 'new " ^ (s_type_path c.cl_path) ^ "()' instead") p;
+				| MGet -> ()
+				end;
+				let monos = Monomorph.spawn_constrained_monos (fun t -> t) (match c.cl_kind with KAbstractImpl a -> a.
