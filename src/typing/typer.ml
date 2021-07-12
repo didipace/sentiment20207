@@ -636,4 +636,83 @@ and type_access ctx e p mode with_type =
 				| MCall _ -> typing_error ("Cannot call constructor like this, use 'new " ^ (s_type_path c.cl_path) ^ "()' instead") p;
 				| MGet -> ()
 				end;
-				let monos = Monomorph.spawn_constrained_monos (fun t -> t) (match c.cl_kind with KAbstractImpl a -> a.
+				let monos = Monomorph.spawn_constrained_monos (fun t -> t) (match c.cl_kind with KAbstractImpl a -> a.a_params | _ -> c.cl_params) in
+				let fa = FieldAccess.get_constructor_access c monos p in
+				let cf = fa.fa_field in
+				no_abstract_constructor c p;
+				check_constructor_access ctx c cf p;
+				let args = match follow (FieldAccess.get_map_function fa cf.cf_type) with TFun(args,ret) -> args | _ -> die "" __LOC__ in
+				let vl = List.map (fun (n,_,t) -> alloc_var VGenerated n t c.cl_pos) args in
+				let vexpr v = mk (TLocal v) v.v_type p in
+				let el = List.map vexpr vl in
+				let ec,t = match c.cl_kind, fa.fa_host with
+					| KAbstractImpl a, FHAbstract _ ->
+						let t = TAbstract(a,monos) in
+						(new call_dispatcher ctx (MCall []) WithType.value p)#field_call fa el [],t
+					| KAbstractImpl a, FHInstance (c,pl) ->
+						let e_new = mk (TNew(c,monos,el)) (TInst(c,pl)) p in
+						let t = TAbstract(a,monos) in
+						mk_cast e_new t p, t
+					| _ ->
+						let t = TInst(c,monos) in
+						mk (TNew(c,monos,el)) t p,t
+				in
+				AKExpr(mk (TFunction {
+					tf_args = List.map (fun v -> v,None) vl;
+					tf_type = t;
+					tf_expr = mk (TReturn (Some ec)) t p;
+				}) (TFun ((List.map (fun v -> v.v_name,false,v.v_type) vl),t)) p)
+			| _ -> typing_error "Binding new is only allowed on class types" p
+		end;
+	| EField _ ->
+		handle_efield ctx e p mode with_type
+	| EArray (e1,e2) ->
+		type_array_access ctx e1 e2 p mode
+	| ECall (e, el) ->
+		type_call_access ctx e el mode with_type None p
+	| EDisplay (e,dk) ->
+		AKExpr (TyperDisplay.handle_edisplay ctx e dk mode with_type)
+	| _ ->
+		AKExpr (type_expr ~mode ctx (e,p) with_type)
+
+and type_array_access ctx e1 e2 p mode =
+	let e1, p1 = e1 in
+	let a1 = type_access ctx e1 p1 MGet WithType.value in
+	let e2 = type_expr ctx e2 WithType.value in
+	match a1 with
+	| AKSafeNav sn ->
+		(* pack the array access inside the safe navigation chain *)
+		let e1 = acc_get ctx sn.sn_access in
+		AKSafeNav { sn with sn_access = Calls.array_access ctx e1 e2 mode p }
+	| _ ->
+		let e1 = acc_get ctx a1 in
+		Calls.array_access ctx e1 e2 mode p
+
+and type_vars ctx vl p =
+	let vl = List.map (fun ev ->
+		let n = fst ev.ev_name
+		and pv = snd ev.ev_name in
+		DeprecationCheck.check_is ctx.com n ev.ev_meta pv;
+		try
+			let t = Typeload.load_type_hint ctx p ev.ev_type in
+			let e = (match ev.ev_expr with
+				| None -> None
+				| Some e ->
+					let old_in_loop = ctx.in_loop in
+					if ev.ev_static then ctx.in_loop <- false;
+					let e = Std.finally (fun () -> ctx.in_loop <- old_in_loop) (type_expr ctx e) (WithType.with_type t) in
+					let e = AbstractCast.cast_or_unify ctx t e p in
+					Some e
+			) in
+			let v = add_local_with_origin ctx TVOLocalVariable n t pv in
+			v.v_meta <- ev.ev_meta;
+			DisplayEmitter.check_display_metadata ctx v.v_meta;
+			if ev.ev_final then add_var_flag v VFinal;
+			if ev.ev_static then add_var_flag v VStatic;
+			if ctx.in_display && DisplayPosition.display_position#enclosed_in pv then
+				DisplayEmitter.display_variable ctx v pv;
+			v,e
+		with
+			Error (e,p) ->
+				check_error ctx e p;
+				add_local ctx VGenerated n t_dyn
