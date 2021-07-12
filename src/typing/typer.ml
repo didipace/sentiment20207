@@ -492,4 +492,73 @@ and type_ident ctx i p mode with_type =
 					let t = mk_mono() in
 					AKExpr ((mk (TIdent i)) t p)
 			end else begin
-				if ctx.curfun = FunStatic && PMap.mem i ctx.curclass.cl_fields then typing_e
+				if ctx.curfun = FunStatic && PMap.mem i ctx.curclass.cl_fields then typing_error ("Cannot access " ^ i ^ " in static function") p;
+				if !resolved_to_type_parameter then begin
+					display_error ctx.com ("Only @:const type parameters on @:generic classes can be used as value") p;
+					AKExpr (mk (TConst TNull) t_dynamic p)
+				end else begin
+					let err = Unknown_ident i in
+					if ctx.in_display then begin
+						raise (Error (err,p))
+					end;
+					if Diagnostics.error_in_diagnostics_run ctx.com p then begin
+						DisplayToplevel.handle_unresolved_identifier ctx i p false;
+						DisplayFields.handle_missing_ident ctx i mode with_type p;
+						let t = mk_mono() in
+						AKExpr (mk (TIdent i) t p)
+					end else match ctx.com.display.dms_kind with
+						| DMNone ->
+							raise (Error(err,p))
+						| _ ->
+							display_error ctx.com (error_msg err) p;
+							let t = mk_mono() in
+							(* Add a fake local for #8751. *)
+							if !ServerConfig.legacy_completion then
+								ignore(add_local ctx VGenerated i t p);
+							AKExpr (mk (TIdent i) t p)
+				end
+			end
+
+and handle_efield ctx e p0 mode with_type =
+	let open TyperDotPath in
+
+	let dot_path first pnext =
+		let {name = name; pos = p} = first in
+		try
+			(* first, try to resolve the first ident in the chain and access its fields.
+			   this doesn't support untyped identifiers yet, because we want to check fully-qualified
+			   paths first (even in an untyped block) *)
+			field_chain ctx pnext (type_ident_raise ctx name p MGet WithType.value)
+		with Not_found ->
+			(* first ident couldn't be resolved, it's probably a fully qualified path - resolve it *)
+			let path = (first :: pnext) in
+			try
+				resolve_dot_path ctx path mode with_type
+			with Not_found ->
+				(* dot-path resolution failed, it could be an untyped field access that happens to look like a dot-path, e.g. `untyped __global__.String` *)
+				try
+					(* TODO: we don't really want to do full type_ident again, just the second part of it *)
+					field_chain ctx pnext (type_ident ctx name p MGet WithType.value)
+				with Error (Unknown_ident _,p2) as e when p = p2 ->
+					try
+						(* try raising a more sensible error if there was an uppercase-first (module name) part *)
+						begin
+							(* TODO: we should pass the actual resolution error from resolve_dot_path instead of Not_found *)
+							let rec loop pack_acc first_uppercase path =
+								match path with
+								| {name = name; case = PLowercase} :: rest ->
+									(match first_uppercase with
+									| None -> loop (name :: pack_acc) None rest
+									| Some (n,p) -> List.rev pack_acc, n, None, p)
+								| {name = name; case = PUppercase; pos = p} :: rest ->
+									(match first_uppercase with
+									| None -> loop pack_acc (Some (name,p)) rest
+									| Some (n,_) -> List.rev pack_acc, n, Some name, p)
+								| [] ->
+									(match first_uppercase with
+									| None -> raise Not_found
+									| Some (n,p) -> List.rev pack_acc, n, None, p)
+							in
+							let pack,name,sub,p = loop [] None path in
+							let mpath = (pack,name) in
+							if ctx.com.module_lut#mem mpath 
