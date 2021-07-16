@@ -816,4 +816,102 @@ and format_string ctx s p =
 					if Lexer.string_is_whitespace scode then typing_error "Expression cannot be empty" ep
 					else typing_error msg pos
 				in
-				match ParserEntry.parse_expr_string ctx.com.defines scode ep error
+				match ParserEntry.parse_expr_string ctx.com.defines scode ep error true with
+					| ParseSuccess(data,_,_) -> data
+					| ParseError(_,(msg,p),_) -> error (Parser.error_msg msg) p
+			in
+			add_expr e slen
+		end;
+		min := !min + 1;
+		parse (send + 1) (send + 1)
+	in
+	parse 0 0;
+	match !e with
+	| None -> die "" __LOC__
+	| Some e -> e
+
+and type_block ctx el with_type p =
+	let merge acc e = match e.eexpr with
+		| TMeta((Meta.MergeBlock,_,_), {eexpr = TBlock el}) ->
+			List.rev el @ acc
+		| _ ->
+			e :: acc
+	in
+	let rec loop acc = function
+		| [] -> List.rev acc
+		| e :: l ->
+			let acc = try merge acc (type_expr ctx e (if l = [] then with_type else WithType.no_value)) with Error (e,p) -> check_error ctx e p; acc in
+			loop acc l
+	in
+	let l = loop [] el in
+	let rec loop = function
+		| [] -> ctx.t.tvoid
+		| [e] -> e.etype
+		| _ :: l -> loop l
+	in
+	mk (TBlock l) (loop l) p
+
+and type_object_decl ctx fl with_type p =
+	let dynamic_parameter = ref None in
+	let a = (match with_type with
+	| WithType.WithType(t,_) ->
+		let rec loop seen t =
+			match follow t with
+			| TAnon a -> ODKWithStructure a
+			| TAbstract (a,pl) as t
+				when not (Meta.has Meta.CoreType a.a_meta)
+					&& not (List.exists (fun t' -> shallow_eq t t') seen) ->
+				let froms = get_abstract_froms ctx a pl in
+				begin match froms with
+				| [] ->
+					(* If the abstract has no casts in the first place, we can assume plain typing (issue #10730) *)
+					ODKPlain
+				| _ ->
+					let fold = fun acc t' -> match loop (t :: seen) t' with ODKPlain -> acc | t -> t :: acc in
+					begin match List.fold_left fold [] froms with
+						| [t] -> t
+						| _ -> ODKFailed
+					end
+				end
+			| TDynamic t when (follow t != t_dynamic) ->
+				dynamic_parameter := Some t;
+				ODKWithStructure {
+					a_status = ref Closed;
+					a_fields = PMap.empty;
+				}
+			| TInst(c,tl) when Meta.has Meta.StructInit c.cl_meta ->
+				ODKWithClass(c,tl)
+			| _ ->
+				ODKPlain
+		in
+		loop [] t
+	| _ ->
+		ODKPlain
+	) in
+	let type_fields field_map =
+		let fields = ref PMap.empty in
+		let extra_fields = ref [] in
+		let fl = List.map (fun ((n,pn,qs),e) ->
+			let is_valid = Lexer.is_valid_identifier n in
+			if PMap.mem n !fields then typing_error ("Duplicate field in object declaration : " ^ n) p;
+			let is_final = ref false in
+			let e = try
+				let t = match !dynamic_parameter with
+					| Some t -> t
+					| None ->
+						let cf = PMap.find n field_map in
+						if (has_class_field_flag cf CfFinal) then is_final := true;
+						if ctx.in_display && DisplayPosition.display_position#enclosed_in pn then DisplayEmitter.display_field ctx Unknown CFSMember cf pn;
+						cf.cf_type
+				in
+				let e = type_expr ctx e (WithType.with_structure_field t n) in
+				let e = AbstractCast.cast_or_unify ctx t e e.epos in
+				let e = if is_null t && not (is_null e.etype) then mk (TCast(e,None)) (ctx.t.tnull e.etype) e.epos else e in
+				(try type_eq EqStrict e.etype t; e with Unify_error _ -> mk (TCast (e,None)) t e.epos)
+			with Not_found ->
+				if is_valid then
+					extra_fields := n :: !extra_fields;
+				type_expr ctx e WithType.value
+			in
+			if is_valid then begin
+				if starts_with n '$' then typing_error "Field names starting with a dollar are not allowed
