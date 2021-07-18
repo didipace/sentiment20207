@@ -914,4 +914,74 @@ and type_object_decl ctx fl with_type p =
 				type_expr ctx e WithType.value
 			in
 			if is_valid then begin
-				if starts_with n '$' then typing_error "Field names starting with a dollar are not allowed
+				if starts_with n '$' then typing_error "Field names starting with a dollar are not allowed" p;
+				let cf = mk_field n e.etype (punion pn e.epos) pn in
+				if !is_final then add_class_field_flag cf CfFinal;
+				fields := PMap.add n cf !fields;
+			end;
+			((n,pn,qs),e)
+		) fl in
+		let t = mk_anon ~fields:!fields (ref Const) in
+		if not ctx.untyped then begin
+			(match PMap.foldi (fun n cf acc -> if not (Meta.has Meta.Optional cf.cf_meta) && not (PMap.mem n !fields) then n :: acc else acc) field_map [] with
+				| [] -> ()
+				| [n] -> raise_or_display ctx [Unify_custom ("Object requires field " ^ n)] p
+				| nl -> raise_or_display ctx [Unify_custom ("Object requires fields: " ^ (String.concat ", " nl))] p);
+			(match !extra_fields with
+			| [] -> ()
+			| _ -> raise_or_display ctx (List.map (fun n -> has_extra_field t n) !extra_fields) p);
+		end;
+		t, fl
+	in
+	let type_plain_fields () =
+		let rec loop (l,acc) ((f,pf,qs),e) =
+			let is_valid = Lexer.is_valid_identifier f in
+			if PMap.mem f acc then typing_error ("Duplicate field in object declaration : " ^ f) p;
+			let e = type_expr ctx e (WithType.named_structure_field f) in
+			(match follow e.etype with TAbstract({a_path=[],"Void"},_) -> typing_error "Fields of type Void are not allowed in structures" e.epos | _ -> ());
+			let cf = mk_field f e.etype (punion pf e.epos) pf in
+			if ctx.in_display && DisplayPosition.display_position#enclosed_in pf then DisplayEmitter.display_field ctx Unknown CFSMember cf pf;
+			(((f,pf,qs),e) :: l, if is_valid then begin
+				if starts_with f '$' then typing_error "Field names starting with a dollar are not allowed" p;
+				PMap.add f cf acc
+			end else acc)
+		in
+		let fields , types = List.fold_left loop ([],PMap.empty) fl in
+		let x = ref Const in
+		ctx.opened <- x :: ctx.opened;
+		mk (TObjectDecl (List.rev fields)) (mk_anon ~fields:types x) p
+	in
+	(match a with
+	| ODKPlain | ODKFailed  -> type_plain_fields()
+	| ODKWithStructure a when PMap.is_empty a.a_fields && !dynamic_parameter = None -> type_plain_fields()
+	| ODKWithStructure a ->
+		let t, fl = type_fields a.a_fields in
+		mk (TObjectDecl fl) t p
+	| ODKWithClass (c,tl) ->
+		let fa = FieldAccess.get_constructor_access c tl p in
+		let ctor = fa.fa_field in
+		let args = match follow (FieldAccess.get_map_function fa ctor.cf_type) with
+			| TFun(args,_) -> args
+			| _ -> die "" __LOC__
+		in
+		let fields = List.fold_left (fun acc (n,opt,t) ->
+			let f = mk_field n t ctor.cf_pos ctor.cf_name_pos in
+			if opt then f.cf_meta <- [(Meta.Optional,[],ctor.cf_pos)];
+			PMap.add n f acc
+		) PMap.empty args in
+		let t,fl = type_fields fields in
+		let evars,fl,_ = List.fold_left (fun (evars,elocs,had_side_effect) (s,e) ->
+			begin match e.eexpr with
+			| TConst _ | TTypeExpr _ | TFunction _ ->
+				evars,(s,e) :: elocs,had_side_effect
+			| _ ->
+				if had_side_effect then begin
+					let v = gen_local ctx e.etype e.epos in
+					let ev = mk (TVar(v,Some e)) e.etype e.epos in
+					let eloc = mk (TLocal v) v.v_type e.epos in
+					(ev :: evars),((s,eloc) :: elocs),had_side_effect
+				end else
+					evars,(s,e) :: elocs,OptimizerTexpr.has_side_effect e
+			end
+		) ([],[],false) (List.rev fl) in
+		let el = List.map (fun (n,_,t) ->
