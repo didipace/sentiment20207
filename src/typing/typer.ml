@@ -985,3 +985,95 @@ and type_object_decl ctx fl with_type p =
 			end
 		) ([],[],false) (List.rev fl) in
 		let el = List.map (fun (n,_,t) ->
+			try Expr.field_assoc n fl
+			with Not_found ->
+				try
+					match ctor.cf_expr with
+					| Some { eexpr = TFunction fn } ->
+						Option.get (snd (List.find (fun (v,e) -> n = v.v_name && Option.is_some e) fn.tf_args))
+					| _ ->
+						raise Not_found
+				with Not_found | Option.No_value ->
+					let t =
+						if type_has_meta (Abstract.follow_with_abstracts_without_null t) Meta.NotNull then ctx.t.tnull t
+						else t
+					in
+					mk (TConst TNull) t p
+		) args in
+		let e = mk (TNew(c,tl,el)) (TInst(c,tl)) p in
+		mk (TBlock (List.rev (e :: (List.rev evars)))) e.etype e.epos
+	)
+
+and type_new ctx path el with_type force_inline p =
+	let path =
+		if snd path <> null_pos then
+			path
+		(*
+			Since macros don't have placed_type_path structure on Haxe side any ENew will have null_pos in `path`.
+			Try to calculate a better pos.
+		*)
+		else begin
+			match el with
+			| (_,p1) :: _ when p1.pfile = p.pfile && p.pmin < p1.pmin ->
+				let pmin = p.pmin + (String.length "new ")
+				and pmax = p1.pmin - 2 (* Additional "1" for an opening bracket *)
+				in
+				fst path, { p with
+					pmin = if pmin < pmax then pmin else p.pmin;
+					pmax = pmax;
+				}
+			| _ -> fst path, p
+		end
+	in
+	let unify_constructor_call c fa =
+		try
+			let fcc = unify_field_call ctx fa [] el p fa.fa_inline in
+			check_constructor_access ctx c fcc.fc_field p;
+			fcc
+		with Error (e,p) ->
+			typing_error (error_msg e) p;
+	in
+	let display_position_in_el () =
+		List.exists (fun e -> DisplayPosition.display_position#enclosed_in (pos e)) el
+	in
+	let t = if (fst path).tparams <> [] then begin
+		try
+			Typeload.load_instance ctx path false
+		with Error _ as exc when display_position_in_el() ->
+			(* If we fail for some reason, process the arguments in case we want to display them (#7650). *)
+			List.iter (fun e -> ignore(type_expr ctx e WithType.value)) el;
+			raise exc
+	end else try
+		ctx.call_argument_stack <- el :: ctx.call_argument_stack;
+		let t = Typeload.load_instance ctx path true in
+		let t_follow = follow t in
+		ctx.call_argument_stack <- List.tl ctx.call_argument_stack;
+		(* Try to properly build @:generic classes here (issue #2016) *)
+		begin match t_follow with
+			| TInst({cl_kind = KGeneric } as c,tl) -> follow (Generic.build_generic_class ctx c p tl)
+			| _ -> t
+		end
+	with
+	| Generic.Generic_Exception _ ->
+		(* Try to infer generic parameters from the argument list (issue #2044) *)
+		begin match resolve_typedef (Typeload.load_type_def ctx p (fst path)) with
+		| TClassDecl ({cl_constructor = Some cf} as c) ->
+			let monos = Monomorph.spawn_constrained_monos (fun t -> t) c.cl_params in
+			let fa = FieldAccess.get_constructor_access c monos p in
+			no_abstract_constructor c p;
+			ignore (unify_constructor_call c fa);
+			begin try
+				Generic.build_generic_class ctx c p monos
+			with Generic.Generic_Exception _ as exc ->
+				(* If we have an expected type, just use that (issue #3804) *)
+				begin match with_type with
+					| WithType.WithType(t,_) ->
+						begin match follow t with
+							| TMono _ -> raise exc
+							| t -> t
+						end
+					| _ ->
+						raise exc
+				end
+			end
+		|
