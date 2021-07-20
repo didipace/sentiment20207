@@ -1076,4 +1076,82 @@ and type_new ctx path el with_type force_inline p =
 						raise exc
 				end
 			end
-		|
+		| mt ->
+			typing_error ((s_type_path (t_infos mt).mt_path) ^ " cannot be constructed") p
+		end
+	| Error _ as exc when display_position_in_el() ->
+		List.iter (fun e -> ignore(type_expr ctx e WithType.value)) el;
+		raise exc
+	in
+	DisplayEmitter.check_display_type ctx t path;
+	let t = follow t in
+	let build_constructor_call ao c tl =
+		let fa = FieldAccess.get_constructor_access c tl p in
+		let fa = if force_inline then {fa with fa_inline = true} else fa in
+		let cf = fa.fa_field in
+		no_abstract_constructor c p;
+		begin match cf.cf_kind with
+			| Var { v_read = AccRequire (r,msg) } -> (match msg with Some msg -> typing_error msg p | None -> error_require r p)
+			| _ -> ()
+		end;
+		unify_constructor_call c fa
+	in
+	try begin match Abstract.follow_with_forward_ctor t with
+	| TInst ({cl_kind = KTypeParameter tl} as c,params) ->
+		if not (TypeloadCheck.is_generic_parameter ctx c) then typing_error "Only generic type parameters can be constructed" p;
+ 		begin match get_constructible_constraint ctx tl p with
+		| None ->
+			raise_typing_error (No_constructor (TClassDecl c)) p
+		| Some(tl,tr) ->
+			let el,_ = unify_call_args ctx el tl tr p false false false in
+			mk (TNew (c,params,el)) t p
+		end
+	| TAbstract({a_impl = Some c} as a,tl) when not (Meta.has Meta.MultiType a.a_meta) ->
+		let fcc = build_constructor_call (Some a) c tl in
+		{ (fcc.fc_data()) with etype = t }
+	| TInst (c,params) | TAbstract({a_impl = Some c},params) ->
+		let fcc = build_constructor_call None c params in
+		let el = fcc.fc_args in
+		mk (TNew (c,params,el)) t p
+	| _ ->
+		typing_error (s_type (print_context()) t ^ " cannot be constructed") p
+	end with Error(No_constructor _ as err,p) when ctx.com.display.dms_kind <> DMNone ->
+		display_error ctx.com (error_msg err) p;
+		Diagnostics.secure_generated_code ctx (mk (TConst TNull) t p)
+
+and type_try ctx e1 catches with_type p =
+	let e1 = type_expr ctx (Expr.ensure_block e1) with_type in
+	let rec check_unreachable cases t p = match cases with
+		| (v,e) :: cases ->
+			let unreachable () =
+				display_error ctx.com "This block is unreachable" p;
+				let st = s_type (print_context()) in
+				display_error ctx.com (Printf.sprintf "%s can be caught to %s, which is handled here" (st t) (st v.v_type)) e.epos
+			in
+			begin try
+				begin match follow t,follow v.v_type with
+					| _, TDynamic _
+					| _, TInst({ cl_path = ["haxe"],"Error"},_) ->
+						unreachable()
+					| _, TInst({ cl_path = path },_) when path = ctx.com.config.pf_exceptions.ec_wildcard_catch ->
+						unreachable()
+					| TDynamic _,_ ->
+						()
+					| _ ->
+						Type.unify t v.v_type;
+						unreachable()
+				end
+			with Unify_error _ ->
+				check_unreachable cases t p
+			end
+		| [] ->
+			()
+	in
+	let check_catch_type_params params p =
+		List.iter (fun pt ->
+			if Abstract.follow_with_abstracts pt != t_dynamic then typing_error "Catch class parameter must be Dynamic" p;
+		) params
+	in
+	let catches,el = List.fold_left (fun (acc1,acc2) ((v,pv),t,e_ast,pc) ->
+		let th = Option.default (CTPath { tpackage = ["haxe"]; tname = "Exception"; tsub = None; tparams = [] },null_pos) t in
+		let t = Typeload.load_comp
