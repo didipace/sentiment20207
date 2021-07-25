@@ -1154,4 +1154,76 @@ and type_try ctx e1 catches with_type p =
 	in
 	let catches,el = List.fold_left (fun (acc1,acc2) ((v,pv),t,e_ast,pc) ->
 		let th = Option.default (CTPath { tpackage = ["haxe"]; tname = "Exception"; tsub = None; tparams = [] },null_pos) t in
-		let t = Typeload.load_comp
+		let t = Typeload.load_complex_type ctx true th in
+		let rec loop t = match follow t with
+			| TInst ({ cl_kind = KTypeParameter _} as c,_) when not (TypeloadCheck.is_generic_parameter ctx c) ->
+				typing_error "Cannot catch non-generic type parameter" p
+			| TInst (_,params) | TEnum (_,params) ->
+				check_catch_type_params params (snd th);
+				t
+			| TAbstract(a,params) when Meta.has Meta.RuntimeValue a.a_meta ->
+				check_catch_type_params params (snd th);
+				t
+			| TAbstract(a,tl) when not (Meta.has Meta.CoreType a.a_meta) ->
+				loop (Abstract.get_underlying_type a tl)
+			| TDynamic _ -> t
+			| _ -> typing_error "Catch type must be a class, an enum or Dynamic" (pos e_ast)
+		in
+		let t2 = loop t in
+		check_unreachable acc1 t2 (pos e_ast);
+		let locals = save_locals ctx in
+		let v = add_local_with_origin ctx TVOCatchVariable v t pv in
+		if ctx.is_display_file && DisplayPosition.display_position#enclosed_in pv then
+			DisplayEmitter.display_variable ctx v pv;
+		let e = type_expr ctx e_ast with_type in
+		(* If the catch position is the display position it means we get completion on the catch keyword or some
+		   punctuation. Otherwise we wouldn't reach this point. *)
+		if ctx.is_display_file && DisplayPosition.display_position#enclosed_in pc then ignore(TyperDisplay.display_expr ctx e_ast e DKMarked MGet with_type pc);
+		v.v_type <- t2;
+		locals();
+		((v,e) :: acc1),(e :: acc2)
+	) ([],[e1]) catches in
+	let e1,catches,t = match with_type with
+		| WithType.NoValue -> e1,catches,ctx.t.tvoid
+		| WithType.Value _ -> e1,catches,unify_min ctx el
+		| WithType.WithType(t,src) when (match follow t with TMono _ -> true | t -> ExtType.is_void t) ->
+			e1,catches,unify_min_for_type_source ctx el src
+		| WithType.WithType(t,_) ->
+			let e1 = AbstractCast.cast_or_unify ctx t e1 e1.epos in
+			let catches = List.map (fun (v,e) ->
+				v,AbstractCast.cast_or_unify ctx t e e.epos
+			) catches in
+			e1,catches,t
+	in
+	mk (TTry (e1,List.rev catches)) t p
+
+and type_map_declaration ctx e1 el with_type p =
+	let (tkey,tval,has_type) =
+		let get_map_params t = match follow t with
+			| TAbstract({a_path=["haxe";"ds"],"Map"},[tk;tv]) -> tk,tv,true
+			| TInst({cl_path=["haxe";"ds"],"IntMap"},[tv]) -> ctx.t.tint,tv,true
+			| TInst({cl_path=["haxe";"ds"],"StringMap"},[tv]) -> ctx.t.tstring,tv,true
+			| TInst({cl_path=["haxe";"ds"],("ObjectMap" | "EnumValueMap")},[tk;tv]) -> tk,tv,true
+			| _ -> spawn_monomorph ctx p,spawn_monomorph ctx p,false
+		in
+		match with_type with
+		| WithType.WithType(t,_) -> get_map_params t
+		| _ -> (spawn_monomorph ctx p,spawn_monomorph ctx p,false)
+	in
+	let keys = Hashtbl.create 0 in
+	let check_key e_key =
+		try
+			let p = Hashtbl.find keys e_key.eexpr in
+			display_error ctx.com "Duplicate key" e_key.epos;
+			typing_error (compl_msg "Previously defined here") p
+		with Not_found ->
+			begin match e_key.eexpr with
+			| TConst _ -> Hashtbl.add keys e_key.eexpr e_key.epos;
+			| _ -> ()
+			end
+	in
+	let el = e1 :: el in
+	let el_kv = List.map (fun e -> match fst e with
+		| EBinop(OpArrow,e1,e2) -> e1,e2
+		| EDisplay _ ->
+			
