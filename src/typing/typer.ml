@@ -1297,4 +1297,109 @@ and type_local_function ctx kind f with_type p =
 	in
 	(* The idea here is: If we have multiple `from Function`, we can
 	   1. ignore any that have a different argument arity, and
-	   2. still to
+	   2. still top-down infer any argument or return type that is equal across all candidates.
+	*)
+	let handle_abstract_matrix l =
+		let arity = List.length targs in
+		let m = new unification_matrix (arity + 1) in
+		let rec loop l = match l with
+			| t :: l ->
+				begin match follow t with
+				| TFun(args,ret) when List.length args = arity ->
+					List.iteri (fun i (_,_,t) ->
+						(* We don't want to bind monomorphs because we want the widest type *)
+						let t = dynamify_monos t in
+						m#join t (i + 1);
+					) args;
+					let ret = dynamify_monos ret in
+					m#join ret 0;
+				| t ->
+					()
+				end;
+				loop l
+			| [] ->
+				()
+		in
+		loop l;
+ 		List.iteri (fun i (_,_,t1) ->
+			match m#get_type (i + 1) with
+			| Some t2 ->
+				maybe_unify_arg t1 t2
+			| None ->
+				()
+		) targs;
+		begin match m#get_type 0 with
+		| Some tr ->
+			maybe_unify_ret tr
+		| None ->
+			()
+		end
+	in
+	(match with_type with
+	| WithType.WithType(t,_) ->
+		let rec loop stack t =
+			(match follow t with
+			| TFun (args2,tr) when List.length args2 = List.length targs ->
+				List.iter2 (fun (_,_,t1) (_,_,t2) ->
+					maybe_unify_arg t1 t2
+				) targs args2;
+				(* unify for top-down inference unless we are expecting Void *)
+				maybe_unify_ret tr
+			| TAbstract(a,tl) ->
+				begin match get_abstract_froms ctx a tl with
+					| [t2] ->
+						if not (List.exists (shallow_eq t) stack) then loop (t :: stack) t2
+					| l ->
+						handle_abstract_matrix l
+				end
+			| _ -> ())
+		in
+		loop [] t
+	| WithType.NoValue ->
+		if name = None then display_error ctx.com "Unnamed lvalue functions are not supported" p
+	| _ ->
+		());
+	let ft = TFun (targs,rt) in
+	let v = (match v with
+		| None -> None
+		| Some v ->
+			let v = (add_local_with_origin ctx TVOLocalFunction v ft pname) in
+			if params <> [] then v.v_extra <- Some (var_extra params None);
+			Some v
+	) in
+	let curfun = match ctx.curfun with
+		| FunStatic -> FunStatic
+		| FunMemberAbstract
+		| FunMemberAbstractLocal -> FunMemberAbstractLocal
+		| _ -> FunMemberClassLocal
+	in
+	let e = TypeloadFunction.type_function ctx args rt curfun f.f_expr ctx.in_display p in
+	ctx.type_params <- old_tp;
+	ctx.in_loop <- old_in_loop;
+	let tf = {
+		tf_args = args#for_expr;
+		tf_type = rt;
+		tf_expr = e;
+	} in
+	let e = mk (TFunction tf) ft p in
+	match v with
+	| None -> e
+	| Some v ->
+		Typeload.generate_args_meta ctx.com None (fun m -> v.v_meta <- m :: v.v_meta) f.f_args;
+		let open LocalUsage in
+		if params <> [] || inline then v.v_extra <- Some (var_extra params (if inline then Some e else None));
+		if ctx.in_display && DisplayPosition.display_position#enclosed_in v.v_pos then
+			DisplayEmitter.display_variable ctx v v.v_pos;
+		let rec loop = function
+			| LocalUsage.Block f | LocalUsage.Loop f | LocalUsage.Function f -> f loop
+			| LocalUsage.Use v2 | LocalUsage.Assign v2 when v == v2 -> raise Exit
+			| LocalUsage.Use _ | LocalUsage.Assign _ | LocalUsage.Declare _ -> ()
+		in
+		let is_rec = (try local_usage loop e; false with Exit -> true) in
+		let exprs =
+			if with_type <> WithType.NoValue && not inline then [mk (TLocal v) v.v_type p]
+			else []
+		in
+		let exprs =
+			if is_rec then begin
+				if inline then display_error c
