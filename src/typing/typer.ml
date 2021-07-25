@@ -1402,4 +1402,102 @@ and type_local_function ctx kind f with_type p =
 		in
 		let exprs =
 			if is_rec then begin
-				if inline then display_error c
+				if inline then display_error ctx.com "Inline function cannot be recursive" e.epos;
+				(mk (TVar (v,Some (mk (TConst TNull) ft p))) ctx.t.tvoid p) ::
+				(mk (TBinop (OpAssign,mk (TLocal v) ft p,e)) ft p) ::
+				exprs
+			end else if inline && not ctx.is_display_file then
+				(mk (TBlock []) ctx.t.tvoid p) :: exprs (* do not add variable since it will be inlined *)
+			else
+				(mk (TVar (v,Some e)) ctx.t.tvoid p) :: exprs
+		in
+		match exprs with
+		| [e] -> e
+		| _ ->
+			let block = mk (TBlock exprs) v.v_type p in
+			mk (TMeta ((Meta.MergeBlock, [], null_pos), block)) v.v_type p
+
+and type_array_decl ctx el with_type p =
+	let allow_array_dynamic = ref false in
+	let tp = (match with_type with
+	| WithType.WithType(t,_) ->
+		let rec loop seen t =
+			(match follow t with
+			| TInst ({ cl_path = [],"Array" },[tp]) ->
+				(match follow tp with
+				| TMono _ -> None
+				| _ as t ->
+					if t == t_dynamic then allow_array_dynamic := true;
+					Some tp)
+			| TAnon _ ->
+				(try
+					Some (get_iterable_param t)
+				with Not_found ->
+					None)
+			| TAbstract (a,pl) as t when not (List.exists (fun t' -> shallow_eq t t') seen) ->
+				let types =
+					List.fold_left
+						(fun acc t' -> match loop (t :: seen) t' with
+							| None -> acc
+							| Some t -> t :: acc
+						)
+						[]
+						(get_abstract_froms ctx a pl)
+				in
+				(match types with
+				| [t] -> Some t
+				| _ -> None)
+			| t ->
+				if t == t_dynamic then begin
+					allow_array_dynamic := true;
+					Some t
+				end else
+					None
+			)
+		in
+		loop [] t
+	| _ ->
+		None
+	) in
+	(match tp with
+	| None ->
+		let el = List.map (fun e -> type_expr ctx e WithType.value) el in
+		let t = try
+			unify_min_raise ctx el
+		with Error (Unify l,p) ->
+			if !allow_array_dynamic || ctx.untyped || ignore_error ctx.com then
+				t_dynamic
+			else begin
+				display_error ctx.com "Arrays of mixed types are only allowed if the type is forced to Array<Dynamic>" p;
+				raise (Error (Unify l, p))
+			end
+		in
+		mk (TArrayDecl el) (ctx.t.tarray t) p
+	| Some t ->
+		let el = List.map (fun e ->
+			let e = type_expr ctx e (WithType.with_type t) in
+			AbstractCast.cast_or_unify ctx t e e.epos;
+		) el in
+		mk (TArrayDecl el) (ctx.t.tarray t) p)
+
+and type_array_comprehension ctx e with_type p =
+	let v = gen_local ctx (spawn_monomorph ctx p) p in
+	let ev = mk (TLocal v) v.v_type p in
+	let e_ref = snd (store_typed_expr ctx.com ev p) in
+	let et = ref (EConst(Ident "null"),p) in
+	let comprehension_pos = p in
+	let rec map_compr (e,p) =
+		match e with
+		| EFor(it,e2) -> (EFor (it, map_compr e2),p)
+		| EWhile(cond,e2,flag) -> (EWhile (cond,map_compr e2,flag),p)
+		| EIf (cond,e2,None) -> (EIf (cond,map_compr e2,None),p)
+		| EIf (cond,e2,Some e3) -> (EIf (cond,map_compr e2,Some (map_compr e3)),p)
+		| EBlock [e] -> (EBlock [map_compr e],p)
+		| EBlock [] -> map_compr (EObjectDecl [],p)
+		| EBlock el -> begin match List.rev el with
+			| e :: el -> (EBlock ((List.rev el) @ [map_compr e]),p)
+			| [] -> e,p
+			end
+		| EParenthesis e2 -> (EParenthesis (map_compr e2),p)
+		| EBinop(OpArrow,a,b) ->
+			et := (ENew(({tpackage=["haxe";"ds"];tname="Map";tparams=[];tsub=None},null_pos
