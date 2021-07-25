@@ -1226,4 +1226,75 @@ and type_map_declaration ctx e1 el with_type p =
 	let el_kv = List.map (fun e -> match fst e with
 		| EBinop(OpArrow,e1,e2) -> e1,e2
 		| EDisplay _ ->
-			
+			ignore(type_expr ctx e (WithType.with_type tkey));
+			typing_error "Expected a => b" (pos e)
+		| _ -> typing_error "Expected a => b" (pos e)
+	) el in
+	let el_k,el_v,tkey,tval = if has_type then begin
+		let el_k,el_v = List.fold_left (fun (el_k,el_v) (e1,e2) ->
+			let e1 = type_expr ctx e1 (WithType.with_type tkey) in
+			check_key e1;
+			let e1 = AbstractCast.cast_or_unify ctx tkey e1 e1.epos in
+			let e2 = type_expr ctx e2 (WithType.with_type tval) in
+			let e2 = AbstractCast.cast_or_unify ctx tval e2 e2.epos in
+			(e1 :: el_k,e2 :: el_v)
+		) ([],[]) el_kv in
+		el_k,el_v,tkey,tval
+	end else begin
+		let el_k,el_v = List.fold_left (fun (el_k,el_v) (e1,e2) ->
+			let e1 = type_expr ctx e1 WithType.value in
+			check_key e1;
+			let e2 = type_expr ctx e2 WithType.value in
+			(e1 :: el_k,e2 :: el_v)
+		) ([],[]) el_kv in
+		let tkey = unify_min_raise ctx el_k in
+		let tval = unify_min_raise ctx el_v in
+		el_k,el_v,tkey,tval
+	end in
+	let m = TypeloadModule.load_module ctx (["haxe";"ds"],"Map") null_pos in
+	let a,c = match m.m_types with
+		| (TAbstractDecl ({a_impl = Some c} as a)) :: _ -> a,c
+		| _ -> die "" __LOC__
+	in
+	let tmap = TAbstract(a,[tkey;tval]) in
+	let cf = PMap.find "set" c.cl_statics in
+	let v = gen_local ctx tmap p in
+	let ev = mk (TLocal v) tmap p in
+	let ec = type_module_type ctx (TClassDecl c) None p in
+	let ef = mk (TField(ec,FStatic(c,cf))) (tfun [tkey;tval] ctx.t.tvoid) p in
+	let el = ev :: List.map2 (fun e1 e2 -> (make_call ctx ef [ev;e1;e2] ctx.com.basic.tvoid p)) el_k el_v in
+	let enew = mk (TNew(c,[tkey;tval],[])) tmap p in
+	let el = (mk (TVar (v,Some enew)) t_dynamic p) :: (List.rev el) in
+	mk (TBlock el) tmap p
+
+and type_local_function ctx kind f with_type p =
+	let name,inline = match kind with FKNamed (name,inline) -> Some name,inline | _ -> None,false in
+	let params = TypeloadFunction.type_function_params ctx f (match name with None -> "localfun" | Some (n,_) -> n) p in
+	if params <> [] then begin
+		if name = None then display_error ctx.com "Type parameters not supported in unnamed local functions" p;
+		if with_type <> WithType.NoValue then typing_error "Type parameters are not supported for rvalue functions" p
+	end;
+	let v,pname = (match name with
+		| None -> None,p
+		| Some (v,pn) -> Some v,pn
+	) in
+	let old_tp,old_in_loop = ctx.type_params,ctx.in_loop in
+	ctx.type_params <- params @ ctx.type_params;
+	if not inline then ctx.in_loop <- false;
+	let rt = Typeload.load_type_hint ctx p f.f_type in
+	let type_arg _ opt t p = Typeload.load_type_hint ~opt ctx p t in
+	let args = new FunctionArguments.function_arguments ctx type_arg false ctx.in_display None f.f_args in
+	let targs = args#for_type in
+	let maybe_unify_arg t1 t2 =
+		match follow t1 with
+		| TMono _ -> unify ctx t2 t1 p
+		| _ -> ()
+	in
+	let maybe_unify_ret tr = match follow tr,follow rt with
+		| TAbstract({a_path = [],"Void"},_),_ when kind <> FKArrow -> ()
+		| _,TMono _ -> unify ctx rt tr p
+		| _ -> ()
+	in
+	(* The idea here is: If we have multiple `from Function`, we can
+	   1. ignore any that have a different argument arity, and
+	   2. still to
