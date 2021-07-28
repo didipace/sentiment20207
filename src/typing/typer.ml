@@ -1500,4 +1500,87 @@ and type_array_comprehension ctx e with_type p =
 			end
 		| EParenthesis e2 -> (EParenthesis (map_compr e2),p)
 		| EBinop(OpArrow,a,b) ->
-			et := (ENew(({tpackage=["haxe";"ds"];tname="Map";tparams=[];tsub=None},null_pos
+			et := (ENew(({tpackage=["haxe";"ds"];tname="Map";tparams=[];tsub=None},null_pos),[]),comprehension_pos);
+			(ECall ((efield (e_ref,"set"),p),[a;b]),p)
+		| _ ->
+			et := (EArrayDecl [],comprehension_pos);
+			(ECall ((efield (e_ref,"push"),p),[(e,p)]),p)
+	in
+	let e = map_compr e in
+	let ea = type_expr ctx !et with_type in
+	unify ctx v.v_type ea.etype p;
+	let efor = type_expr ctx e WithType.NoValue in
+	mk (TBlock [
+		mk (TVar (v,Some ea)) ctx.t.tvoid p;
+		efor;
+		ev;
+	]) v.v_type p
+
+and type_return ?(implicit=false) ctx e with_type p =
+	let is_abstract_ctor = ctx.curfun = FunMemberAbstract && ctx.curfield.cf_name = "_new" in
+	match e with
+	| None when is_abstract_ctor ->
+		let e_cast = mk (TCast(get_this ctx p,None)) ctx.ret p in
+		mk (TReturn (Some e_cast)) (mono_or_dynamic ctx with_type p) p
+	| None ->
+		let v = ctx.t.tvoid in
+		unify ctx v ctx.ret p;
+		let expect_void = match with_type with
+			| WithType.WithType(t,_) -> ExtType.is_void (follow t)
+			| WithType.Value (Some ImplicitReturn) -> true
+			| _ -> false
+		in
+		mk (TReturn None) (if expect_void then v else (mono_or_dynamic ctx with_type p)) p
+	| Some e ->
+		if is_abstract_ctor then begin
+			match fst e with
+			| ECast((EConst(Ident "this"),_),None) -> ()
+			| _ -> display_error ctx.com "Cannot return a value from constructor" p
+		end;
+		try
+			let with_expected_type =
+				if ExtType.is_void (follow ctx.ret) then WithType.no_value
+				else if implicit then WithType.of_implicit_return ctx.ret
+				else WithType.with_type ctx.ret
+			in
+			let e = type_expr ctx e with_expected_type in
+			match follow ctx.ret with
+			| TAbstract({a_path=[],"Void"},_) when implicit ->
+				e
+			| _ ->
+				let e = AbstractCast.cast_or_unify ctx ctx.ret e p in
+				match follow e.etype with
+				| TAbstract({a_path=[],"Void"},_) ->
+					begin match (Texpr.skip e).eexpr with
+					| TConst TNull -> typing_error "Cannot return `null` from Void-function" p
+					| _ -> ()
+					end;
+					(* if we get a Void expression (e.g. from inlining) we don't want to return it (issue #4323) *)
+					let t = mono_or_dynamic ctx with_type p in
+					mk (TBlock [
+						e;
+						mk (TReturn None) t p
+					]) t e.epos;
+				| _ ->
+					mk (TReturn (Some e)) (mono_or_dynamic ctx with_type p) p
+		with Error(err,p) ->
+			check_error ctx err p;
+			(* If we have a bad return, let's generate a return null expression at least. This surpresses various
+				follow-up errors that come from the fact that the function no longer has a return expression (issue #6445). *)
+			let e_null = mk (TConst TNull) (mk_mono()) p in
+			mk (TReturn (Some e_null)) (mono_or_dynamic ctx with_type p) p
+
+and type_cast ctx e t p =
+	let tpos = pos t in
+	let t = Typeload.load_complex_type ctx true t in
+	let check_param pt = match follow pt with
+		| TMono _ -> () (* This probably means that Dynamic wasn't bound (issue #4675). *)
+		| t when t == t_dynamic -> ()
+		| _ -> typing_error "Cast type parameters must be Dynamic" tpos
+	in
+	let rec loop t = match follow t with
+		| TInst (_,params) | TEnum (_,params) ->
+			List.iter check_param params;
+			(match follow t with
+			| TInst (c,_) ->
+				(match c.cl_kind with KTypeParamet
