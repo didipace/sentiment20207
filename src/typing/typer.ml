@@ -1669,4 +1669,92 @@ and type_meta ?(mode=MGet) ctx m e1 with_type p =
 		| (Meta.Inline,_,pinline) ->
 			begin match fst e1 with
 			| ECall(e1,el) ->
-				acc_get ctx (type_call_access ctx e1 el MGet Wi
+				acc_get ctx (type_call_access ctx e1 el MGet WithType.value (Some pinline) p)
+			| ENew (t,el) ->
+				let e = type_new ctx t el with_type true p in
+				{e with eexpr = TMeta((Meta.Inline,[],null_pos),e)}
+			| _ ->
+				display_error ctx.com "Call or function expected after inline keyword" p;
+				e();
+			end
+		| (Meta.ImplicitReturn,_,_) ->
+			begin match e1 with
+			| (EReturn e, p) -> type_return ~implicit:true ctx e with_type p
+			| _ -> e()
+			end
+		| (Meta.Dollar s,_,p) ->
+			display_error ctx.com (Printf.sprintf "Reification $%s is not allowed outside of `macro` expression" s) p;
+			e()
+		| _ -> e()
+	in
+	ctx.meta <- old;
+	e
+
+and type_call_target ctx e el with_type p_inline =
+	let p = (pos e) in
+	let e = maybe_type_against_enum ctx (fun () -> type_access ctx (fst e) (snd e) (MCall el) WithType.value) with_type true p in
+	let check_inline cf p =
+		if (has_class_field_flag cf CfAbstract) then display_error ctx.com "Cannot force inline on abstract method" p
+	in
+	match p_inline with
+	| None ->
+		e
+	| Some pinline ->
+		let rec loop e =
+			match e with
+			| AKSafeNav sn ->
+				AKSafeNav { sn with sn_access = loop sn.sn_access }
+			| AKField fa ->
+				check_inline fa.fa_field pinline;
+				AKField({fa with fa_inline = true})
+			| AKUsingField sea ->
+				check_inline sea.se_access.fa_field pinline;
+				AKUsingField {sea with se_access = {sea.se_access with fa_inline = true}}
+			| AKExpr {eexpr = TLocal _} ->
+				display_error ctx.com "Cannot force inline on local functions" pinline;
+				e
+			| _ ->
+				e
+		in
+		loop e
+
+and type_call_access ctx e el mode with_type p_inline p =
+	try
+		let e = type_call_builtin ctx e el mode with_type p in
+		AKExpr e
+	with Exit ->
+		let acc = type_call_target ctx e el with_type p_inline in
+		build_call_access ctx acc el mode with_type p
+
+and type_call_builtin ctx e el mode with_type p =
+	match e, el with
+	| (EConst (Ident "trace"),p) , e :: el ->
+		if Common.defined ctx.com Define.NoTraces then
+			null ctx.t.tvoid p
+		else
+		let mk_to_string_meta e = EMeta((Meta.ToString,[],null_pos),e),pos e in
+		let params = (match el with [] -> [] | _ -> [("customParams",null_pos,NoQuotes),(EArrayDecl (List.map mk_to_string_meta el) , p)]) in
+		let infos = mk_infos ctx p params in
+		if (platform ctx.com Js || platform ctx.com Python) && el = [] && has_dce ctx.com then
+			let e = type_expr ctx e WithType.value in
+			let infos = type_expr ctx infos WithType.value in
+			let e = match follow e.etype with
+				| TAbstract({a_impl = Some c},_) when PMap.mem "toString" c.cl_statics ->
+					call_to_string ctx e
+				| _ ->
+					e
+			in
+			let e_trace = mk (TIdent "`trace") t_dynamic p in
+			mk (TCall (e_trace,[e;infos])) ctx.t.tvoid p
+		else
+			type_expr ctx (ECall ((efield ((efield ((EConst (Ident "haxe"),p),"Log"),p),"trace"),p),[mk_to_string_meta e;infos]),p) WithType.NoValue
+	| (EField ((EConst (Ident "super"),_),_,_),_), _ ->
+		(* no builtins can be applied to super as it can't be a value *)
+		raise Exit
+	| (EField (e,"bind",efk_todo),p), args ->
+		let e = type_expr ctx e WithType.value in
+		(match follow e.etype with
+			| TFun signature -> type_bind ctx e signature args p
+			| _ -> raise Exit)
+	| (EConst (Ident "$type"),_) , [e] ->
+		begin match fst e with
