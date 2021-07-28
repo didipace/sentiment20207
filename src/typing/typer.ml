@@ -1583,4 +1583,90 @@ and type_cast ctx e t p =
 			List.iter check_param params;
 			(match follow t with
 			| TInst (c,_) ->
-				(match c.cl_kind with KTypeParamet
+				(match c.cl_kind with KTypeParameter _ -> typing_error "Can't cast to a type parameter" tpos | _ -> ());
+				TClassDecl c
+			| TEnum (e,_) -> TEnumDecl e
+			| _ -> die "" __LOC__);
+		| TAbstract (a,params) when Meta.has Meta.RuntimeValue a.a_meta ->
+			List.iter check_param params;
+			TAbstractDecl a
+		| TAbstract (a,params) ->
+			loop (Abstract.get_underlying_type a params)
+		| _ ->
+			typing_error "Cast type must be a class or an enum" tpos
+	in
+	let texpr = loop t in
+	mk (TCast (type_expr ctx e WithType.value,Some texpr)) t p
+
+and make_if_then_else ctx e0 e1 e2 with_type p =
+	let e1,e2,t = match with_type with
+	| WithType.NoValue -> e1,e2,ctx.t.tvoid
+	| WithType.Value _ -> e1,e2,unify_min ctx [e1; e2]
+	| WithType.WithType(t,src) when (match follow t with TMono _ -> true | t -> ExtType.is_void t) ->
+		e1,e2,unify_min_for_type_source ctx [e1; e2] src
+	| WithType.WithType(t,_) ->
+		let e1 = AbstractCast.cast_or_unify ctx t e1 e1.epos in
+		let e2 = AbstractCast.cast_or_unify ctx t e2 e2.epos in
+		e1,e2,t
+	in
+	mk (TIf (e0,e1,Some e2)) t p
+
+and type_if ctx e e1 e2 with_type is_ternary p =
+	let e = type_expr ctx e WithType.value in
+	if is_ternary then begin match e.eexpr with
+		| TConst TNull -> typing_error "Cannot use null as ternary condition" e.epos
+		| _ -> ()
+	end;
+	let e = AbstractCast.cast_or_unify ctx ctx.t.tbool e p in
+	let e1 = type_expr ctx (Expr.ensure_block e1) with_type in
+	match e2 with
+	| None ->
+		mk (TIf (e,e1,None)) ctx.t.tvoid p
+	| Some e2 ->
+		let e2 = type_expr ctx (Expr.ensure_block e2) with_type in
+		make_if_then_else ctx e e1 e2 with_type p
+
+and type_meta ?(mode=MGet) ctx m e1 with_type p =
+	if ctx.is_display_file then DisplayEmitter.check_display_metadata ctx [m];
+	let old = ctx.meta in
+	ctx.meta <- m :: ctx.meta;
+	let e () = type_expr ~mode ctx e1 with_type in
+	let e = match m with
+		| (Meta.ToString,_,_) ->
+			let e = e() in
+			(match follow e.etype with
+				| TAbstract({a_impl = Some c},_) when PMap.mem "toString" c.cl_statics -> call_to_string ctx e
+				| _ -> e)
+		| (Meta.Markup,_,_) ->
+			typing_error "Markup literals must be processed by a macro" p
+		| (Meta.Analyzer,_,_) ->
+			let e = e() in
+			{e with eexpr = TMeta(m,e)}
+		| (Meta.MergeBlock,_,_) ->
+			begin match fst e1 with
+			| EBlock el ->
+				let e = type_block ctx el with_type p in
+				{e with eexpr = TMeta(m,e)}
+			| _ -> e()
+			end
+		| (Meta.StoredTypedExpr,_,_) ->
+			MacroContext.type_stored_expr ctx e1
+		| (Meta.NoPrivateAccess,_,_) ->
+			ctx.meta <- List.filter (fun(m,_,_) -> m <> Meta.PrivateAccess) ctx.meta;
+			e()
+		| (Meta.Fixed,_,_) when ctx.com.platform=Cpp ->
+			let e = e() in
+			{e with eexpr = TMeta(m,e)}
+		| (Meta.NullSafety, [(EConst (Ident "Off"), _)],_) ->
+			let e = e() in
+			{e with eexpr = TMeta(m,e)}
+		| (Meta.BypassAccessor,_,p) ->
+			let old_counter = ctx.bypass_accessor in
+			ctx.bypass_accessor <- old_counter + 1;
+			let e = e () in
+			(if ctx.bypass_accessor > old_counter then display_error ctx.com "Field access expression expected after @:bypassAccessor metadata" p);
+			e
+		| (Meta.Inline,_,pinline) ->
+			begin match fst e1 with
+			| ECall(e1,el) ->
+				acc_get ctx (type_call_access ctx e1 el MGet Wi
