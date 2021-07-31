@@ -1902,4 +1902,89 @@ and type_expr ?(mode=MGet) ctx (e,p) (with_type:WithType.t) =
 		let e = type_block ctx l with_type p in
 		locals();
 		e
-	| EPare
+	| EParenthesis e ->
+		let e = type_expr ctx e with_type in
+		mk (TParenthesis e) e.etype p
+	| EObjectDecl fl ->
+		type_object_decl ctx fl with_type p
+	| EArrayDecl [(EFor _,_) | (EWhile _,_) as e] ->
+		type_array_comprehension ctx e with_type p
+	| EArrayDecl ((EBinop(OpArrow,_,_),_) as e1 :: el) ->
+		type_map_declaration ctx e1 el with_type p
+	| EArrayDecl el ->
+		begin match with_type with
+		| WithType(t,_) ->
+			begin match follow t with
+			| TAbstract({a_path = (["haxe";"ds"],"Map")},[tk;tv]) ->
+				begin match el with
+				| [] ->
+					type_expr ctx (ENew(({tpackage=["haxe";"ds"];tname="Map";tparams=[];tsub=None},null_pos),[]),p) with_type
+				| [(EDisplay _,_) as e1] ->
+					(* This must mean we're just typing the first key of a map declaration (issue #9133). *)
+					type_expr ctx e1 (WithType.with_type tk)
+				| _ ->
+					type_array_decl ctx el with_type p
+				end
+			| _ ->
+				type_array_decl ctx el with_type p
+			end
+		| _ ->
+			type_array_decl ctx el with_type p
+		end
+	| EVars vl ->
+		type_vars ctx vl p
+	| EFor (it,e2) ->
+		ForLoop.type_for_loop ctx TyperDisplay.handle_display it e2 p
+	| ETernary (e1,e2,e3) ->
+		type_if ctx e1 e2 (Some e3) with_type true p
+	| EIf (e,e1,e2) ->
+		type_if ctx e e1 e2 with_type false p
+	| EWhile (cond,e,NormalWhile) ->
+		let old_loop = ctx.in_loop in
+		let cond = type_expr ctx cond WithType.value in
+		let cond = AbstractCast.cast_or_unify ctx ctx.t.tbool cond p in
+		ctx.in_loop <- true;
+		let e = type_expr ctx (Expr.ensure_block e) WithType.NoValue in
+		ctx.in_loop <- old_loop;
+		mk (TWhile (cond,e,NormalWhile)) ctx.t.tvoid p
+	| EWhile (cond,e,DoWhile) ->
+		let old_loop = ctx.in_loop in
+		ctx.in_loop <- true;
+		let e = type_expr ctx (Expr.ensure_block e) WithType.NoValue in
+		ctx.in_loop <- old_loop;
+		let cond = type_expr ctx cond WithType.value in
+		let cond = AbstractCast.cast_or_unify ctx ctx.t.tbool cond cond.epos in
+		mk (TWhile (cond,e,DoWhile)) ctx.t.tvoid p
+	| ESwitch (e1,cases,def) ->
+		let wrap e1 = mk (TMeta((Meta.Ast,[e,p],p),e1)) e1.etype e1.epos in
+		let e = Matcher.Match.match_expr ctx e1 cases def with_type false p in
+		wrap e
+	| EReturn e ->
+		if not ctx.in_function then begin
+			display_error ctx.com "Return outside function" p;
+			match e with
+			| None ->
+				Texpr.Builder.make_null (mono_or_dynamic ctx with_type p) p
+			| Some e ->
+				(* type the return expression to see if there are more errors
+				   as well as use its type as if there was no `return`, since
+				   that is most likely what was meant *)
+				type_expr ctx e WithType.value
+		end else
+			type_return ctx e with_type p
+	| EBreak ->
+		if not ctx.in_loop then display_error ctx.com "Break outside loop" p;
+		mk TBreak (mono_or_dynamic ctx with_type p) p
+	| EContinue ->
+		if not ctx.in_loop then display_error ctx.com "Continue outside loop" p;
+		mk TContinue (mono_or_dynamic ctx with_type p) p
+	| ETry (e1,[]) ->
+		type_expr ctx e1 with_type
+	| ETry (e1,catches) ->
+		type_try ctx e1 catches with_type p
+	| EThrow e ->
+		let e = type_expr ctx e WithType.value in
+		mk (TThrow e) (mono_or_dynamic ctx with_type p) p
+	| ENew (t,el) ->
+		type_new ctx t el with_type false p
+	| EUn
