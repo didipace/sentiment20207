@@ -1826,4 +1826,80 @@ and type_expr ?(mode=MGet) ctx (e,p) (with_type:WithType.t) =
 	| ECall _ ->
 		acc_get ctx (type_access ctx e p mode with_type)
 	| EConst (Regexp (r,opt)) ->
-		let str = mk (TConst (T
+		let str = mk (TConst (TString r)) ctx.t.tstring p in
+		let opt = mk (TConst (TString opt)) ctx.t.tstring p in
+		let t = Typeload.load_core_type ctx "EReg" in
+		mk (TNew ((match t with TInst (c,[]) -> c | _ -> die "" __LOC__),[],[str;opt])) t p
+	| EConst (String(s,SSingleQuotes)) when s <> "" ->
+		type_expr ctx (format_string ctx s p) with_type
+	| EConst (Int (s, Some suffix)) ->
+		(match suffix with
+		| "i32" ->
+			(try mk (TConst (TInt (Int32.of_string s))) ctx.com.basic.tint p
+			with _ -> typing_error ("Cannot represent " ^ s ^ " with a 32 bit integer") p)
+		| "i64" ->
+			if String.length s > 18 && String.sub s 0 2 = "0x" then typing_error "Invalid hexadecimal integer" p;
+
+			let i64  = Int64.of_string s in
+			let high = Int64.to_int32 (Int64.shift_right i64 32) in
+			let low  = Int64.to_int32 i64 in
+
+			let ident = EConst (Ident "haxe"), p in
+			let field = efield ((efield (ident, "Int64"), p), "make"), p in
+
+			let arg_high = EConst (Int (Int32.to_string high, None)), p in
+			let arg_low  = EConst (Int (Int32.to_string low, None)), p in
+			let call     = ECall (field, [ arg_high; arg_low ]), p in
+			type_expr ctx call with_type
+		| "u32" ->
+			let check = ECheckType ((EConst (Int (s, None)), p), (CTPath (mk_type_path ([],"UInt")), p)), p in
+			type_expr ctx check with_type
+		| other -> typing_error (other ^ " is not a valid integer suffix") p)
+	| EConst (Float (s, Some suffix) as c) ->
+		(match suffix with
+		| "f64" -> Texpr.type_constant ctx.com.basic c p
+		| other -> typing_error (other ^ " is not a valid float suffix") p)
+	| EConst c ->
+		Texpr.type_constant ctx.com.basic c p
+	| EBinop (OpNullCoal,e1,e2) ->
+		let vr = new value_reference ctx in
+		let e1 = type_expr ctx (Expr.ensure_block e1) with_type in
+		let e2 = type_expr ctx (Expr.ensure_block e2) (WithType.with_type e1.etype) in
+		let e1 = vr#as_var "tmp" {e1 with etype = ctx.t.tnull e1.etype} in
+		let e_null = Builder.make_null e1.etype e1.epos in
+		let e_cond = mk (TBinop(OpNotEq,e1,e_null)) ctx.t.tbool e1.epos in
+
+		let follow_null_once t =
+			match t with
+			| TAbstract({a_path = [],"Null"},[t]) -> t
+			| _ -> t
+		in
+		let iftype = if DeadEnd.has_dead_end e2 then
+			WithType.with_type (follow_null_once e1.etype)
+		else
+			WithType.WithType(e2.etype,None)
+		in
+		let e_if = make_if_then_else ctx e_cond e1 e2 iftype p in
+		vr#to_texpr e_if
+	| EBinop (OpAssignOp OpNullCoal,e1,e2) ->
+		let e_cond = EBinop(OpNotEq,e1,(EConst(Ident "null"), p)) in
+		let e_if = EIf ((e_cond, p),e1,Some e2) in
+		type_assign ctx e1 (e_if, p) with_type p
+	| EBinop (op,e1,e2) ->
+		type_binop ctx op e1 e2 false with_type p
+	| EBlock [] when (match with_type with
+			| NoValue -> false
+			(*
+				If expected type is unknown then treat `(...) -> {}` as an empty function
+				(just like `function(...) {}`) instead of returning an object.
+			*)
+			| WithType (t, Some ImplicitReturn) -> not (ExtType.is_mono (follow t))
+			| _ -> true
+		) ->
+		type_expr ctx (EObjectDecl [],p) with_type
+	| EBlock l ->
+		let locals = save_locals ctx in
+		let e = type_block ctx l with_type p in
+		locals();
+		e
+	| EPare
