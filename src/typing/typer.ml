@@ -1758,3 +1758,72 @@ and type_call_builtin ctx e el mode with_type p =
 			| _ -> raise Exit)
 	| (EConst (Ident "$type"),_) , [e] ->
 		begin match fst e with
+		| EConst (Ident "_") ->
+			warning ctx WInfo (WithType.to_string with_type) p;
+			mk (TConst TNull) t_dynamic p
+		| _ ->
+			let e = type_expr ctx e WithType.value in
+			warning ctx WInfo (s_type (print_context()) e.etype) e.epos;
+			let e = Diagnostics.secure_generated_code ctx e in
+			e
+		end
+	| (EField(e,"match",efk_todo),p), [epat] ->
+		let et = type_expr ctx e WithType.value in
+		let rec has_enum_match t = match follow t with
+			| TEnum _ -> true
+			| TAbstract (a,tl) when (Meta.has Meta.Forward a.a_meta) && not (Meta.has Meta.CoreType a.a_meta) ->
+				(match a.a_impl with
+					| Some c when (PMap.exists "match" c.cl_statics) && (has_class_field_flag (PMap.find "match" c.cl_statics) CfImpl) -> false
+					| _ -> has_enum_match (Abstract.get_underlying_type ~return_first:true a tl))
+			| _ -> false
+		in
+		if has_enum_match et.etype then
+			Matcher.Match.match_expr ctx e [[epat],None,Some (EConst(Ident "true"),p),p] (Some (Some (EConst(Ident "false"),p),p)) (WithType.with_type ctx.t.tbool) true p
+		else
+			raise Exit
+	| (EConst (Ident "__unprotect__"),_) , [(EConst (String _),_) as e] ->
+		let e = type_expr ctx e WithType.value in
+		if Common.platform ctx.com Flash then
+			let t = tfun [e.etype] e.etype in
+			let e_unprotect = mk (TIdent "__unprotect__") t p in
+			mk (TCall (e_unprotect,[e])) e.etype e.epos
+		else
+			e
+	| (EDisplay((EConst (Ident "super"),_ as e1),dk),_),_ ->
+		TyperDisplay.handle_display ctx (ECall(e1,el),p) dk mode with_type
+	| (EConst (Ident "super"),sp) , el ->
+		if ctx.curfun <> FunConstructor then typing_error "Cannot call super constructor outside class constructor" p;
+		let el, t = (match ctx.curclass.cl_super with
+		| None -> typing_error "Current class does not have a super" p
+		| Some (c,params) ->
+			let fa = FieldAccess.get_constructor_access c params p in
+			let cf = fa.fa_field in
+			let t = TInst (c,params) in
+			let e = mk (TConst TSuper) t sp in
+			if (Meta.has Meta.CompilerGenerated cf.cf_meta) then display_error ctx.com (error_msg (No_constructor (TClassDecl c))) p;
+			let fa = FieldAccess.create e cf (FHInstance(c,params)) false p in
+			let fcc = unify_field_call ctx fa [] el p false in
+			let el = fcc.fc_args in
+			el,t
+		) in
+		mk (TCall (mk (TConst TSuper) t sp,el)) ctx.t.tvoid p
+	| _ ->
+		raise Exit
+
+and type_expr ?(mode=MGet) ctx (e,p) (with_type:WithType.t) =
+	match e with
+	| EField ((EConst (String(s,_)),ps),"code",EFNormal) ->
+		if UTF8.length s <> 1 then typing_error "String must be a single UTF8 char" ps;
+		mk (TConst (TInt (Int32.of_int (UCharExt.code (UTF8.get s 0))))) ctx.t.tint p
+	| EField(_,n,_) when starts_with n '$' ->
+		typing_error "Field names starting with $ are not allowed" p
+	| EConst (Ident s) ->
+		if s = "super" && with_type <> WithType.NoValue && not ctx.in_display then typing_error "Cannot use super as value" p;
+		let e = maybe_type_against_enum ctx (fun () -> type_ident ctx s p mode with_type) with_type false p in
+		acc_get ctx e
+	| EField _
+	| EArray _
+	| ECall _ ->
+		acc_get ctx (type_access ctx e p mode with_type)
+	| EConst (Regexp (r,opt)) ->
+		let str = mk (TConst (T
