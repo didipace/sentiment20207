@@ -2172,4 +2172,17 @@ let rec create com =
 	| [TClassDecl c1] ->
 		let m = TypeloadModule.load_module ctx (["haxe"],"EnumWithType.valueTools") null_pos in
 		(match m.m_types with
-		| [TClassDecl c2 ] -> ctx.g.global_using <- (c1,c1.cl_pos) :: (c2,c
+		| [TClassDecl c2 ] -> ctx.g.global_using <- (c1,c1.cl_pos) :: (c2,c2.cl_pos) :: ctx.g.global_using
+		| _ -> die "" __LOC__);
+	| _ -> die "" __LOC__);
+	ignore(TypeloadModule.load_module ctx (["haxe"],"Exception") null_pos);
+	ctx.g.complete <- true;
+	ctx
+
+;;
+unify_min_ref := unify_min;
+unify_min_for_type_source_ref := unify_min_for_type_source;
+make_call_ref := make_call;
+type_call_target_ref := type_call_target;
+type_access_ref := type_access;
+type_block_ref := type_block;
