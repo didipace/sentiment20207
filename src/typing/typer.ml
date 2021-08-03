@@ -2081,4 +2081,95 @@ let rec create com =
 		};
 		is_display_file = false;
 		bypass_accessor = 0;
-		meta =
+		meta = [];
+		with_type_stack = [];
+		call_argument_stack = [];
+		pass = PBuildModule;
+		macro_depth = 0;
+		untyped = false;
+		curfun = FunStatic;
+		in_function = false;
+		in_loop = false;
+		in_display = false;
+		allow_inline = true;
+		allow_transform = true;
+		get_build_infos = (fun() -> None);
+		ret = mk_mono();
+		locals = PMap.empty;
+		type_params = [];
+		curclass = null_class;
+		curfield = null_field;
+		tthis = mk_mono();
+		opened = [];
+		vthis = None;
+		in_call_args = false;
+		in_overload_call_args = false;
+		delayed_display = None;
+		monomorphs = {
+			perfunction = [];
+		};
+		memory_marker = Typecore.memory_marker;
+	} in
+	ctx.g.std <- (try
+		TypeloadModule.load_module ctx ([],"StdTypes") null_pos
+	with
+		Error (Module_not_found ([],"StdTypes"),_) ->
+			try
+				let std_path = Sys.getenv "HAXE_STD_PATH" in
+				typing_error ("Standard library not found. Please check your `HAXE_STD_PATH` environment variable (current value: \"" ^ std_path ^ "\")") null_pos
+			with Not_found ->
+				typing_error "Standard library not found. You may need to set your `HAXE_STD_PATH` environment variable" null_pos
+	);
+	(* We always want core types to be available so we add them as default imports (issue #1904 and #3131). *)
+	ctx.m.module_imports <- List.map (fun t -> t,null_pos) ctx.g.std.m_types;
+	List.iter (fun t ->
+		match t with
+		| TAbstractDecl a ->
+			(match snd a.a_path with
+			| "Void" -> ctx.t.tvoid <- TAbstract (a,[]);
+			| "Float" -> ctx.t.tfloat <- TAbstract (a,[]);
+			| "Int" -> ctx.t.tint <- TAbstract (a,[])
+			| "Bool" -> ctx.t.tbool <- TAbstract (a,[])
+			| "Dynamic" -> t_dynamic_def := TAbstract(a,extract_param_types a.a_params);
+			| "Null" ->
+				let mk_null t =
+					try
+						if not (is_null ~no_lazy:true t || is_explicit_null t) then TAbstract (a,[t]) else t
+					with Exit ->
+						(* don't force lazy evaluation *)
+						let r = ref (lazy_available t_dynamic) in
+						r := lazy_wait (fun() ->
+							let t = (if not (is_null t) then TAbstract (a,[t]) else t) in
+							r := lazy_available t;
+							t
+						);
+						TLazy r
+				in
+				ctx.t.tnull <- mk_null;
+			| _ -> ())
+		| TEnumDecl _ | TClassDecl _ | TTypeDecl _ ->
+			()
+	) ctx.g.std.m_types;
+	let m = TypeloadModule.load_module ctx ([],"String") null_pos in
+	List.iter (fun mt -> match mt with
+		| TClassDecl c -> ctx.t.tstring <- TInst (c,[])
+		| _ -> ()
+	) m.m_types;
+	let m = TypeloadModule.load_module ctx ([],"Array") null_pos in
+	(try
+		List.iter (fun t -> (
+			match t with
+			| TClassDecl ({cl_path = ([],"Array")} as c) ->
+				ctx.t.tarray <- (fun t -> TInst (c,[t]));
+				raise Exit
+			| _ -> ()
+		)) m.m_types;
+		die "" __LOC__
+	with Exit -> ());
+	let m = TypeloadModule.load_module ctx (["haxe"],"EnumTools") null_pos in
+	(match m.m_types with
+	| [TClassDecl c1;TClassDecl c2] -> ctx.g.global_using <- (c1,c1.cl_pos) :: (c2,c2.cl_pos) :: ctx.g.global_using
+	| [TClassDecl c1] ->
+		let m = TypeloadModule.load_module ctx (["haxe"],"EnumWithType.valueTools") null_pos in
+		(match m.m_types with
+		| [TClassDecl c2 ] -> ctx.g.global_using <- (c1,c1.cl_pos) :: (c2,c
