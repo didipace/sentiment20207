@@ -1987,4 +1987,98 @@ and type_expr ?(mode=MGet) ctx (e,p) (with_type:WithType.t) =
 		mk (TThrow e) (mono_or_dynamic ctx with_type p) p
 	| ENew (t,el) ->
 		type_new ctx t el with_type false p
-	| EUn
+	| EUnop (op,flag,e) ->
+		type_unop ctx op flag e with_type p
+	| EFunction (kind,f) ->
+		type_local_function ctx kind f with_type p
+	| EUntyped e ->
+		let old = ctx.untyped in
+		ctx.untyped <- true;
+		if not (Meta.has Meta.HasUntyped ctx.curfield.cf_meta) then ctx.curfield.cf_meta <- (Meta.HasUntyped,[],p) :: ctx.curfield.cf_meta;
+		let e = type_expr ctx e with_type in
+		ctx.untyped <- old;
+		{
+			eexpr = e.eexpr;
+			etype = mk_mono();
+			epos = e.epos;
+		}
+	| ECast (e,None) ->
+		let e = type_expr ctx e WithType.value in
+		mk (TCast (e,None)) (spawn_monomorph ctx p) p
+	| ECast (e, Some t) ->
+		type_cast ctx e t p
+	| EDisplay (e,dk) ->
+		TyperDisplay.handle_edisplay ctx e dk mode with_type
+	| ECheckType (e,t) ->
+		let t = Typeload.load_complex_type ctx true t in
+		let e = type_expr ctx e (WithType.with_type t) in
+		let e = AbstractCast.cast_or_unify ctx t e p in
+		if e.etype == t then e else mk (TCast (e,None)) t p
+	| EMeta (m,e1) ->
+		type_meta ~mode ctx m e1 with_type p
+	| EIs (e,(t,p_t)) ->
+		match t with
+		| CTPath tp ->
+			if tp.tparams <> [] then display_error ctx.com "Type parameters are not supported for the `is` operator" p_t;
+			let e = type_expr ctx e WithType.value in
+			let mt = Typeload.load_type_def ctx p_t tp in
+			if ctx.in_display && DisplayPosition.display_position#enclosed_in p_t then
+				DisplayEmitter.display_module_type ctx mt p_t;
+			let e_t = type_module_type ctx mt None p_t in
+			let e_Std_isOfType =
+				match Typeload.load_type_raise ctx ([],"Std") "Std" p with
+				| TClassDecl c ->
+					let cf =
+						try PMap.find "isOfType" c.cl_statics
+						with Not_found -> die "" __LOC__
+					in
+					Texpr.Builder.make_static_field c cf (mk_zero_range_pos p)
+				| _ -> die "" __LOC__
+			in
+			mk (TCall (e_Std_isOfType, [e; e_t])) ctx.com.basic.tbool p
+		| _ ->
+			display_error ctx.com "Unsupported type for `is` operator" p_t;
+			Texpr.Builder.make_bool ctx.com.basic false p
+
+(* ---------------------------------------------------------------------- *)
+(* TYPER INITIALIZATION *)
+
+let rec create com =
+	let ctx = {
+		com = com;
+		t = com.basic;
+		g = {
+			core_api = None;
+			macros = None;
+			type_patches = Hashtbl.create 0;
+			global_metadata = [];
+			module_check_policies = [];
+			delayed = [];
+			debug_delayed = [];
+			doinline = com.display.dms_inline && not (Common.defined com Define.NoInline);
+			std = null_module;
+			global_using = [];
+			complete = false;
+			type_hints = [];
+			load_only_cached_modules = false;
+			do_inherit = MagicTypes.on_inherit;
+			do_create = create;
+			do_macro = MacroContext.type_macro;
+			do_load_macro = MacroContext.load_macro';
+			do_load_module = TypeloadModule.load_module;
+			do_load_type_def = Typeload.load_type_def;
+			do_build_instance = InstanceBuilder.build_instance;
+			do_format_string = format_string;
+			do_load_core_class = Typeload.load_core_class;
+		};
+		m = {
+			curmod = null_module;
+			module_imports = [];
+			module_using = [];
+			module_globals = PMap.empty;
+			wildcard_packages = [];
+			import_statements = [];
+		};
+		is_display_file = false;
+		bypass_accessor = 0;
+		meta =
