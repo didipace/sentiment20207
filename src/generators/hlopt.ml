@@ -165,4 +165,134 @@ let opcode_fx frw op =
 	| ONop _  ->
 		()
 
-let opcode_eq
+let opcode_eq a b =
+	match a, b with
+	| OType (r1,t1), OType (r2,t2) ->
+		r1 = r2 && t1 == t2
+	| _ ->
+		a = b
+
+let opcode_map read write op =
+	match op with
+	| OMov (d,a) ->
+		let a = read a in
+		OMov (write d, a)
+	| ONeg (d,a) ->
+		let a = read a in
+		ONeg (write d, a)
+	| ONot (d,a) ->
+		let a = read a in
+		ONot (write d, a)
+	| OInt (d,idx) ->
+		OInt (write d, idx)
+	| OFloat (d,idx) ->
+		OFloat (write d, idx)
+	| OBool (d,idx) ->
+		OBool (write d, idx)
+	| OBytes (d,idx) ->
+		OBytes (write d, idx)
+	| OString (d,idx) ->
+		OString (write d, idx)
+	| ONull d ->
+		ONull (write d)
+	| OAdd (d,a,b) ->
+		let a = read a and b = read b in
+		OAdd (write d, a, b)
+	| OSub (d,a,b) ->
+		let a = read a and b = read b in
+		OSub (write d, a, b)
+	| OMul (d,a,b) ->
+		let a = read a and b = read b in
+		OMul (write d, a, b)
+	| OSDiv (d,a,b) ->
+		let a = read a and b = read b in
+		OSDiv (write d, a, b)
+	| OUDiv (d,a,b) ->
+		let a = read a and b = read b in
+		OUDiv (write d, a, b)
+	| OSMod (d,a,b) ->
+		let a = read a and b = read b in
+		OSMod (write d, a, b)
+	| OUMod (d,a,b) ->
+		let a = read a and b = read b in
+		OUMod (write d, a, b)
+	| OShl (d,a,b) ->
+		let a = read a and b = read b in
+		OShl (write d, a, b)
+	| OSShr (d,a,b) ->
+		let a = read a and b = read b in
+		OSShr (write d, a, b)
+	| OUShr (d,a,b) ->
+		let a = read a and b = read b in
+		OUShr (write d, a, b)
+	| OAnd (d,a,b) ->
+		let a = read a and b = read b in
+		OAnd (write d, a, b)
+	| OOr (d,a,b) ->
+		let a = read a and b = read b in
+		OOr (write d, a, b)
+	| OXor (d,a,b) ->
+		let a = read a and b = read b in
+		OXor (write d, a, b)
+	| OIncr a ->
+		OIncr (write a)
+	| ODecr a ->
+		ODecr (write a)
+	| OCall0 (d,f) ->
+		OCall0 (write d, f)
+	| OCall1 (d,f,a) ->
+		let a = read a in
+		OCall1 (write d, f, a)
+	| OCall2 (d,f,a,b) ->
+		let a = read a in
+		let b = read b in
+		OCall2 (write d, f, a, b)
+	| OCall3 (d,f,a,b,c) ->
+		let a = read a in
+		let b = read b in
+		let c = read c in
+		OCall3 (write d, f, a, b, c)
+	| OCall4 (w,f,a,b,c,d) ->
+		let a = read a in
+		let b = read b in
+		let c = read c in
+		let d = read d in
+		OCall4 (write w, f, a, b, c, d)
+	| OCallN (d,f,rl) ->
+		let rl = List.map read rl in
+		OCallN (write d, f, rl)
+	| OCallMethod (d,f,rl) ->
+		let rl = List.map read rl in
+		OCallMethod (write d, f, rl)
+	| OCallThis (d,f,rl) ->
+		let rl = List.map read rl in
+		OCallThis (write d, f, rl)
+	| OCallClosure (d,f,rl) ->
+		let f = read f in
+		let rl = List.map read rl in
+		OCallClosure (write d, f, rl)
+	| OStaticClosure (d,f) ->
+		OStaticClosure (write d, f)
+	| OInstanceClosure (d, f, a) ->
+		let a = read a in
+		OInstanceClosure (write d, f, a)
+	| OVirtualClosure (d,a,f) ->
+		let a = read a in
+		OVirtualClosure (write d, a, f)
+	| OGetGlobal (d,g) ->
+		OGetGlobal (write d, g)
+	| OSetGlobal (g,r) ->
+		OSetGlobal (g, read r)
+	| OField (d,a,f) ->
+		let a = read a in
+		OField (write d, a, f)
+	| ODynGet (d,a,f) ->
+		let a = read a in
+		ODynGet (write d, a, f)
+	| OSetField (a,f,b) ->
+		OSetField (read a, f, read b)
+	| ODynSet (a,f,b) ->
+		ODynSet (read a, f, read b)
+	| OGetThis (d,f) ->
+		OGetThis (write d, f)
+	| OSetThis (f,a)
