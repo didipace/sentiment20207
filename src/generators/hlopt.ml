@@ -61,4 +61,108 @@ type control =
 
 let control = function
 	| OJTrue (_,d) | OJFalse (_,d) | OJNull (_,d) | OJNotNull (_,d)
-	| OJSLt (_,_,d) | OJSGte (_,_,d) | OJSGt (_,_,d)
+	| OJSLt (_,_,d) | OJSGte (_,_,d) | OJSGt (_,_,d) | OJSLte (_,_,d) | OJULt (_,_,d) | OJUGte (_,_,d) | OJEq (_,_,d) | OJNotEq (_,_,d) | OJNotLt (_,_,d) | OJNotGte (_,_,d) ->
+		CJCond d
+	| OJAlways d ->
+		CJAlways d
+	| OLabel _ ->
+		CLabel
+	| ORet _ ->
+		CRet
+	| OThrow _ | ORethrow _ ->
+		CThrow
+	| OSwitch (_,cases,_) ->
+		CSwitch cases
+	| OTrap (_,d) ->
+		CTry d
+	| _ ->
+		CNo
+
+let opcode_fx frw op =
+	let read r = frw r true and write r = frw r false in
+	match op with
+	| OMov (d,a) | ONeg (d,a) | ONot (d,a) ->
+		read a; write d
+	| OInt (d,_) | OFloat (d,_) | OBool (d,_) | OBytes (d,_) | OString (d,_) | ONull d ->
+		write d
+	| OAdd (d,a,b) | OSub (d,a,b) | OMul (d,a,b) | OSDiv (d,a,b) | OUDiv (d,a,b) | OSMod (d,a,b)| OUMod (d,a,b) | OShl (d,a,b) | OSShr (d,a,b) | OUShr (d,a,b) | OAnd (d,a,b) | OOr (d,a,b) | OXor (d,a,b) ->
+		read a; read b; write d
+	| OIncr a | ODecr a ->
+		read a; write a
+	| OCall0 (d,_) ->
+		write d
+	| OCall1 (d,_,a) ->
+		read a; write d
+	| OCall2 (d,_,a,b) ->
+		read a; read b; write d
+	| OCall3 (d,_,a,b,c) ->
+		read a; read b; read c; write d
+	| OCall4 (d,_,a,b,c,k) ->
+		read a; read b; read c; read k; write d
+	| OCallN (d,_,rl) | OCallMethod (d,_,rl) | OCallThis (d,_,rl) ->
+		List.iter read rl; write d
+	| OCallClosure (d,f,rl) ->
+		read f; List.iter read rl; write d
+	| OStaticClosure (d,_) ->
+		write d
+	| OInstanceClosure (d, _, a) | OVirtualClosure (d,a,_) ->
+		read a; write d
+	| OGetGlobal (d,_) ->
+		write d
+	| OSetGlobal (_,a) ->
+		read a;
+	| OField (d,a,_) | ODynGet (d,a,_) ->
+		read a; write d
+	| OSetField (a,_,b) | ODynSet (a,_,b)->
+		read a; read b
+	| OGetThis (d,_) ->
+		write d
+	| OSetThis (_,a) ->
+		read a
+	| OJTrue (r,_) | OJFalse (r,_) | OJNull (r,_) | OJNotNull (r,_) ->
+		read r
+	| OJSLt (a,b,_) | OJSGte (a,b,_) | OJSGt (a,b,_) | OJSLte (a,b,_) | OJULt (a,b,_) | OJUGte (a,b,_) | OJNotLt (a,b,_) | OJNotGte (a,b,_) | OJEq (a,b,_) | OJNotEq (a,b,_) ->
+		read a; read b;
+	| OJAlways _ | OLabel _ ->
+		()
+	| OToDyn (d, a) | OToSFloat (d,a) | OToUFloat (d,a) | OToInt (d,a) | OSafeCast (d,a) | OUnsafeCast (d,a) | OToVirtual (d,a) ->
+		read a; write d
+	| ORet r | OThrow r  | ORethrow r | OSwitch (r,_,_) | ONullCheck r ->
+		read r
+	| OTrap (r,_) ->
+		write r
+	| OEndTrap _ ->
+		() (* ??? *)
+	| OGetUI8 (d,a,b) | OGetUI16 (d,a,b) | OGetMem (d,a,b) | OGetArray (d,a,b) ->
+		read a; read b; write d
+	| OSetUI8 (a,b,c) | OSetUI16 (a,b,c) | OSetMem (a,b,c) | OSetArray (a,b,c) ->
+		read a; read b; read c
+	| ONew d ->
+		write d
+	| OArraySize (d, a)	| OGetType (d,a) | OGetTID (d,a) | OUnref (d,a) | OSetref (d, a) | OEnumIndex (d, a) | OEnumField (d,a,_,_) ->
+		read a;
+		write d
+	| ORef (d, a) ->
+		read a;
+		write a; (* prevent issue with 'a' being reused later - this is not exact as it can be set everytime we pass it to a function *)
+		write d;
+	| OType (d,_) | OEnumAlloc (d,_) ->
+		write d
+	| OMakeEnum (d,_,rl) ->
+		List.iter read rl;
+		write d
+	| OSetEnumField (a,_,b) ->
+		read a; read b
+	| OAssert _ ->
+		()
+	| ORefData (r,d) ->
+		read d;
+		write r;
+	| ORefOffset (r,r2,off) ->
+		read r2;
+		read off;
+		write r;
+	| ONop _  ->
+		()
+
+let opcode_eq
