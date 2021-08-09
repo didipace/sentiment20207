@@ -435,4 +435,112 @@ let opcode_map read write op =
 
 (* build code graph *)
 
-let code_graph (f:fundec
+let code_graph (f:fundecl) =
+	let op index = f.code.(index) in
+	let blocks_pos = Hashtbl.create 0 in
+	let all_blocks = Hashtbl.create 0 in
+	for i = 0 to Array.length f.code - 1 do
+		match control (op i) with
+		| CJAlways d | CJCond d -> Hashtbl.replace all_blocks (i + 1 + d) true
+		| _ -> ()
+	done;
+	let rec make_block pos =
+		try
+			Hashtbl.find blocks_pos pos
+		with Not_found ->
+			let b = {
+				bstart = pos;
+				bend = 0;
+				bnext = [];
+				bprev = [];
+				bloop = false;
+				bstate = None;
+				bneed = ISet.empty;
+				bwrite = PMap.empty;
+				bneed_all = None;
+			} in
+			Hashtbl.add blocks_pos pos b;
+			let rec loop i =
+				let goto d =
+					let b2 = make_block (i + 1 + d) in
+					b2.bprev <- b :: b2.bprev;
+					b2
+				in
+				if i > pos && Hashtbl.mem all_blocks i then begin
+					b.bend <- i - 1;
+					b.bnext <- [goto (-1)];
+				end else match control (op i) with
+				| CNo ->
+					loop (i + 1)
+				| CRet | CThrow ->
+					b.bend <- i
+				| CJAlways d ->
+					b.bend <- i;
+					b.bnext <- [goto d];
+				| CSwitch pl ->
+					b.bend <- i;
+					b.bnext <- goto 0 :: Array.to_list (Array.map goto pl)
+				| CJCond d | CTry d ->
+					b.bend <- i;
+					b.bnext <- [goto 0; goto d];
+				| CLabel ->
+					b.bloop <- true;
+					loop (i + 1)
+			in
+			loop pos;
+			b
+	in
+	blocks_pos, make_block 0
+
+type rctx = {
+	r_root : block;
+	r_used_regs : int;
+	r_nop_count : int;
+	r_blocks_pos : (int, block) Hashtbl.t;
+	r_reg_moved : (int, (int * int)) Hashtbl.t;
+	r_live_bits : int array;
+	r_reg_map : int array;
+}
+
+let remap_fun ctx f dump get_str old_code =
+	let op index = Array.unsafe_get f.code index in
+	let nregs = Array.length f.regs in
+	let reg_remap = ctx.r_used_regs <> nregs in
+	let assigns = ref f.assigns in
+	let write str = match dump with None -> () | Some ch -> IO.nwrite ch (Bytes.unsafe_of_string (str ^ "\n")) in
+	let nargs = (match f.ftype with HFun (args,_) -> List.length args | _ -> Globals.die "" __LOC__) in
+
+	let live_bits = ctx.r_live_bits in
+	let reg_map = ctx.r_reg_map in
+
+	let bit_regs = 30 in
+	let stride = (nregs + bit_regs - 1) / bit_regs in
+	let is_live r i =
+		let offset = r / bit_regs in
+		let mask = 1 lsl (r - offset * bit_regs) in
+		Array.unsafe_get live_bits (i * stride + offset) land mask <> 0
+	in
+
+	(* remap assigns *)
+	if ctx.r_nop_count > 0 then begin
+		let rec resolve_block p =
+			try Hashtbl.find ctx.r_blocks_pos p with Not_found -> resolve_block (p - 1)
+		in
+
+		let new_assigns = List.fold_left (fun acc (i,p) ->
+			let gmap = Hashtbl.create 0 in
+			(*
+				For a given assign at position p, that's been optimized out,
+				let's try to find where the last assign that maps to the same value
+				is, and remap the variable name to it
+			*)
+			let rec loop p =
+				if p < 0 || (match op p with ONop _ -> false | _ -> true) then [(i,p)] else
+				let reg, last_w = try Hashtbl.find ctx.r_reg_moved p with Not_found -> (-1,-1) in
+				if reg < 0 then [] (* ? *) else
+				if reg < nargs then [(i,-reg-1)] else
+				let b = resolve_block p in
+				if last_w >= b.bstart && last_w < b.bend && last_w < p then loop last_w else
+				let wp = try PMap.find reg b.bwrite with Not_found -> -1 in
+				let rec gather b =
+					if Hashtbl.
