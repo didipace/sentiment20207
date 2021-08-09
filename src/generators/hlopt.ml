@@ -295,4 +295,144 @@ let opcode_map read write op =
 		ODynSet (read a, f, read b)
 	| OGetThis (d,f) ->
 		OGetThis (write d, f)
-	| OSetThis (f,a)
+	| OSetThis (f,a) ->
+		OSetThis (f, read a)
+	| OJTrue (r,d) ->
+		OJTrue (read r, d)
+	| OJFalse (r,d) ->
+		OJFalse (read r, d)
+	| OJNull (r,d) ->
+		OJNull (read r, d)
+	| OJNotNull (r,d) ->
+		OJNotNull (read r, d)
+	| OJSLt (a,b,d) ->
+		OJSLt (read a, read b, d)
+	| OJSGte (a,b,d) ->
+		OJSGte (read a, read b, d)
+	| OJSGt (a,b,d) ->
+		OJSGt (read a, read b, d)
+	| OJSLte (a,b,d) ->
+		OJSLte (read a, read b, d)
+	| OJULt (a,b,d) ->
+		OJULt (read a, read b, d)
+	| OJUGte (a,b,d) ->
+		OJUGte (read a, read b, d)
+	| OJNotLt (a,b,d) ->
+		OJNotLt (read a, read b, d)
+	| OJNotGte (a,b,d) ->
+		OJNotGte (read a, read b, d)
+	| OJEq (a,b,d) ->
+		OJEq (read a, read b, d)
+	| OJNotEq (a,b,d) ->
+		OJNotEq (read a, read b, d)
+	| OJAlways _ | OLabel _ ->
+		op
+	| OToDyn (d, a) ->
+		let a = read a in
+		OToDyn (write d, a)
+	| OToSFloat (d,a) ->
+		let a = read a in
+		OToSFloat (write d, a)
+	| OToUFloat (d,a) ->
+		let a = read a in
+		OToUFloat (write d, a)
+	| OToInt (d,a) ->
+		let a = read a in
+		OToInt (write d, a)
+	| OSafeCast (d,a) ->
+		let a = read a in
+		OSafeCast (write d, a)
+	| OUnsafeCast (d,a) ->
+		let a = read a in
+		OUnsafeCast (write d, a)
+	| OToVirtual (d,a) ->
+		let a = read a in
+		OToVirtual (write d, a)
+	| ORet r ->
+		ORet (read r)
+	| OThrow r ->
+		OThrow (read r)
+	| ORethrow r ->
+		ORethrow (read r)
+	| OSwitch (r,cases,def) ->
+		OSwitch (read r, cases, def)
+	| ONullCheck r ->
+		ONullCheck (read r)
+	| OTrap (r,d) ->
+		OTrap (write r, d)
+	| OEndTrap _ ->
+		op (* ??? *)
+	| OGetUI8 (d,a,b) ->
+		let a = read a and b = read b in
+		OGetUI8 (write d, a, b)
+	| OGetUI16 (d,a,b) ->
+		let a = read a and b = read b in
+		OGetUI16 (write d, a, b)
+	| OGetMem (d,a,b) ->
+		let a = read a and b = read b in
+		OGetMem (write d, a, b)
+	| OGetArray (d,a,b) ->
+		let a = read a and b = read b in
+		OGetArray (write d, a, b)
+	| OSetUI8 (a,b,c) ->
+		let a = read a and b = read b and c = read c in
+		OSetUI8 (a, b, c)
+	| OSetUI16 (a,b,c) ->
+		let a = read a and b = read b and c = read c in
+		OSetUI16 (a, b, c)
+	| OSetMem (a,b,c) ->
+		let a = read a and b = read b and c = read c in
+		OSetMem (a, b, c)
+	| OSetArray (a,b,c) ->
+		let a = read a and b = read b and c = read c in
+		OSetArray (a, b, c)
+	| ONew d ->
+		ONew (write d)
+	| OArraySize (d, a) ->
+		let a = read a in
+		OArraySize (write d, a)
+	| OGetType (d,a) ->
+		let a = read a in
+		OGetType (write d, a)
+	| OGetTID (d,a) ->
+		let a = read a in
+		OGetTID (write d, a)
+	| ORef (d, a) ->
+		let a = read a in
+		ORef (write d, a)
+	| OUnref (d,a) ->
+		let a = read a in
+		OUnref (write d, a)
+	| OSetref (d, a) ->
+		let a = read a in
+		OSetref (write d, a)
+	| OEnumIndex (d, a) ->
+		let a = read a in
+		OEnumIndex (write d, a)
+	| OEnumField (d,a,cs,idx) ->
+		let a = read a in
+		OEnumField (write d, a, cs, idx)
+	| OType (d,t) ->
+		OType (write d, t)
+	| OEnumAlloc (d,e) ->
+		OEnumAlloc (write d, e)
+	| OMakeEnum (d,e,rl) ->
+		let rl = List.map read rl in
+		OMakeEnum (write d, e, rl)
+	| OSetEnumField (a,f,b) ->
+		OSetEnumField (read a, f, read b)
+	| OAssert _ ->
+		op
+	| ORefData (r,d) ->
+		let d = read d in
+		ORefData(write r,d);
+	| ORefOffset (r,r2,off) ->
+		let r2 = read r2 in
+		let off = read off in
+		ORefOffset (write r,r2,off);
+	| ONop _ ->
+		op
+
+(* build code graph *)
+
+let code_graph (f:fundec
