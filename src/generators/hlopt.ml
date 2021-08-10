@@ -543,4 +543,84 @@ let remap_fun ctx f dump get_str old_code =
 				if last_w >= b.bstart && last_w < b.bend && last_w < p then loop last_w else
 				let wp = try PMap.find reg b.bwrite with Not_found -> -1 in
 				let rec gather b =
-					if Hashtbl.
+					if Hashtbl.mem gmap b.bstart then [] else begin
+						Hashtbl.add gmap b.bstart ();
+						(* lookup in all parent blocks, recursively, to fetch all last writes *)
+						List.fold_left (fun acc bp ->
+							if bp.bstart > b.bstart then acc else
+							try
+								let wp = PMap.find reg bp.bwrite in
+								if wp > p then Globals.die "" __LOC__;
+								loop wp @ acc
+							with Not_found ->
+								gather bp @ acc
+						) [] b.bprev;
+					end
+				in
+				if wp < 0 then
+					gather b
+				else if wp < p then
+					loop wp
+				else
+					(* lookup in writes between p-1 and block bstart *)
+					let rec find_w p =
+						if p < b.bstart then
+							gather b
+						else
+							let found = ref false in
+							opcode_fx (fun r read -> if r = reg && not read then found := true) (Array.unsafe_get old_code p);
+							if !found then loop p else find_w (p - 1)
+					in
+					find_w (p - 1)
+			in
+			loop p @ acc
+		) [] (Array.to_list !assigns) in
+		let new_assigns = List.sort (fun (_,p1) (_,p2) -> p1 - p2) (List.rev new_assigns) in
+		assigns := Array.of_list new_assigns;
+	end;
+
+	(* done *)
+	if dump <> None then begin
+		let old_assigns = Hashtbl.create 0 in
+		let new_assigns = Hashtbl.create 0 in
+		Array.iter (fun (var,pos) -> if pos >= 0 then Hashtbl.replace old_assigns pos var) f.assigns;
+		Array.iter (fun (var,pos) ->
+			if pos >= 0 then begin
+				let f = try Hashtbl.find new_assigns pos with Not_found -> let v = ref [] in Hashtbl.add new_assigns pos v; v in
+				f := var :: !f;
+			end
+		) !assigns;
+		let rec loop i block =
+			if i = Array.length f.code then () else
+			let block = try
+				let b = Hashtbl.find ctx.r_blocks_pos i in
+				write (Printf.sprintf "\t----- [%s] (%X)"
+					(String.concat "," (List.map (fun b -> Printf.sprintf "%X" b.bstart) b.bnext))
+					b.bend
+				);
+				let need = String.concat "," (List.map string_of_int (ISet.elements b.bneed)) in
+				let wr = String.concat " " (List.rev (PMap.foldi (fun r p acc -> Printf.sprintf "%d@%X" r p :: acc) b.bwrite [])) in
+				write ("\t" ^ (if b.bloop then "LOOP " else "") ^ "NEED=" ^ need ^ "\tWRITE=" ^ wr);
+				b
+			with Not_found ->
+				block
+			in
+			let old = Array.unsafe_get old_code i in
+			let op = op i in
+			let rec live_loop r l =
+				if r = nregs then List.rev l else
+				live_loop (r + 1) (if is_live r i then r :: l else l)
+			in
+			let live = "LIVE=" ^ String.concat "," (List.map string_of_int (live_loop 0 [])) in
+			let var_set = (try let v = Hashtbl.find old_assigns i in "set " ^ get_str v with Not_found -> "") in
+			let nvar_set = (try let v = Hashtbl.find new_assigns i in "set " ^ String.concat "," (List.map get_str !v) with Not_found -> "") in
+			write (Printf.sprintf "\t@%-3X %-20s %-20s %-20s %-20s %s" i (ostr string_of_int old) (if opcode_eq old op then "" else ostr string_of_int op) var_set nvar_set live);
+			loop (i + 1) block
+		in
+		write (Printf.sprintf "%s@%d" (fundecl_name f) f.findex);
+		let rec loop_arg = function
+			| [] -> []
+			| (_,p) :: _ when p >= 0 -> []
+			| (str,p) :: l -> (get_str str ^ ":" ^ string_of_int p) :: loop_arg l
+		in
+		write (Printf.sprintf "ARGS = %s\n" (String.concat ", " (lo
