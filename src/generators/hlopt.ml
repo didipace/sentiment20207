@@ -623,4 +623,82 @@ let remap_fun ctx f dump get_str old_code =
 			| (_,p) :: _ when p >= 0 -> []
 			| (str,p) :: l -> (get_str str ^ ":" ^ string_of_int p) :: loop_arg l
 		in
-		write (Printf.sprintf "ARGS = %s\n" (String.concat ", " (lo
+		write (Printf.sprintf "ARGS = %s\n" (String.concat ", " (loop_arg (Array.to_list f.assigns))));
+		if reg_remap then begin
+			for i=0 to nregs-1 do
+				write (Printf.sprintf "\tr%-2d %-10s%s" i (tstr f.regs.(i)) (if ctx.r_reg_map.(i) < 0 then " unused" else if ctx.r_reg_map.(i) = i then "" else Printf.sprintf " r%-2d" ctx.r_reg_map.(i)))
+			done;
+		end;
+		loop 0 ctx.r_root;
+		write "";
+		write "";
+		(match dump with None -> () | Some ch -> IO.flush ch);
+	end;
+
+	let code = ref f.code in
+	let regs = ref f.regs in
+	let debug = ref f.debug in
+
+	if ctx.r_nop_count > 0 || reg_remap then begin
+		let new_pos = Array.make (Array.length f.code) 0 in
+		let jumps = ref [] in
+		let out_pos = ref 0 in
+		let out_code = Array.make (Array.length f.code - ctx.r_nop_count) (ONop "") in
+		let new_debug = Array.make (Array.length f.code - ctx.r_nop_count) (0,0) in
+		Array.iteri (fun i op ->
+			Array.unsafe_set new_pos i !out_pos;
+			match op with
+			| ONop _ -> ()
+			| _ ->
+				(match op with
+				| OJTrue _ | OJFalse _ | OJNull _ | OJNotNull _  | OJSLt _ | OJSGte _ | OJSGt _ | OJSLte _ | OJNotLt _ | OJNotGte _ | OJULt _ | OJUGte _ | OJEq _ | OJNotEq _ | OJAlways _ | OSwitch _  | OTrap _ ->
+					jumps := i :: !jumps
+				| _ -> ());
+				let op = if reg_remap then opcode_map (fun r -> Array.unsafe_get reg_map r) (fun r -> Array.unsafe_get reg_map r) op else op in
+				Array.unsafe_set out_code (!out_pos) op;
+				Array.unsafe_set new_debug (!out_pos) (Array.unsafe_get f.debug i);
+				incr out_pos
+		) f.code;
+		List.iter (fun j ->
+			let pos d =
+				Array.unsafe_get new_pos (j + 1 + d) - Array.unsafe_get new_pos (j + 1)
+			in
+			let p = new_pos.(j) in
+			Array.unsafe_set out_code p (match Array.unsafe_get out_code p with
+			| OJTrue (r,d) -> OJTrue (r,pos d)
+			| OJFalse (r,d) -> OJFalse (r,pos d)
+			| OJNull (r,d) -> OJNull (r, pos d)
+			| OJNotNull (r,d) -> OJNotNull (r, pos d)
+			| OJSLt (a,b,d) -> OJSLt (a,b,pos d)
+			| OJSGte (a,b,d) -> OJSGte (a,b,pos d)
+			| OJSLte (a,b,d) -> OJSLte (a,b,pos d)
+			| OJSGt (a,b,d) -> OJSGt (a,b,pos d)
+			| OJULt (a,b,d) -> OJULt (a,b,pos d)
+			| OJUGte (a,b,d) -> OJUGte (a,b,pos d)
+			| OJNotLt (a,b,d) -> OJNotLt (a,b,pos d)
+			| OJNotGte (a,b,d) -> OJNotGte (a,b,pos d)
+			| OJEq (a,b,d) -> OJEq (a,b,pos d)
+			| OJNotEq (a,b,d) -> OJNotEq (a,b,pos d)
+			| OJAlways d -> OJAlways (pos d)
+			| OSwitch (r,cases,send) -> OSwitch (r, Array.map pos cases, pos send)
+			| OTrap (r,d) -> OTrap (r,pos d)
+			| _ -> Globals.die "" __LOC__)
+		) !jumps;
+
+		let assigns = !assigns in
+		Array.iteri (fun idx (i,p) -> if p >= 0 then Array.unsafe_set assigns idx (i, Array.unsafe_get new_pos p)) assigns;
+
+		code := out_code;
+		debug := new_debug;
+		if reg_remap then begin
+			let new_regs = Array.make ctx.r_used_regs HVoid in
+			for i=0 to nregs-1 do
+				let p = Array.unsafe_get reg_map i in
+				if p >= 0 then Array.unsafe_set new_regs p  (Array.unsafe_get f.regs i)
+			done;
+			regs := new_regs;
+		end;
+	end;
+	{ f with code = !code; regs = !regs; debug = !debug; assigns = !assigns }
+
+let _optimize (f:fundecl) =
