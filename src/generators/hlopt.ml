@@ -800,4 +800,120 @@ let _optimize (f:fundecl) =
 					s1.rnullcheck <- s1.rnullcheck && s2.rnullcheck;
 					(match s2.rbind with
 					| [] -> ()
-					| l -> s1.rbind <- List.fold_left (fun acc sb2 -> let s = s.(sb2.rindex) in if s.ralias == 
+					| l -> s1.rbind <- List.fold_left (fun acc sb2 -> let s = s.(sb2.rindex) in if s.ralias == s1 && not (List.memq s s1.rbind) then s :: acc else acc) s1.rbind s2.rbind)
+				done;
+			) l;
+			s
+		in
+		let unalias r =
+			r.ralias.rbind <- List.filter (fun r2 -> r2 != r) r.ralias.rbind;
+			r.ralias <- r
+		in
+		let rec loop i =
+			let do_read r =
+				let w = last_write.(r) in
+				if w < b.bstart || w > i then begin
+					last_write.(r) <- i;
+					set_live r b.bstart i;
+					b.bneed <- ISet.add r b.bneed;
+				end else
+					set_live r (w + 1) i;
+				read_count r
+			in
+			let do_write r =
+				let s = state.(r) in
+				List.iter (fun s2 -> s2.ralias <- s2) s.rbind;
+				s.rbind <- [];
+				s.rnullcheck <- false;
+				last_write.(r) <- i;
+				b.bwrite <- PMap.add r i b.bwrite;
+				write_count r;
+				unalias s
+			in
+			if i > b.bend then () else
+			let op = op i in
+			(* print_state i state; (* debug *) *)
+			(match op with
+			| OIncr r | ODecr r | ORef (_,r) -> unalias state.(r)
+			| OCallClosure (_,r,_) when f.regs.(r) = HDyn && (match f.regs.(state.(r).ralias.rindex) with HFun (_,rt) -> not (is_dynamic rt) | HDyn -> false | _ -> true) -> unalias state.(r) (* Issue3218.hx *)
+			| _ -> ());
+			let op = opcode_map (fun r ->
+				let s = state.(r) in
+				s.ralias.rindex
+			) (fun w ->	w) op in
+			set_op i op;
+			(match op with
+			| OMov (d, v) | OToInt (d, v) | OToSFloat (d,v) when d = v ->
+				add_reg_moved i d v;
+				set_nop i "mov"
+			| OMov (d, v) ->
+				let sv = state.(v) in
+				let sd = state.(d) in
+				do_read v;
+				do_write d;
+				sd.ralias <- sv;
+				sd.rnullcheck <- sv.rnullcheck;
+				if not (List.memq sd sv.rbind) then sv.rbind <- sd :: sv.rbind;
+			| OIncr r | ODecr r ->
+				do_read r;
+				do_write r;
+			| ONullCheck r ->
+				let s = state.(r) in
+				if s.rnullcheck then set_nop i "nullcheck" else begin do_read r; s.rnullcheck <- true; end;
+			| ONew r ->
+				let s = state.(r) in
+				do_write r;
+				s.rnullcheck <- true;
+			| OToVirtual (v,o) ->
+				do_read o;
+				do_write v;
+				state.(v).rnullcheck <- state.(o).rnullcheck
+			| OField (r,o,fid) when (match f.regs.(r) with HStruct _ -> true | _ -> false) ->
+				do_read o;
+				do_write r;
+				if is_packed_field o fid then state.(r).rnullcheck <- true;
+			| OGetThis (r,fid) when (match f.regs.(r) with HStruct _ -> true | _ -> false) ->
+				do_write r;
+				if is_packed_field 0 fid then state.(r).rnullcheck <- true;
+			| _ ->
+				opcode_fx (fun r read ->
+					if read then do_read r else do_write r
+				) op
+			);
+			loop (i + 1)
+		in
+		loop b.bstart;
+		b.bstate <- Some state;
+		List.iter (fun b2 -> ignore (get_state b2)) b.bnext
+
+	and get_state b =
+		match b.bstate with
+		| None ->
+			(* recurse before calculating *)
+			List.iter (fun b2 -> if b2.bstart < b.bstart then ignore(get_state b2)) b.bprev;
+			(match b.bstate with
+			| None ->
+				propagate b;
+				get_state b
+			| Some b -> b);
+		| Some state ->
+			state
+	in
+	propagate root;
+
+	(* unreachable code *)
+
+	let rec loop i =
+		if i = Array.length f.code then () else
+		try
+			let b = Hashtbl.find blocks_pos i in
+			loop (b.bend + 1)
+		with Not_found ->
+			(match op i with
+			| OEndTrap true -> ()
+			| _ -> set_nop i "unreach");
+			loop (i + 1)
+	in
+	loop 0;
+
+	(* live
