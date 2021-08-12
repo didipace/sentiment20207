@@ -916,4 +916,112 @@ let _optimize (f:fundecl) =
 	in
 	loop 0;
 
-	(* live
+	(* liveness *)
+
+	let rec live b =
+		match b.bneed_all with
+		| Some a -> a
+		| None ->
+			let need_sub = List.fold_left (fun acc b2 ->
+				(* loop : first pass does not recurse, second pass uses cache *)
+				if b2.bloop && b2.bstart < b.bstart then (match b2.bneed_all with None -> acc | Some s -> ISet.union acc s) else
+				ISet.union acc (live b2)
+			) ISet.empty b.bnext in
+			let need_sub = ISet.filter (fun r ->
+				try
+					let w = PMap.find r b.bwrite in
+					set_live r (w + 1) b.bend;
+					false
+				with Not_found ->
+					set_live r b.bstart b.bend;
+					true
+			) need_sub in
+			let need = ISet.union b.bneed need_sub in
+			b.bneed_all <- Some need;
+			if b.bloop then begin
+				(*
+					if we are a loop, we need a second pass to perform fixed point
+					first clear the cache within the loop from backward
+					then rebuild the cache to make sure liveness ranges are correctly set
+				*)
+				let rec clear b2 =
+					match b2.bneed_all with
+					| Some _ when b2.bstart > b.bstart ->
+						b2.bneed_all <- None;
+						List.iter clear b2.bprev
+					| _ -> ()
+				in
+				List.iter (fun b2 -> if b2.bstart > b.bstart then clear b2) b.bprev;
+				List.iter (fun b -> ignore(live b)) b.bnext;
+			end;
+			need
+	in
+	ignore(live root);
+
+	(* nop *)
+
+	for i=0 to Array.length f.code - 1 do
+		(match op i with
+		| OMov (d,r) when not (is_live d (i + 1)) ->
+			let n = read_counts.(r) - 1 in
+			read_counts.(r) <- n;
+			write_counts.(d) <- write_counts.(d) - 1;
+			add_reg_moved i d r;
+			set_nop i "unused"
+		| OJAlways d when d >= 0 ->
+			let rec loop k =
+				if k = d then set_nop i "nojmp" else
+				match f.code.(i + k + 1) with
+				| ONop _ -> loop (k + 1)
+				| _ -> ()
+			in
+			loop 0
+		| _ -> ());
+	done;
+
+	(* reg map *)
+
+	let used_regs = ref 0 in
+	let reg_map = read_counts in
+	let nargs = (match f.ftype with HFun (args,_) -> List.length args | _ -> Globals.die "" __LOC__) in
+	for i=0 to nregs-1 do
+		if read_counts.(i) > 0 || write_counts.(i) > 0 || i < nargs then begin
+			reg_map.(i) <- !used_regs;
+			incr used_regs;
+		end else
+			reg_map.(i) <- -1;
+	done;
+	{
+		r_root = root;
+		r_blocks_pos = blocks_pos;
+		r_nop_count = !nop_count;
+		r_used_regs = !used_regs;
+		r_live_bits = live_bits;
+		r_reg_map = reg_map;
+		r_reg_moved = reg_moved;
+	}
+
+type cache_elt = {
+	c_code : opcode array;
+	c_rctx : rctx;
+	c_remap_indexes : int array;
+	mutable c_last_used : int;
+}
+
+let opt_cache = ref PMap.empty
+let used_mark = ref 0
+
+let optimize dump get_str (f:fundecl) (hxf:Type.tfunc) =
+	let old_code = match dump with None -> f.code | Some _ -> Array.copy f.code in
+	try
+		let c = PMap.find hxf (!opt_cache) in
+		c.c_last_used <- !used_mark;
+		if Array.length f.code <> Array.length c.c_code then Globals.die "" __LOC__;
+		let code = c.c_code in
+		Array.iter (fun i ->
+			let op = (match Array.unsafe_get code i, Array.unsafe_get f.code i with
+			| OInt (r,_), OInt (_,idx) -> OInt (r,idx)
+			| OFloat (r,_), OFloat (_,idx) -> OFloat (r,idx)
+			| OBytes (r,_), OBytes (_,idx) -> OBytes (r,idx)
+			| OString (r,_), OString (_,idx) -> OString (r,idx)
+	
