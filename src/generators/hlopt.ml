@@ -702,3 +702,102 @@ let remap_fun ctx f dump get_str old_code =
 	{ f with code = !code; regs = !regs; debug = !debug; assigns = !assigns }
 
 let _optimize (f:fundecl) =
+	let nregs = Array.length f.regs in
+	let op index = f.code.(index) in
+	let set_op index op = f.code.(index) <- op in
+	let nop_count = ref 0 in
+	let set_nop index r = f.code.(index) <- (ONop r); incr nop_count in
+
+	let blocks_pos, root = code_graph f in
+
+	let read_counts = Array.make nregs 0 in
+	let write_counts = Array.make nregs 0 in
+	let last_write = Array.make nregs (-1) in
+
+	let bit_regs = 30 in
+	let stride = (nregs + bit_regs - 1) / bit_regs in
+	let live_bits = Array.make (Array.length f.code * stride) 0 in
+
+	let reg_moved = Hashtbl.create 0 in
+	let add_reg_moved p w r =
+		Hashtbl.add reg_moved p (r,last_write.(r))
+	in
+
+	let set_live r min max =
+		let offset = r / bit_regs in
+		let mask = 1 lsl (r - offset * bit_regs) in
+		if min < 0 || max >= Array.length f.code then Globals.die "" __LOC__;
+		for i=min to max do
+			let p = i * stride + offset in
+			Array.unsafe_set live_bits p ((Array.unsafe_get live_bits p) lor mask);
+		done;
+	in
+	let is_live r i =
+		let offset = r / bit_regs in
+		let mask = 1 lsl (r - offset * bit_regs) in
+		live_bits.(i * stride + offset) land mask <> 0
+	in
+
+	let read_count r = read_counts.(r) <- read_counts.(r) + 1 in
+	let write_count r = write_counts.(r) <- write_counts.(r) + 1 in
+
+	let empty_state() = Array.init nregs (fun i ->
+		let r = { rindex = i; ralias = Obj.magic 0; rbind = []; rnullcheck = false } in
+		r.ralias <- r;
+		r
+	) in
+
+	let is_packed_field o fid =
+		match f.regs.(o) with
+		| HStruct p | HObj p ->
+			let ft = (try snd (resolve_field p fid) with Not_found -> assert false) in
+			(match ft with
+			| HPacked _ -> true
+			| _ -> false)
+		| _ ->
+			false
+	in
+
+(*
+	let print_state i s =
+		let state_str s =
+			if s.ralias == s && s.rbind == [] then "" else
+			Printf.sprintf "%d%s[%s]" s.rindex (if s.ralias == s then "" else "=" ^ string_of_int s.ralias.rindex) (String.concat "," (List.map (fun s -> string_of_int s.rindex) s.rbind))
+		in
+		write (Printf.sprintf "@%X %s" i (String.concat " " (Array.to_list (Array.map state_str s))))
+	in
+*)
+
+	let rec propagate b =
+		let state = if b.bloop then
+			empty_state()
+		else match b.bprev with
+		| [] -> empty_state()
+		| b2 :: l ->
+			let s = get_state b2 in
+			let s = (match b2.bnext with
+			| [] -> Globals.die "" __LOC__
+			| [_] -> s (* reuse *)
+			| _ :: l ->
+				let s2 = empty_state() in
+				for i = 0 to nregs - 1 do
+					let sold = s.(i) and snew = s2.(i) in
+					snew.ralias <- s2.(sold.ralias.rindex);
+					snew.rbind <- List.map (fun b -> s2.(b.rindex)) sold.rbind;
+					snew.rnullcheck <- sold.rnullcheck;
+				done;
+				s2
+			) in
+			List.iter (fun b2 ->
+				let s2 = get_state b2 in
+				for i = 0 to nregs - 1 do
+					let s1 = s.(i) and s2 = s2.(i) in
+					if s1.ralias.rindex <> s2.ralias.rindex then s1.ralias <- s1
+				done;
+				for i = 0 to nregs - 1 do
+					let s1 = s.(i) and s2 = s2.(i) in
+					s1.rbind <- List.filter (fun s -> s.ralias == s1) s1.rbind;
+					s1.rnullcheck <- s1.rnullcheck && s2.rnullcheck;
+					(match s2.rbind with
+					| [] -> ()
+					| l -> s1.rbind <- List.fold_left (fun acc sb2 -> let s = s.(sb2.rindex) in if s.ralias == 
