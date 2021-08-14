@@ -1024,4 +1024,53 @@ let optimize dump get_str (f:fundecl) (hxf:Type.tfunc) =
 			| OFloat (r,_), OFloat (_,idx) -> OFloat (r,idx)
 			| OBytes (r,_), OBytes (_,idx) -> OBytes (r,idx)
 			| OString (r,_), OString (_,idx) -> OString (r,idx)
-	
+			| OCall0 (r,_), OCall0 (_,idx) -> OCall0 (r,idx)
+			| OCall1 (r,_,a), OCall1 (_,idx,_) -> OCall1 (r,idx,a)
+			| OCall2 (r,_,a,b), OCall2 (_,idx,_,_) -> OCall2 (r,idx,a,b)
+			| OCall3 (r,_,a,b,c), OCall3 (_,idx,_,_,_) -> OCall3 (r,idx,a,b,c)
+			| OCall4 (r,_,a,b,c,d), OCall4 (_,idx,_,_,_,_) -> OCall4 (r,idx,a,b,c,d)
+			| OCallN (r,_,pl), OCallN (_,idx,_) -> OCallN (r,idx,pl)
+			| OStaticClosure (r,_), OStaticClosure (_,idx) -> OStaticClosure (r,idx)
+			| OInstanceClosure (r,_,v), OInstanceClosure (_,idx,_) -> OInstanceClosure (r,idx,v)
+			| OGetGlobal (r,_), OGetGlobal (_,g) -> OGetGlobal (r,g)
+			| OSetGlobal (_,v), OSetGlobal (g,_) -> OSetGlobal (g,v)
+			| ODynGet (r,o,_), ODynGet (_,_,idx) -> ODynGet (r,o,idx)
+			| ODynSet (o,_,v), ODynSet (_,idx,_) -> ODynSet (o,idx,v)
+			| OType (r,_), OType (_,t) -> OType (r,t)
+			| _ -> Globals.die "" __LOC__) in
+			Array.unsafe_set code i op
+		) c.c_remap_indexes;
+		remap_fun c.c_rctx { f with code = code } dump get_str old_code
+	with Not_found ->
+		let rctx = _optimize f in
+		let old_ops = f.code in
+		let fopt = remap_fun rctx f dump get_str old_code in
+		Hashtbl.iter (fun _ b ->
+			b.bstate <- None;
+			if dump = None then begin
+				b.bneed <- ISet.empty;
+				b.bneed_all <- None;
+			end;
+		) rctx.r_blocks_pos;
+		let idxs = DynArray.create() in
+		Array.iteri (fun i op ->
+			match op with
+			| OInt _ | OFloat _ | OBytes _ | OString _
+			| OCall0 _ | OCall1 _ | OCall2 _ | OCall3 _ | OCall4 _ | OCallN _ | OStaticClosure _
+			| OInstanceClosure _ | OGetGlobal _	| OSetGlobal _ | ODynGet _ | ODynSet _	| OType _ ->
+				DynArray.add idxs i
+			| _ -> ()
+		) old_ops;
+		(*opt_cache := PMap.add hxf {
+			c_code = old_ops;
+			c_rctx = rctx;
+			c_last_used = !used_mark;
+			c_remap_indexes = DynArray.to_array idxs;
+		} (!opt_cache);*)
+		fopt
+
+let clean_cache() =
+	PMap.iter (fun k c ->
+		if !used_mark - c.c_last_used > 3 then opt_cache := PMap.remove k !opt_cache;
+	) (!opt_cache);
+	incr used_mark
