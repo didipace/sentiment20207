@@ -24,4 +24,8 @@
 
 package js.html;
 
-typedef
+typedef DisplayNameResult = {
+	var ?locale : String;
+	var ?style : String;
+	var ?values : haxe.DynamicAccess<String>;
+}
