@@ -49,4 +49,14 @@ class TestSqliteResultSet extends SqliteSetup {
 		var rows = [];
 		var expected = data.copy();
 		for(row in result) {
-			same(expec
+			same(expected.shift(), row);
+		}
+	}
+
+	function testGetResult() {
+		var result = cnx.request('SELECT * FROM test ORDER BY id');
+		equals('1', result.getResult(0));
+		equals(1, result.getIntResult(0));
+		equals(1, result.getFloatResult(0));
+	}
+}
