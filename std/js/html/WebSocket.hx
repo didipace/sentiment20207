@@ -90,4 +90,14 @@ extern class WebSocket extends EventTarget {
 	var binaryType : BinaryType;
 	
 	/** @throws DOMError */
-	@:overload( function( url : St
+	@:overload( function( url : String ) : Void {} )
+	@:overload( function( url : String, protocols : String ) : Void {} )
+	function new( url : String, protocols : Array<String> ) : Void;
+	/** @throws DOMError */
+	function close( ?code : Int, ?reason : String ) : Void;
+	/** @throws DOMError */
+	@:overload( function( data : String ) : Void {} )
+	@:overload( function( data : Blob ) : Void {} )
+	@:overload( function( data : js.lib.ArrayBuffer ) : Void {} )
+	function send( data : js.lib.ArrayBufferView ) : Void;
+}
