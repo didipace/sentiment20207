@@ -152,4 +152,40 @@ class Sha224 {
 
 	// ++
 	extern inline function SHR(X, n) {
-		retur
+		return (X >>> n);
+	}
+
+	// ++
+	extern inline function Ch(x, y, z) {
+		return ((x & y) ^ ((~x) & z));
+	}
+
+	// ++
+	extern inline function Maj(x, y, z) {
+		return ((x & y) ^ (x & z) ^ (y & z));
+	}
+
+	extern inline function Sigma0(x) {
+		return ROTR(x, 2) ^ ROTR(x, 13) ^ ROTR(x, 22);
+	}
+
+	extern inline function Sigma1(x) {
+		return ROTR(x, 6) ^ ROTR(x, 11) ^ ROTR(x, 25);
+	}
+
+	extern inline function Gamma0(x) {
+		return ROTR(x, 7) ^ ROTR(x, 18) ^ SHR(x, 3);
+	}
+
+	extern inline function Gamma1(x) {
+		return ROTR(x, 17) ^ ROTR(x, 19) ^ SHR(x, 10);
+	}
+
+	function hex(a:Array<Int>) {
+		var str = "";
+		for (num in a) {
+			str += StringTools.hex(num, 8);
+		}
+		return str.substring(0, 56).toLowerCase();
+	}
+}
