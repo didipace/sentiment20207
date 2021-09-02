@@ -20,10 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\Element.webidl. Do not edit!
+package cpp;
 
-package js.html;
-
-typedef ShadowRootInit = {
-	var mode : ShadowRootMode;
+@:unreflective
+extern class RawConstPointer<T> implements ArrayAccess<T> {
+	@:native("::hx::AddressOf")
+	static function addressOf<T>(t:T):RawConstPointer<T>;
 }
