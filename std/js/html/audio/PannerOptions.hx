@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,12 +21,23 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\TransitionEvent.webidl. Do not edit!
+// This file is generated from mozilla\PannerNode.webidl. Do not edit!
 
-package js.html;
+package js.html.audio;
 
-typedef TransitionEventInit = EventInit & {
-	var ?elapsedTime : Float;
-	var ?propertyName : String;
-	var ?pseudoElement : String;
+typedef PannerOptions = AudioNodeOptions & {
+	var ?coneInnerAngle : Float;
+	var ?coneOuterAngle : Float;
+	var ?coneOuterGain : Float;
+	var ?distanceModel : DistanceModelType;
+	var ?maxDistance : Float;
+	var ?orientationX : Float;
+	var ?orientationY : Float;
+	var ?orientationZ : Float;
+	var ?panningModel : PanningModelType;
+	var ?positionX : Float;
+	var ?positionY : Float;
+	var ?positionZ : Float;
+	var ?refDistance : Float;
+	var ?rolloffFactor : Float;
 }
