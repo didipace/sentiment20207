@@ -50,4 +50,18 @@ extern class FEDiffuseLightingElement extends Element {
 	var diffuseConstant(default,null) : AnimatedNumber;
 	
 	/**
-		An `SVGAnimatedNumber`
+		An `SVGAnimatedNumber` corresponding to the X component of the `kernelUnitLength` attribute of the given element.
+	**/
+	var kernelUnitLengthX(default,null) : AnimatedNumber;
+	
+	/**
+		An `SVGAnimatedNumber` corresponding to the Y component of the `kernelUnitLength` attribute of the given element.
+	**/
+	var kernelUnitLengthY(default,null) : AnimatedNumber;
+	var x(default,null) : AnimatedLength;
+	var y(default,null) : AnimatedLength;
+	var width(default,null) : AnimatedLength;
+	var height(default,null) : AnimatedLength;
+	var result(default,null) : AnimatedString;
+	
+}
