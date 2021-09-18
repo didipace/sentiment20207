@@ -155,4 +155,91 @@ let init_import ctx context_init path mode p =
 						);
 					) md.m_statics
 				| Some(newname,pname) ->
-					ctx.m.module_imports <- (rebi
+					ctx.m.module_imports <- (rebind (get_type tname) newname pname,p) :: ctx.m.module_imports);
+			| [tsub,p2] ->
+				let pu = punion p1 p2 in
+				(try
+					let tsub = List.find (has_name tsub) types in
+					chk_private tsub pu;
+					ctx.m.module_imports <- ((match name with None -> tsub | Some(n,pname) -> rebind tsub n pname),p) :: ctx.m.module_imports
+				with Not_found ->
+					(* this might be a static property, wait later to check *)
+					let find_main_type_static () =
+						try
+							let tmain = find_type tname in
+							begin try
+								add_static_init tmain name tsub
+							with Not_found ->
+								let parent,target_kind,candidates = match resolve_typedef tmain with
+									| TClassDecl c ->
+										"Class<" ^ (s_type_path c.cl_path) ^ ">",
+										"field",
+										PMap.foldi (fun name _ acc -> name :: acc) c.cl_statics []
+									| TAbstractDecl {a_impl = Some c} ->
+										"Abstract<" ^ (s_type_path md.m_path) ^ ">",
+										"field",
+										PMap.foldi (fun name _ acc -> name :: acc) c.cl_statics []
+									| TEnumDecl e ->
+										"Enum<" ^ s_type_path md.m_path ^ ">",
+										"field",
+										PMap.foldi (fun name _ acc -> name :: acc) e.e_constrs []
+									| _ ->
+										"Module " ^ s_type_path md.m_path,
+										"field or subtype",
+										(* TODO: cleaner way to get module fields? *)
+										PMap.foldi (fun n _ acc -> n :: acc) (try (Option.get md.m_statics).cl_statics with | _ -> PMap.empty) []
+								in
+
+								display_error ctx.com (StringError.string_error tsub candidates (parent ^ " has no " ^ target_kind ^ " " ^ tsub)) p
+							end
+						with Not_found ->
+							fail_usefully tsub p
+					in
+					context_init#add (fun() ->
+						match md.m_statics with
+						| Some c ->
+							(try
+								ignore(c.cl_build());
+								let rec loop fl =
+									match fl with
+									| [] -> raise Not_found
+									| cf :: rest ->
+										if cf.cf_name = tsub then
+											if not (has_class_field_flag cf CfPublic) then
+												error_private p
+											else
+												let imported_name = match name with None -> tsub | Some (n,pname) -> n in
+												ctx.m.module_globals <- PMap.add imported_name (TClassDecl c,tsub,p) ctx.m.module_globals;
+										else
+											loop rest
+								in
+								loop c.cl_ordered_statics
+							with Not_found ->
+								find_main_type_static ())
+						| None ->
+							find_main_type_static ()
+					)
+				)
+			| (tsub,p2) :: (fname,p3) :: rest ->
+				(match rest with
+				| [] -> ()
+				| (n,p) :: _ -> typing_error ("Unexpected " ^ n) p);
+				let tsub = get_type tsub in
+				context_init#add (fun() ->
+					try
+						add_static_init tsub name fname
+					with Not_found ->
+						display_error ctx.com (s_type_path (t_infos tsub).mt_path ^ " has no field " ^ fname) (punion p p3)
+				);
+			)
+		| IAll ->
+			let t = (match rest with
+				| [] -> get_type tname
+				| [tsub,_] -> get_type tsub
+				| _ :: (n,p) :: _ -> typing_error ("Unexpected " ^ n) p
+			) in
+			context_init#add (fun() ->
+				match resolve_typedef t with
+				| TClassDecl c
+				| TAbstractDecl {a_impl = Some c} ->
+					ignore(c.cl_build
