@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,27 +21,34 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package eval.vm;
+package sys.net;
 
-import sys.net.Socket;
+class Host {
+	public var host(default, null):String;
+	public var ip(default, null):Int;
 
-extern class NativeSocket {
-	function new():Void;
-	function accept():NativeSocket;
-	function bind(host:Int, port:Int):Void;
-	function close():Void;
-	function connect(host:Int, port:Int):Void;
-	function host():{ip:Int, port:Int};
-	function listen(connections:Int):Void;
-	function peer():{ip:Int, port:Int};
-	function receive(buf:haxe.io.Bytes, pos:Int, len:Int):Int;
-	function receiveChar():Int;
-	function send(buf:haxe.io.Bytes, pos:Int, len:Int):Int;
-	function sendChar(char:Int):Void;
-	function setFastSend(b:Bool):Void;
-	function setTimeout(timeout:Float):Void;
-	function shutdown(read:Bool, write:Bool):Void;
+	public function new(name:String) {
+		host = name;
+		init(resolve(name));
+	}
 
-	static function select(read:Array<Socket>, write:Array<Socket>, others:Array<Socket>,
-		?timeout:Float):{read:Array<Socket>, write:Array<Socket>, others:Array<Socket>};
+	public function toString() {
+		return hostToString(ip);
+	}
+
+	public function reverse() {
+		return hostReverse(ip);
+	}
+
+	function init(ip:Int) {
+		this.ip = ip;
+	}
+
+	extern static public function localhost():String;
+
+	extern static function hostReverse(ip:Int):String;
+
+	extern static function hostToString(ip:Int):String;
+
+	extern static function resolve(name:String):Int;
 }
