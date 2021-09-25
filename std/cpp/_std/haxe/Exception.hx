@@ -38,4 +38,48 @@ class Exception {
 		__previousException = previous;
 		if(native != null) {
 			__nativeStack = NativeStackTrace.exceptionStack();
-			__nativeExce
+			__nativeException = native;
+		} else {
+			__nativeStack = NativeStackTrace.callStack();
+			__nativeException = this;
+		}
+	}
+
+	function unwrap():Any {
+		return __nativeException;
+	}
+
+	public function toString():String {
+		return message;
+	}
+
+	public function details():String {
+		return inline CallStack.exceptionToString(this);
+	}
+
+	@:noCompletion
+	@:ifFeature("haxe.Exception.get_stack")
+	inline function __shiftStack():Void {
+		__skipStack++;
+	}
+
+	function get_message():String {
+		return __exceptionMessage;
+	}
+
+	function get_previous():Null<Exception> {
+		return __previousException;
+	}
+
+	final function get_native():Any {
+		return __nativeException;
+	}
+
+	function get_stack():CallStack {
+		return switch __exceptionStack {
+			case null: __exceptionStack = NativeStackTrace.toHaxe(__nativeStack, __skipStack);
+			case s: s;
+		}
+	}
+}
+
