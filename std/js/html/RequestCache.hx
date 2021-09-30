@@ -20,18 +20,15 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.extern;
+// This file is generated from mozilla\Request.webidl. Do not edit!
 
-/**
-	An abstract type allowing values to be either of `T1` or `T2` type.
-	Supports implicit casts from/to either types.
+package js.html;
 
-	It is useful for interfacing with external code on dynamic platforms
-	such as JavaScript or Python.
-
-	Otherwise, use of this type is discouraged.
-
-	@see <https://haxe.org/manual/lf-externs.html>
-**/
-@:transitive
-abstract EitherType<T1, T2>(Dynamic) from T1 to T1 from T2 to T2 {}
+enum abstract RequestCache(String) {
+	var DEFAULT = "default";
+	var NO_STORE = "no-store";
+	var RELOAD = "reload";
+	var NO_CACHE = "no-cache";
+	var FORCE_CACHE = "force-cache";
+	var ONLY_IF_CACHED = "only-if-cached";
+}
