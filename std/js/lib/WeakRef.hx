@@ -1,3 +1,4 @@
+package js.lib;
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,15 +21,6 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package eval;
-
-extern class Vector<T> implements ArrayAccess<T> {
-	function new(size:Int):Void;
-	var length(default, null):Int;
-	function blit<T>(srcPos:Int, dest:Vector<T>, destPos:Int, len:Int):Void;
-	function toArray():Array<T>;
-	static function fromArrayCopy<T>(array:Array<T>):Vector<T>;
-	function copy<T>():Vector<T>;
-	function join<T>(sep:String):String;
-	function map<S>(f:T->S):Vector<S>;
-}
+/**
+	The `WeakRef` object lets you hold a weak reference to another object, without preventing that object from getting garbage-collected.
+	Documentation [WeakRef](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/JavaSc
