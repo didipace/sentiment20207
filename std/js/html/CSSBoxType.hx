@@ -1,4 +1,4 @@
-package js.lib;
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -21,18 +21,13 @@ package js.lib;
  * DEALINGS IN THE SOFTWARE.
  */
 
-/**
-	The `WeakRef` object lets you hold a weak reference to another object, without preventing that object from getting garbage-collected.
-	Documentation [WeakRef](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-**/
-@:native("WeakRef")
-extern class WeakRef<T:{}> {
-	/**
-		Creates a new WeakRef object.
-	**/
-	@:pure function new(target:T);
-	/**
-		Returns the WeakRef object's target object, or null if the target object has been reclaimed.
-	**/
-	@:pure function deref():Null<T>;
+// This file is generated from mozilla\GeometryUtils.webidl. Do not edit!
+
+package js.html;
+
+enum abstract CSSBoxType(String) {
+	var MARGIN = "margin";
+	var BORDER = "border";
+	var PADDING = "padding";
+	var CONTENT = "content";
 }
