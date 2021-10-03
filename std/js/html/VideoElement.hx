@@ -20,6 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.xml;
+// This file is generated from mozilla\HTMLVideoElement.webidl. Do not edit!
 
-@:deprecated typedef Fast = haxe.xml.Access;
+package js.html;
+
+/**
+	The `HTMLVideoElement` interface provides special properties and methods for manipulating video objects. It also inherits properties and methods of `HTMLMediaElement` and `HTMLElement`.
+
+	Documentation [HTMLVideoElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).

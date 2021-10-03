@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,6 +21,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.xml;
+// This file is generated from mozilla\TextTrack.webidl. Do not edit!
 
-@:deprecated typedef Fast = haxe.xml.Access;
+package js.html;
+
+enum abstract TextTrackMode(String) {
+	var DISABLED = "disabled";
+	var HIDDEN = "hidden";
+	var SHOWING = "showing";
+}

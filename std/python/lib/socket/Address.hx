@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,6 +21,6 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.xml;
+package python.lib.socket;
 
-@:deprecated typedef Fast = haxe.xml.Access;
+typedef Address = python.Tuple.Tuple2<String, Int>;
