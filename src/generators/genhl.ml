@@ -44,4 +44,110 @@ type method_capture = {
 
 type allocator = {
 	mutable a_all : int list;
-	mutable a_hold : int list
+	mutable a_hold : int list;
+}
+
+type lassign = (string index * int)
+
+type method_context = {
+	mid : int;
+	mregs : (int, ttype) lookup;
+	mops : opcode DynArray.t;
+	mret : ttype;
+	mdebug : Globals.pos DynArray.t;
+	mvars : (int, int) Hashtbl.t;
+	mhasthis : bool;
+	mutable mdeclared : int list;
+	mutable mallocs : (ttype, allocator) PMap.t;
+	mutable mcaptured : method_capture;
+	mutable mcontinues : (int -> unit) list;
+	mutable mbreaks : (int -> unit) list;
+	mutable mtrys : int;
+	mutable mloop_trys : int;
+	mutable mcaptreg : int;
+	mutable mcurpos : Globals.pos;
+	mutable massign : lassign list;
+}
+
+type array_impl = {
+	aall : tclass;
+	abase : tclass;
+	adyn : tclass;
+	aobj : tclass;
+	aui16 : tclass;
+	ai32 : tclass;
+	af32 : tclass;
+	af64 : tclass;
+}
+
+type constval =
+	| CString of string
+
+type context = {
+	com : Common.context;
+	cglobals : (string, ttype) lookup;
+	cstrings : (string, string) lookup;
+	cbytes : (bytes, bytes) lookup;
+	cfloats : (float, float) lookup;
+	cints : (int32, int32) lookup;
+	cnatives : (string * int, (string index * string index * ttype * functable index)) lookup;
+	cfids : (string * path, unit) lookup;
+	cfunctions : fundecl DynArray.t;
+	cconstants : (constval, (global * int array)) lookup;
+	optimize : bool;
+	overrides : (string * path, bool) Hashtbl.t;
+	defined_funs : (int,unit) Hashtbl.t;
+	is_macro : bool;
+	mutable dump_out : (unit IO.output) option;
+	mutable cached_types : (string list, ttype) PMap.t;
+	mutable m : method_context;
+	mutable anons_cache : (tanon, ttype) PMap.t;
+	mutable method_wrappers : ((ttype * ttype), int) PMap.t;
+	mutable rec_cache : (Type.t * ttype option ref) list;
+	mutable cached_tuples : (ttype list, ttype) PMap.t;
+	mutable tstring : ttype;
+	macro_typedefs : (string, ttype) Hashtbl.t;
+	array_impl : array_impl;
+	base_class : tclass;
+	base_type : tclass;
+	base_enum : tclass;
+	core_type : tclass;
+	core_enum : tclass;
+	ref_abstract : tabstract;
+	cdebug_files : (string, string) lookup;
+	mutable ct_delayed : (unit -> unit) list;
+	mutable ct_depth : int;
+}
+
+(* --- *)
+
+type access =
+	| ANone
+	| AGlobal of global
+	| ALocal of tvar * reg
+	| AStaticVar of global * ttype * field index
+	| AStaticFun of fundecl index
+	| AInstanceFun of texpr * fundecl index
+	| AInstanceProto of texpr * field index
+	| AInstanceField of texpr * field index
+	| AArray of reg * (ttype * ttype) * reg
+	| AVirtualMethod of texpr * field index
+	| ADynamic of texpr * string index
+	| AEnum of tenum * field index
+	| ACaptured of field index
+
+let is_to_string t =
+	match follow t with
+	| TFun([],r) -> (match follow r with TInst({ cl_path=[],"String" },[]) -> true | _ -> false)
+	| _ -> false
+
+let is_string = function
+	| HObj { pname = "String"} -> true
+	| _ -> false
+
+let is_extern_field f =
+	not (Type.is_physical_field f) || (match f.cf_kind with Method MethNormal -> List.exists (fun (m,_,_) -> m = Meta.HlNative) f.cf_meta | _ -> false) || has_class_field_flag f CfExtern
+
+let is_array_class name =
+	match name with
+	| "hl.types.ArrayDyn" | "hl.types.ArrayBytes_Int" | "hl.types.ArrayBytes_Float" | "hl.types.ArrayObj" | "hl.types.ArrayBytes
