@@ -304,4 +304,108 @@ let rec unsigned t =
 
 let unsigned_op e1 e2 =
 	let is_unsigned e =
-		mat
+		match e.eexpr with
+		| TConst (TInt _) -> true
+		| _ -> unsigned e.etype
+	in
+	is_unsigned e1 && is_unsigned e2
+
+let set_curpos ctx p =
+	ctx.m.mcurpos <- p
+
+let make_debug ctx arr =
+	let get_relative_path p =
+		match Common.defined ctx.com Common.Define.AbsolutePath with
+		| true -> if (Filename.is_relative p.pfile)
+			then Filename.concat (Sys.getcwd()) p.pfile
+			else p.pfile
+		| false -> try
+			(* lookup relative path *)
+			let len = String.length p.pfile in
+			let base = List.find (fun path ->
+				let l = String.length path in
+				len > l && String.sub p.pfile 0 l = path
+			) ctx.com.Common.class_path in
+			let l = String.length base in
+			String.sub p.pfile l (len - l)
+		with Not_found ->
+			p.pfile
+	in
+	let pos = ref (0,0) in
+	let cur_file = ref 0 in
+	let cur_line = ref 0 in
+	let cur = ref Globals.null_pos in
+	let out = Array.make (DynArray.length arr) !pos in
+	for i = 0 to DynArray.length arr - 1 do
+		let p = DynArray.unsafe_get arr i in
+		if p != !cur then begin
+			let file = if p.pfile == (!cur).pfile then !cur_file else lookup ctx.cdebug_files p.pfile (fun() -> if ctx.is_macro then p.pfile else get_relative_path p) in
+			let line = if ctx.is_macro then p.pmin lor ((p.pmax - p.pmin) lsl 20) else Lexer.get_error_line p in
+			if line <> !cur_line || file <> !cur_file then begin
+				cur_file := file;
+				cur_line := line;
+				pos := (file,line);
+			end;
+			cur := p;
+		end;
+		Array.unsafe_set out i !pos
+	done;
+	out
+
+let fake_tnull =
+	{null_abstract with
+		a_path = [],"Null";
+		a_params = [{ttp_name = "T"; ttp_type = t_dynamic; ttp_default = None}];
+	}
+
+let get_rec_cache ctx t none_callback not_found_callback =
+	try
+		match !(List.assq t ctx.rec_cache) with
+		| None -> none_callback()
+		| Some t -> t
+	with Not_found ->
+		let tref = ref None in
+		ctx.rec_cache <- (t,tref) :: ctx.rec_cache;
+		let t = not_found_callback tref in
+		ctx.rec_cache <- List.tl ctx.rec_cache;
+		t
+
+let rec to_type ?tref ctx t =
+	match t with
+	| TMono r ->
+		(match r.tm_type with
+		| None -> HDyn
+		| Some t -> to_type ?tref ctx t)
+	| TType (td,tl) ->
+		let t =
+			get_rec_cache ctx t
+				(fun() -> abort "Unsupported recursive type" td.t_pos)
+				(fun tref -> to_type ~tref ctx (apply_typedef td tl))
+		in
+		(match td.t_path with
+		| ["haxe";"macro"], name -> Hashtbl.replace ctx.macro_typedefs name t; t
+		| _ -> t)
+	| TLazy f ->
+		to_type ?tref ctx (lazy_type f)
+	| TFun (args, ret) ->
+		HFun (List.map (fun (_,o,t) ->
+			let pt = to_type ctx t in
+			if o && not (is_nullable pt) then HRef pt else pt
+		) args, to_type ctx ret)
+	| TAnon a when (match !(a.a_status) with Statics _ | EnumStatics _ -> true | _ -> false) ->
+		(match !(a.a_status) with
+		| Statics c ->
+			class_type ctx c (extract_param_types c.cl_params) true
+		| EnumStatics e ->
+			enum_class ctx e
+		| _ -> die "" __LOC__)
+	| TAnon a ->
+		if PMap.is_empty a.a_fields then HDyn else
+		(try
+			(* can't use physical comparison in PMap since addresses might change in GC compact,
+				maybe add an uid to tanon if too slow ? *)
+			PMap.find a ctx.anons_cache
+		with Not_found ->
+			let vp = {
+				vfields = [||];
+				vindex = P
