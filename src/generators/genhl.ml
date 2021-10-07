@@ -150,4 +150,158 @@ let is_extern_field f =
 
 let is_array_class name =
 	match name with
-	| "hl.types.ArrayDyn" | "hl.types.ArrayBytes_Int" | "hl.types.ArrayBytes_Float" | "hl.types.ArrayObj" | "hl.types.ArrayBytes
+	| "hl.types.ArrayDyn" | "hl.types.ArrayBytes_Int" | "hl.types.ArrayBytes_Float" | "hl.types.ArrayObj" | "hl.types.ArrayBytes_hl_F32" | "hl.types.ArrayBytes_hl_UI16" -> true
+	| _ -> false
+
+let is_array_type t =
+	match t with
+	| HObj p -> is_array_class p.pname
+	| _ -> false
+
+let max_pos e =
+	let p = e.epos in
+	{ p with pmin = p.pmax }
+
+let to_utf8 str p =
+	let u8 = try
+		UTF8.validate str;
+		str;
+	with
+		UTF8.Malformed_code ->
+			(* ISO to utf8 *)
+			let b = UTF8.Buf.create 0 in
+			String.iter (fun c -> UTF8.Buf.add_char b (UCharExt.of_char c)) str;
+			UTF8.Buf.contents b
+	in
+	let ccount = ref 0 in
+	UTF8.iter (fun c ->
+		let c = UCharExt.code c in
+		if (c >= 0xD800 && c <= 0xDFFF) || c >= 0x110000 then abort "Invalid unicode char" p;
+		incr ccount;
+		if c >= 0x10000 then incr ccount;
+	) u8;
+	u8, !ccount
+
+let tuple_type ctx tl =
+	try
+		PMap.find tl ctx.cached_tuples
+	with Not_found ->
+		let ct = HEnum {
+			eglobal = None;
+			ename = "";
+			eid = 0;
+			efields = [|"",0,Array.of_list tl|];
+		} in
+		ctx.cached_tuples <- PMap.add tl ct ctx.cached_tuples;
+		ct
+
+let type_size_bits = function
+	| HUI8 | HBool -> 0
+	| HUI16 -> 1
+	| HI32 | HF32 -> 2
+	| HI64 | HF64 -> 3
+	| _ -> die "" __LOC__
+
+let new_lookup() =
+	{
+		arr = DynArray.create();
+		map = PMap.empty;
+	}
+
+let null_capture =
+	{
+		c_vars = [||];
+		c_map = PMap.empty;
+		c_type = HVoid;
+		c_group = false;
+	}
+
+let lookup l v fb =
+	try
+		PMap.find v l.map
+	with Not_found ->
+		let id = DynArray.length l.arr in
+		DynArray.add l.arr (Obj.magic 0);
+		l.map <- PMap.add v id l.map;
+		DynArray.set l.arr id (fb());
+		id
+
+let lookup_alloc l v =
+	let id = DynArray.length l.arr in
+	DynArray.add l.arr v;
+	id
+
+let method_context id t captured hasthis =
+	{
+		mid = id;
+		mregs = new_lookup();
+		mops = DynArray.create();
+		mvars = Hashtbl.create 0;
+		mallocs = PMap.empty;
+		mret = t;
+		mbreaks = [];
+		mdeclared = [];
+		mcontinues = [];
+		mhasthis = hasthis;
+		mcaptured = captured;
+		mtrys = 0;
+		mloop_trys = 0;
+		mcaptreg = 0;
+		mdebug = DynArray.create();
+		mcurpos = Globals.null_pos;
+		massign = [];
+	}
+
+let field_name c f =
+	s_type_path c.cl_path ^ ":" ^ f.cf_name
+
+let efield_name e f =
+	s_type_path e.e_path ^ ":" ^ f.ef_name
+
+let global_type ctx g =
+	DynArray.get ctx.cglobals.arr g
+
+let is_overridden ctx c f =
+	ctx.is_macro || Hashtbl.mem ctx.overrides (f.cf_name,c.cl_path)
+
+let alloc_float ctx f =
+	lookup ctx.cfloats f (fun() -> f)
+
+let alloc_i32 ctx i =
+	lookup ctx.cints i (fun() -> i)
+
+let alloc_string ctx s =
+	lookup ctx.cstrings s (fun() -> s)
+
+let alloc_bytes ctx s =
+	lookup ctx.cbytes s (fun() -> s)
+
+let array_class ctx t =
+	match t with
+	| HI32 ->
+		ctx.array_impl.ai32
+	| HUI16 ->
+		ctx.array_impl.aui16
+	| HF32 ->
+		ctx.array_impl.af32
+	| HF64 ->
+		ctx.array_impl.af64
+	| HDyn ->
+		ctx.array_impl.adyn
+	| _ ->
+		ctx.array_impl.aobj
+
+let member_fun c t =
+	match follow t with
+	| TFun (args, ret) -> TFun (("this",false,TInst(c,[])) :: args, ret)
+	| _ -> die "" __LOC__
+
+let rec unsigned t =
+	match follow t with
+	| TAbstract ({ a_path = [],"UInt" },_) -> true
+	| TAbstract (a,pl) -> unsigned (Abstract.get_underlying_type a pl)
+	| _ -> false
+
+let unsigned_op e1 e2 =
+	let is_unsigned e =
+		mat
