@@ -595,4 +595,80 @@ and class_type ?(tref=None) ctx c pl statics =
 			if statics then die "" __LOC__;
 			p.pnfields <- 1;
 		end;
-	
+		let tsup = (match c.cl_super with
+			| Some (csup,pl) when not statics -> Some (class_type ctx csup [] statics)
+			| _ -> if statics then Some (class_type ctx ctx.base_class [] false) else None
+		) in
+		let start_field, virtuals = (match tsup with
+			| None -> 0, [||]
+			| Some ((HObj psup | HStruct psup) as pt) ->
+				if is_struct t <> is_struct pt then abort (if is_struct t then "Struct cannot extend a not struct class" else "Class cannot extend a struct") c.cl_pos;
+				if psup.pnfields < 0 then die "" __LOC__;
+				p.psuper <- Some psup;
+				psup.pnfields, psup.pvirtuals
+			| _ -> die "" __LOC__
+		) in
+		let fa = DynArray.create() and pa = DynArray.create() and virtuals = DynArray.of_array virtuals in
+		let add_field name get_t =
+			let fid = DynArray.length fa + start_field in
+			let str = alloc_string ctx name in
+			p.pindex <- PMap.add name (fid, HVoid) p.pindex;
+			DynArray.add fa (name, str, HVoid);
+			ctx.ct_delayed <- (fun() ->
+				let t = get_t() in
+				p.pindex <- PMap.add name (fid, t) p.pindex;
+				Array.set p.pfields (fid - start_field) (name, str, t);
+			) :: ctx.ct_delayed;
+			fid
+		in
+		List.iter (fun f ->
+			if is_extern_field f || (statics && f.cf_name = "__meta__") then () else
+			let fid = (match f.cf_kind with
+			| Method m when m <> MethDynamic && not statics ->
+				let g = alloc_fid ctx c f in
+				p.pfunctions <- PMap.add f.cf_name g p.pfunctions;
+				let virt = if has_class_field_flag f CfOverride then
+					let vid = (try -(fst (get_index f.cf_name p))-1 with Not_found -> die "" __LOC__) in
+					DynArray.set virtuals vid g;
+					Some vid
+				else if is_overridden ctx c f then begin
+					let vid = DynArray.length virtuals in
+					DynArray.add virtuals g;
+					p.pindex <- PMap.add f.cf_name (-vid-1,HVoid) p.pindex;
+					Some vid
+				end else
+					None
+				in
+				DynArray.add pa { fname = f.cf_name; fid = alloc_string ctx f.cf_name; fmethod = g; fvirtual = virt; };
+				None
+			| Method MethDynamic when has_class_field_flag f CfOverride ->
+				Some (try fst (get_index f.cf_name p) with Not_found -> die "" __LOC__)
+			| _ ->
+				let fid = add_field f.cf_name (fun() ->
+					let t = to_type ctx f.cf_type in
+					if has_meta (Meta.Custom ":packed") f.cf_meta then begin
+						(match t with HStruct _ -> () | _ -> abort "Packed field should be struct" f.cf_pos);
+						HPacked t
+					end else t
+				) in
+				Some fid
+			) in
+			match f.cf_kind, fid with
+			| Method _, Some fid -> p.pbindings <- (fid, alloc_fun_path ctx c.cl_path f.cf_name) :: p.pbindings
+			| _ -> ()
+		) (if statics then c.cl_ordered_statics else c.cl_ordered_fields);
+		if not statics then begin
+			(* add interfaces *)
+			List.iter (fun (i,pl) ->
+				let rid = ref (-1) in
+				rid := add_field "" (fun() ->
+					let t = to_type ctx (TInst (i,pl)) in
+					p.pinterfaces <- PMap.add t !rid p.pinterfaces;
+					t
+				);
+			) c.cl_implements;
+			(* check toString *)
+			(try
+				let cf = PMap.find "toString" c.cl_fields in
+				if has_class_field_flag cf CfOverride || PMap.mem "__string" c.cl_fields || not (is_to_string cf.cf_type) then raise Not_found;
+				DynArray.add pa { fname = "__string"; fid
