@@ -502,4 +502,97 @@ and field_type ctx f p =
 			with Not_found ->
 				match c.cl_super with
 				| Some (csup,_) -> loop csup
-				| Non
+				| None -> abort (s_type_path creal.cl_path ^ " is missing field " ^ f.cf_name) p
+		in
+		(loop creal).cf_type
+	| FStatic (_,f) | FAnon f | FClosure (_,f) -> f.cf_type
+	| FDynamic _ -> t_dynamic
+	| FEnum (_,f) -> f.ef_type
+
+and real_type ctx e =
+	let rec loop e =
+		match e.eexpr with
+		| TField (_,f) ->
+			let ft = field_type ctx f e.epos in
+			(match ft, e.etype with
+			| TFun (args,ret), TFun (args2,_) ->
+				TFun (List.map2 (fun ((name,opt,t) as a) ((_,_,t2) as a2) ->
+					match t, t2 with
+					(*
+						Handle function variance:
+						If we have type parameters which are function types, we need to keep the functions
+						because we might need to insert a cast to coerce Void->Bool to Void->Dynamic for instance.
+					*)
+					| TInst ({cl_kind=KTypeParameter _},_), TFun _ -> a2
+					(*
+						If we have a number, it is more accurate to cast it to the type parameter before wrapping it as dynamic
+						Ignore dynamic method (#7166)
+					*)
+					| TInst ({cl_kind=KTypeParameter _},_), t when is_number (to_type ctx t) && (match f with FInstance (_,_,{ cf_kind = Var _ | Method MethDynamic }) -> false | _ -> true) ->
+						(name, opt, TAbstract (fake_tnull,[t]))
+					| _ ->
+						a
+				) args args2, ret)
+			| _ -> ft)
+		| TLocal v -> v.v_type
+		| TParenthesis e -> loop e
+		| TArray (arr,_) ->
+			let rec loop t =
+				match follow t with
+				| TInst({ cl_path = [],"Array" },[t]) -> t
+				| TAbstract (a,pl) -> loop (Abstract.get_underlying_type a pl)
+				| _ -> t_dynamic
+			in
+			loop arr.etype
+		| _ -> e.etype
+	in
+	to_type ctx (loop e)
+
+and class_type ?(tref=None) ctx c pl statics =
+	let c = if (has_class_flag c CExtern) then resolve_class ctx c pl statics else c in
+	let key_path = (if statics then "$" ^ snd c.cl_path else snd c.cl_path) :: fst c.cl_path in
+	try
+		PMap.find key_path ctx.cached_types
+	with Not_found when (has_class_flag c CInterface) && not statics ->
+		let vp = {
+			vfields = [||];
+			vindex = PMap.empty;
+		} in
+		let t = HVirtual vp in
+		ctx.cached_types <- PMap.add key_path t ctx.cached_types;
+		let rec loop c =
+			let fields = List.fold_left (fun acc (i,_) -> loop i @ acc) [] c.cl_implements in
+			PMap.fold (fun cf acc -> cfield_type ctx cf :: acc) c.cl_fields fields
+		in
+		let fields = loop c in
+		vp.vfields <- Array.of_list fields;
+		Array.iteri (fun i (n,_,_) -> vp.vindex <- PMap.add n i vp.vindex) vp.vfields;
+		t
+	| Not_found ->
+		let pname = s_type_path (List.tl key_path, List.hd key_path) in
+		let p = {
+			pname = pname;
+			pid = alloc_string ctx pname;
+			psuper = None;
+			pclassglobal = None;
+			pproto = [||];
+			pfields = [||];
+			pindex = PMap.empty;
+			pvirtuals = [||];
+			pfunctions = PMap.empty;
+			pnfields = -1;
+			pinterfaces = PMap.empty;
+			pbindings = [];
+		} in
+		let t = (if Meta.has Meta.Struct c.cl_meta && not statics then HStruct p else HObj p) in
+		(match tref with
+		| None -> ()
+		| Some r -> r := Some t);
+		ctx.ct_depth <- ctx.ct_depth + 1;
+		ctx.cached_types <- PMap.add key_path t ctx.cached_types;
+		if c.cl_path = ([],"Array") then die "" __LOC__;
+		if c == ctx.base_class then begin
+			if statics then die "" __LOC__;
+			p.pnfields <- 1;
+		end;
+	
