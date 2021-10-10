@@ -671,4 +671,102 @@ and class_type ?(tref=None) ctx c pl statics =
 			(try
 				let cf = PMap.find "toString" c.cl_fields in
 				if has_class_field_flag cf CfOverride || PMap.mem "__string" c.cl_fields || not (is_to_string cf.cf_type) then raise Not_found;
-				DynArray.add pa { fname = "__string"; fid
+				DynArray.add pa { fname = "__string"; fid = alloc_string ctx "__string"; fmethod = alloc_fun_path ctx c.cl_path "__string"; fvirtual = None; }
+			with Not_found ->
+				());
+		end else begin
+			(match c.cl_constructor with
+			| Some f when not (is_extern_field f) ->
+				p.pbindings <- ((try fst (get_index "__constructor__" p) with Not_found -> die "" __LOC__),alloc_fid ctx c f) :: p.pbindings
+			| _ -> ());
+		end;
+		p.pnfields <- DynArray.length fa + start_field;
+		p.pfields <- DynArray.to_array fa;
+		p.pproto <- DynArray.to_array pa;
+		p.pvirtuals <- DynArray.to_array virtuals;
+		ctx.ct_depth <- ctx.ct_depth - 1;
+		if ctx.ct_depth = 0 then begin
+			let todo = ctx.ct_delayed in
+			ctx.ct_delayed <- [];
+			List.iter (fun f -> f()) todo;
+		end;
+		if not statics && c != ctx.core_type && c != ctx.core_enum then p.pclassglobal <- Some (fst (class_global ctx (if statics then ctx.base_class else c)));
+		t
+
+and enum_type ?(tref=None) ctx e =
+	let key_path = snd e.e_path :: fst e.e_path in
+	try
+		PMap.find key_path ctx.cached_types
+	with Not_found ->
+		let ename = s_type_path e.e_path in
+		let et = {
+			eglobal = None;
+			ename = ename;
+			eid = alloc_string ctx ename;
+			efields = [||];
+		} in
+		let t = HEnum et in
+		(match tref with
+		| None -> ()
+		| Some r -> r := Some t);
+		ctx.cached_types <- PMap.add key_path t ctx.cached_types;
+		et.efields <- Array.of_list (List.map (fun f ->
+			let f = PMap.find f e.e_constrs in
+			let args = (match f.ef_type with
+				| TFun (args,_) -> Array.of_list (List.map (fun (_,_,t) -> to_type ctx t) args)
+				| _ -> [||]
+			) in
+			(f.ef_name, alloc_string ctx f.ef_name, args)
+		) e.e_names);
+		let ct = enum_class ctx e in
+		et.eglobal <- Some (alloc_global ctx (match ct with HObj o -> o.pname | _ -> die "" __LOC__) ct);
+		t
+
+and enum_class ctx e =
+	let key_path = ("$" ^ snd e.e_path) :: fst e.e_path in
+	try
+		PMap.find key_path ctx.cached_types
+	with Not_found ->
+		let pname = s_type_path (List.tl key_path, List.hd key_path) in
+		let p = {
+			pname = pname;
+			pid = alloc_string ctx pname;
+			psuper = None;
+			pclassglobal = None;
+			pproto = [||];
+			pfields = [||];
+			pindex = PMap.empty;
+			pvirtuals = [||];
+			pfunctions = PMap.empty;
+			pnfields = -1;
+			pinterfaces = PMap.empty;
+			pbindings = [];
+		} in
+		let t = HObj p in
+		ctx.cached_types <- PMap.add key_path t ctx.cached_types;
+		p.psuper <- Some (match class_type ctx ctx.base_enum [] false with HObj o -> o | _ -> die "" __LOC__);
+		t
+
+and alloc_fun_path ctx path name =
+	lookup ctx.cfids (name, path) (fun() -> ())
+
+and alloc_fid ctx c f =
+	match f.cf_kind with
+	| Var _ -> die "" __LOC__
+	| _ -> alloc_fun_path ctx c.cl_path f.cf_name
+
+and alloc_eid ctx e f =
+	alloc_fun_path ctx e.e_path f.ef_name
+
+and alloc_function_name ctx f =
+	alloc_fun_path ctx ([],"") f
+
+and alloc_global ctx name t =
+	lookup ctx.cglobals name (fun() -> t)
+
+and class_global ?(resolve=true) ctx c =
+	let static = c != ctx.base_class in
+	let c = if resolve && is_array_type (HObj { null_proto with pname = s_type_path c.cl_path }) then ctx.array_impl.abase else c in
+	let c = resolve_class ctx c (extract_param_types c.cl_params) static in
+	let t = class_type ctx c [] static in
+	alloc_global
