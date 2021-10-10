@@ -408,4 +408,98 @@ let rec to_type ?tref ctx t =
 		with Not_found ->
 			let vp = {
 				vfields = [||];
-				vindex = P
+				vindex = PMap.empty;
+			} in
+			let t = HVirtual vp in
+			(match tref with
+			| None -> ()
+			| Some r -> r := Some t);
+			ctx.anons_cache <- PMap.add a t ctx.anons_cache;
+			let fields = PMap.fold (fun cf acc -> cfield_type ctx cf :: acc) a.a_fields [] in
+			let fields = List.sort (fun (n1,_,_) (n2,_,_) -> compare n1 n2) fields in
+			vp.vfields <- Array.of_list fields;
+			Array.iteri (fun i (n,_,_) -> vp.vindex <- PMap.add n i vp.vindex) vp.vfields;
+			t
+		)
+	| TDynamic _ ->
+		HDyn
+	| TEnum (e,_) ->
+		enum_type ~tref ctx e
+	| TInst ({ cl_path = ["hl"],"Abstract" },[TInst({ cl_kind = KExpr (EConst (String(name,_)),_) },_)]) ->
+		HAbstract (name, alloc_string ctx name)
+	| TInst (c,pl) ->
+		(match c.cl_kind with
+		| KTypeParameter tl ->
+			let rec loop = function
+				| [] -> HDyn
+				| t :: tl ->
+					match follow (apply_params c.cl_params pl t) with
+					| TInst (c,_) as t when not (has_class_flag c CInterface) -> to_type ?tref ctx t
+					| _ -> loop tl
+			in
+			loop tl
+		| _ -> class_type ~tref ctx c pl false)
+	| TAbstract ({a_path = [],"Null"},[t1]) ->
+		let t = to_type ?tref ctx t1 in
+		if not (is_nullable t) && t <> HVoid then HNull t else t
+	| TAbstract (a,pl) ->
+		if Meta.has Meta.CoreType a.a_meta then
+			(match a.a_path with
+			| [], "Void" -> HVoid
+			| [], "Int" | [], "UInt" -> HI32
+			| [], "Float" -> HF64
+			| [], "Single" -> HF32
+			| [], "Bool" -> HBool
+			| [], "Dynamic" -> HDyn
+			| [], "Class" ->
+				class_type ctx ctx.base_class [] false
+			| [], "Enum" ->
+				class_type ctx ctx.base_type [] false
+			| [], "EnumValue" -> HDyn
+			| ["hl"], "Ref" -> HRef (to_type ctx (List.hd pl))
+			| ["hl"], ("Bytes" | "BytesAccess") -> HBytes
+			| ["hl"], "Type" -> HType
+			| ["hl"], "UI16" -> HUI16
+			| ["hl"], "UI8" -> HUI8
+			| ["hl"], "I64" -> HI64
+			| ["hl"], "NativeArray" -> HArray
+			| ["haxe";"macro"], "Position" -> HAbstract ("macro_pos", alloc_string ctx "macro_pos")
+			| _ -> failwith ("Unknown core type " ^ s_type_path a.a_path))
+		else
+			get_rec_cache ctx t
+				(fun() -> HDyn)
+				(fun tref -> to_type ~tref ctx (Abstract.get_underlying_type a pl))
+
+and resolve_class ctx c pl statics =
+	let not_supported() =
+		failwith ("Extern type not supported : " ^ s_type (print_context()) (TInst (c,pl)))
+	in
+	match c.cl_path, pl with
+	| ([],"Array"), [t] ->
+		if statics then ctx.array_impl.abase else array_class ctx (to_type ctx t)
+	| ([],"Array"), [] ->
+		die "" __LOC__
+	| _, _ when (has_class_flag c CExtern) ->
+		not_supported()
+	| _ ->
+		c
+
+and cfield_type ctx cf =
+	let t = to_type ctx cf.cf_type in
+	let t = (match cf.cf_kind, t with
+		| Method (MethNormal|MethInline), HFun (args,ret) -> HMethod (args,ret)
+		| _ -> t
+	) in
+	(cf.cf_name,alloc_string ctx cf.cf_name,t)
+
+and field_type ctx f p =
+	match f with
+	| FInstance (c,pl,f) | FClosure (Some (c,pl),f) ->
+		let creal = resolve_class ctx c pl false in
+		let rec loop c =
+			try
+				PMap.find f.cf_name c.cl_fields
+			with Not_found ->
+				match c.cl_super with
+				| Some (csup,_) -> loop csup
+				| Non
