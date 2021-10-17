@@ -769,4 +769,143 @@ and class_global ?(resolve=true) ctx c =
 	let c = if resolve && is_array_type (HObj { null_proto with pname = s_type_path c.cl_path }) then ctx.array_impl.abase else c in
 	let c = resolve_class ctx c (extract_param_types c.cl_params) static in
 	let t = class_type ctx c [] static in
-	alloc_global
+	alloc_global ctx ("$" ^ s_type_path c.cl_path) t, t
+
+let resolve_class_global ctx cpath =
+	lookup ctx.cglobals ("$" ^ cpath) (fun() -> die "" __LOC__)
+
+let resolve_type ctx path =
+	PMap.find path ctx.cached_types
+
+let alloc_std ctx name args ret =
+	let lib = "std" in
+	(* different from :hlNative to prevent mismatch *)
+	let nid = lookup ctx.cnatives ("$" ^ name ^ "@" ^ lib, -1) (fun() ->
+		let fid = alloc_fun_path ctx ([],"std") name in
+		Hashtbl.add ctx.defined_funs fid ();
+		(alloc_string ctx lib, alloc_string ctx name,HFun (args,ret),fid)
+	) in
+	let _,_,_,fid = DynArray.get ctx.cnatives.arr nid in
+	fid
+
+let alloc_fresh ctx t =
+	let rid = DynArray.length ctx.m.mregs.arr in
+	DynArray.add ctx.m.mregs.arr t;
+	rid
+
+let alloc_tmp ctx t =
+	if not ctx.optimize then alloc_fresh ctx t else
+	let a = try PMap.find t ctx.m.mallocs with Not_found ->
+		let a = {
+			a_all = [];
+			a_hold = [];
+		} in
+		ctx.m.mallocs <- PMap.add t a ctx.m.mallocs;
+		a
+	in
+	match a.a_all with
+	| [] ->
+		let r = alloc_fresh ctx t in
+		a.a_all <- [r];
+		r
+	| r :: _ ->
+		r
+
+let current_pos ctx =
+	DynArray.length ctx.m.mops
+
+let rtype ctx r =
+	DynArray.get ctx.m.mregs.arr r
+
+let hold ctx r =
+	if not ctx.optimize then () else
+	let t = rtype ctx r in
+	let a = PMap.find t ctx.m.mallocs in
+	let rec loop l =
+		match l with
+		| [] -> if List.mem r a.a_hold then [] else die "" __LOC__
+		| n :: l when n = r -> l
+		| n :: l -> n :: loop l
+	in
+	a.a_all <- loop a.a_all;
+	a.a_hold <- r :: a.a_hold
+
+let free ctx r =
+	if not ctx.optimize then () else
+	let t = rtype ctx r in
+	let a = PMap.find t ctx.m.mallocs in
+	let last = ref true in
+	let rec loop l =
+		match l with
+		| [] -> die "" __LOC__
+		| n :: l when n = r ->
+			if List.mem r l then last := false;
+			l
+		| n :: l -> n :: loop l
+	in
+	a.a_hold <- loop a.a_hold;
+	(* insert sorted *)
+	let rec loop l =
+		match l with
+		| [] -> [r]
+		| n :: _ when n > r -> r :: l
+		| n :: l -> n :: loop l
+	in
+	if !last then a.a_all <- loop a.a_all
+
+let decl_var ctx v =
+	ctx.m.mdeclared <- v.v_id :: ctx.m.mdeclared
+
+let alloc_var ctx v new_var =
+	if new_var then decl_var ctx v;
+	try
+		Hashtbl.find ctx.m.mvars v.v_id
+	with Not_found ->
+		let r = alloc_tmp ctx (to_type ctx v.v_type) in
+		hold ctx r;
+		Hashtbl.add ctx.m.mvars v.v_id r;
+		r
+
+
+let push_op ctx o =
+	DynArray.add ctx.m.mdebug ctx.m.mcurpos;
+	DynArray.add ctx.m.mops o
+
+let op ctx o =
+	match o with
+	| OMov (a,b) when a = b ->
+		()
+	| _ ->
+		push_op ctx o
+
+let set_op ctx pos o =
+	DynArray.set ctx.m.mops pos o
+
+let jump ctx f =
+	let pos = current_pos ctx in
+	op ctx (OJAlways (-1)); (* loop *)
+	(fun() -> set_op ctx pos (f (current_pos ctx - pos - 1)))
+
+let jump_back ctx =
+	let pos = current_pos ctx in
+	op ctx (OLabel 0);
+	(fun() -> op ctx (OJAlways (pos - current_pos ctx - 1)))
+
+let reg_int ctx v =
+	let r = alloc_tmp ctx HI32 in
+	op ctx (OInt (r,alloc_i32 ctx (Int32.of_int v)));
+	r
+
+let shl ctx idx v =
+	if v = 0 then
+		idx
+	else begin
+		hold ctx idx;
+		let rv = reg_int ctx v in
+		let idx2 = alloc_tmp ctx HI32 in
+		op ctx (OShl (idx2, idx, rv));
+		free ctx idx;
+		idx2;
+	end
+
+let 
