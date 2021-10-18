@@ -1104,4 +1104,118 @@ and cast_to ?(force=false) ctx (r:reg) (t:ttype) p =
 	if safe_cast rt t then r else
 	match rt, t with
 	| _, HVoid ->
-		al
+		alloc_tmp ctx HVoid
+	| HVirtual _, HVirtual _ ->
+		let tmp = alloc_tmp ctx HDyn in
+		op ctx (OMov (tmp,r));
+		cast_to ctx tmp t p
+	| (HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64), (HF32 | HF64) ->
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToSFloat (tmp, r));
+		tmp
+	| (HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64), (HUI8 | HUI16 | HI32 | HI64) ->
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToInt (tmp, r));
+		tmp
+	| HObj o, HVirtual _ ->
+		let out = alloc_tmp ctx t in
+		(try
+			let rec lookup_intf o =
+				try
+					PMap.find t o.pinterfaces
+				with Not_found ->
+					match o.psuper with
+					| None -> raise Not_found
+					| Some o -> lookup_intf o
+			in
+			let fid = lookup_intf o in
+			(* memoisation *)
+			let need_null_check r =
+				not (r = 0 && ctx.m.mhasthis)
+			in
+			let jend = if need_null_check r then
+				let jnull = jump ctx (fun d -> OJNotNull (r,d)) in
+				op ctx (ONull out);
+				let jend = jump ctx (fun d -> OJAlways d) in
+				jnull();
+				jend
+			else
+				(fun() -> ())
+			in
+			op ctx (OField (out, r, fid));
+			let j = jump ctx (fun d -> OJNotNull (out,d)) in
+			op ctx (OToVirtual (out,r));
+			op ctx (OSetField (r, fid, out));
+			jend();
+			j();
+		with Not_found ->
+			(* not an interface *)
+			op ctx (OToVirtual (out,r)));
+		out
+	| (HDynObj | HDyn) , HVirtual _ ->
+		let out = alloc_tmp ctx t in
+		op ctx (OToVirtual (out,r));
+		out
+	| HDyn, _ ->
+		let out = alloc_tmp ctx t in
+		op ctx (OSafeCast (out, r));
+		out
+	| HNull rt, _ when t = rt ->
+		let out = alloc_tmp ctx t in
+		op ctx (OSafeCast (out, r));
+		out
+	| HVoid, HDyn ->
+		let tmp = alloc_tmp ctx HDyn in
+		op ctx (ONull tmp);
+		tmp
+	| _ , HDyn ->
+		let tmp = alloc_tmp ctx HDyn in
+		op ctx (OToDyn (tmp, r));
+		tmp
+	| _, HNull t when rt == t ->
+		let tmp = alloc_tmp ctx (HNull t) in
+		op ctx (OToDyn (tmp, r));
+		tmp
+	| HNull t1, HNull t2 ->
+		let j = jump ctx (fun n -> OJNull (r,n)) in
+		let rtmp = alloc_tmp ctx t1 in
+		op ctx (OSafeCast (rtmp,r));
+		let out = cast_to ctx rtmp t p in
+		op ctx (OJAlways 1);
+		j();
+		op ctx (ONull out);
+		out
+	| HRef t1, HNull t2 ->
+		let j = jump ctx (fun n -> OJNull (r,n)) in
+		let rtmp = alloc_tmp ctx t1 in
+		op ctx (OUnref (rtmp,r));
+		let out = cast_to ctx rtmp t p in
+		op ctx (OJAlways 1);
+		j();
+		op ctx (ONull out);
+		out
+	| (HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64), HNull ((HF32 | HF64) as t) ->
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToSFloat (tmp, r));
+		let r = alloc_tmp ctx (HNull t) in
+		op ctx (OToDyn (r,tmp));
+		r
+	| (HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64), HNull ((HUI8 | HUI16 | HI32) as t) ->
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToInt (tmp, r));
+		let r = alloc_tmp ctx (HNull t) in
+		op ctx (OToDyn (r,tmp));
+		r
+	| HNull ((HUI8 | HUI16 | HI32 | HI64) as it), (HF32 | HF64) ->
+		let i = alloc_tmp ctx it in
+		op ctx (OSafeCast (i,r));
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToSFloat (tmp, i));
+		tmp
+	| HNull ((HF32 | HF64) as it), (HUI8 | HUI16 | HI32 | HI64) ->
+		let i = alloc_tmp ctx it in
+		op ctx (OSafeCast (i,r));
+		let tmp = alloc_tmp ctx t in
+		op ctx (OToInt (tmp, i));
+		tmp
+	| HFun (args1,ret1), HFun (args2, ret2) whe
