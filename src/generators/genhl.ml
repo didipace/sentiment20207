@@ -1016,4 +1016,92 @@ let before_break_continue ctx =
 			loop (i - 1)
 		end
 	in
-	loop (ctx
+	loop (ctx.m.mtrys - ctx.m.mloop_trys)
+
+let type_value ctx t p =
+	match t with
+	| TClassDecl c ->
+		let g, t = class_global ctx c in
+		let r = alloc_tmp ctx t in
+		op ctx (OGetGlobal (r, g));
+		r
+	| TAbstractDecl a ->
+		let r = alloc_tmp ctx (class_type ctx ctx.base_type [] false) in
+		(match a.a_path with
+		| [], "Int" -> op ctx (OGetGlobal (r, alloc_global ctx "$Int" (rtype ctx r)))
+		| [], "Float" -> op ctx (OGetGlobal (r, alloc_global ctx "$Float" (rtype ctx r)))
+		| [], "Bool" -> op ctx (OGetGlobal (r, alloc_global ctx "$Bool" (rtype ctx r)))
+		| [], "Class" -> op ctx (OGetGlobal (r, fst (class_global ctx ctx.base_class)))
+		| [], "Enum" -> op ctx (OGetGlobal (r, fst (class_global ctx ctx.base_enum)))
+		| [], "Dynamic" -> op ctx (OGetGlobal (r, alloc_global ctx "$Dynamic" (rtype ctx r)))
+		| _ -> abort ("Unsupported type value " ^ s_type_path (t_path t)) p);
+		r
+	| TEnumDecl e ->
+		let r = alloc_tmp ctx (enum_class ctx e) in
+		let rt = rtype ctx r in
+		op ctx (OGetGlobal (r, alloc_global ctx (match rt with HObj o -> o.pname | _ -> die "" __LOC__) rt));
+		r
+	| TTypeDecl _ ->
+		die "" __LOC__
+
+let rec eval_to ctx e (t:ttype) =
+	match e.eexpr, t with
+	| TConst (TInt i), HF64 ->
+		let r = alloc_tmp ctx t in
+		op ctx (OFloat (r,alloc_float ctx (Int32.to_float i)));
+		r
+	(* this causes a bug with NG, to be reviewed later
+	| TConst (TInt i), HF32 ->
+		let r = alloc_tmp ctx t in
+		let bits = Int32.bits_of_float (Int32.to_float i) in
+		op ctx (OFloat (r,alloc_float ctx (Int64.float_of_bits (Int64.of_int32 bits))));
+		r
+	| TConst (TFloat f), HF32 ->
+		let r = alloc_tmp ctx t in
+		let bits = Int32.bits_of_float (float_of_string f) in
+		op ctx (OFloat (r,alloc_float ctx (Int64.float_of_bits (Int64.of_int32 bits))));
+		r
+	*)
+	| _ ->
+		let r = eval_expr ctx e in
+		cast_to ctx r t e.epos
+
+and to_string ctx (r:reg) p =
+	let rt = rtype ctx r in
+	if safe_cast rt ctx.tstring then r else
+	match rt with
+	| HUI8 | HUI16 | HI32 ->
+		let len = alloc_tmp ctx HI32 in
+		hold ctx len;
+		let lref = alloc_tmp ctx (HRef HI32) in
+		let bytes = alloc_tmp ctx HBytes in
+		op ctx (ORef (lref,len));
+		op ctx (OCall2 (bytes,alloc_std ctx "itos" [HI32;HRef HI32] HBytes,cast_to ctx r HI32 p,lref));
+		let out = alloc_tmp ctx ctx.tstring in
+		op ctx (OCall2 (out,alloc_fun_path ctx ([],"String") "__alloc__",bytes,len));
+		free ctx len;
+		out
+	| HF32 | HF64 ->
+		let len = alloc_tmp ctx HI32 in
+		let lref = alloc_tmp ctx (HRef HI32) in
+		let bytes = alloc_tmp ctx HBytes in
+		op ctx (ORef (lref,len));
+		op ctx (OCall2 (bytes,alloc_std ctx "ftos" [HF64;HRef HI32] HBytes,cast_to ctx r HF64 p,lref));
+		let out = alloc_tmp ctx ctx.tstring in
+		op ctx (OCall2 (out,alloc_fun_path ctx ([],"String") "__alloc__",bytes,len));
+		out
+	| _ ->
+		let r = cast_to ctx r HDyn p in
+		let out = alloc_tmp ctx ctx.tstring in
+		op ctx (OJNotNull (r,2));
+		op ctx (ONull out);
+		op ctx (OJAlways 1);
+		op ctx (OCall1 (out,alloc_fun_path ctx ([],"Std") "string",r));
+		out
+
+and cast_to ?(force=false) ctx (r:reg) (t:ttype) p =
+	let rt = rtype ctx r in
+	if safe_cast rt t then r else
+	match rt, t with
+	| _, HVoid ->
+		al
