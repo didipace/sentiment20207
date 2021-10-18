@@ -908,4 +908,112 @@ let shl ctx idx v =
 		idx2;
 	end
 
-let 
+let set_default ctx r =
+	match rtype ctx r with
+	| HUI8 | HUI16 | HI32 | HI64 ->
+		op ctx (OInt (r,alloc_i32 ctx 0l))
+	| HF32 | HF64 ->
+		op ctx (OFloat (r,alloc_float ctx 0.))
+	| HBool ->
+		op ctx (OBool (r, false))
+	| HType ->
+		op ctx (OType (r, HVoid))
+	| _ ->
+		op ctx (ONull r)
+
+let read_mem ctx rdst bytes index t =
+	match t with
+	| HUI8 ->
+		op ctx (OGetUI8 (rdst,bytes,index))
+	| HUI16 ->
+		op ctx (OGetUI16 (rdst,bytes,index))
+	| HI32 | HI64 | HF32 | HF64 ->
+		op ctx (OGetMem (rdst,bytes,index))
+	| _ ->
+		die "" __LOC__
+
+let write_mem ctx bytes index t r =
+	match t with
+	| HUI8 ->
+		op ctx (OSetUI8 (bytes,index,r))
+	| HUI16 ->
+		op ctx (OSetUI16 (bytes,index,r))
+	| HI32 | HI64 | HF32 | HF64 ->
+		op ctx (OSetMem (bytes,index,r))
+	| _ ->
+		die "" __LOC__
+
+let common_type ctx e1 e2 for_eq p =
+	let t1 = to_type ctx e1.etype in
+	let t2 = to_type ctx e2.etype in
+	let rec loop t1 t2 =
+		if t1 == t2 then t1 else
+		match t1, t2 with
+		| HUI8, (HUI16 | HI32 | HI64 | HF32 | HF64) -> t2
+		| HUI16, (HI32 | HI64 | HF32 | HF64) -> t2
+		| (HI32 | HI64), HF32 -> t2 (* possible loss of precision *)
+		| (HI32 | HI64 | HF32), HF64 -> t2
+		| (HUI8|HUI16|HI32|HI64|HF32|HF64), (HUI8|HUI16|HI32|HI64|HF32|HF64) -> t1
+		| (HUI8|HUI16|HI32|HI64|HF32|HF64), (HNull t2) -> if for_eq then HNull (loop t1 t2) else loop t1 t2
+		| (HNull t1), (HUI8|HUI16|HI32|HI64|HF32|HF64) -> if for_eq then HNull (loop t1 t2) else loop t1 t2
+		| (HNull t1), (HNull t2) -> if for_eq then HNull (loop t1 t2) else loop t1 t2
+		| HDyn, (HUI8|HUI16|HI32|HI64|HF32|HF64) -> HF64
+		| (HUI8|HUI16|HI32|HI64|HF32|HF64), HDyn -> HF64
+		| HDyn, _ -> HDyn
+		| _, HDyn -> HDyn
+		| _ when for_eq && safe_cast t1 t2 -> t2
+		| _ when for_eq && safe_cast t2 t1 -> t1
+		| HBool, HNull HBool when for_eq -> t2
+		| HNull HBool, HBool when for_eq -> t1
+		| HObj _, HVirtual _ | HVirtual _, HObj _ | HVirtual _ , HVirtual _ -> HDyn
+		| HFun _, HFun _ -> HDyn
+		| _ ->
+			abort ("Don't know how to compare " ^ tstr t1 ^ " and " ^ tstr t2) p
+	in
+	loop t1 t2
+
+let captured_index ctx v =
+	if not (has_var_flag v VCaptured) then None else try Some (PMap.find v.v_id ctx.m.mcaptured.c_map) with Not_found -> None
+
+let real_name v =
+	let rec loop = function
+		| [] -> v.v_name
+		| (Meta.RealPath,[EConst (String(name,_)),_],_) :: _ -> name
+		| _ :: l -> loop l
+	in
+	match loop v.v_meta with
+	| "_gthis" -> "this"
+	| name -> name
+
+let is_gen_local ctx v = match v.v_kind with
+	| VUser _ -> false
+	| _ -> true
+
+let add_assign ctx v =
+	if is_gen_local ctx v then () else
+	let name = real_name v in
+	ctx.m.massign <- (alloc_string ctx name, current_pos ctx - 1) :: ctx.m.massign
+
+let add_capture ctx r =
+	Array.iter (fun v ->
+		let name = real_name v in
+		ctx.m.massign <- (alloc_string ctx name, -(r+2)) :: ctx.m.massign
+	) ctx.m.mcaptured.c_vars
+
+let before_return ctx =
+	let rec loop i =
+		if i > 0 then begin
+			op ctx (OEndTrap false);
+			loop (i - 1)
+		end
+	in
+	loop ctx.m.mtrys
+
+let before_break_continue ctx =
+	let rec loop i =
+		if i > 0 then begin
+			op ctx (OEndTrap false);
+			loop (i - 1)
+		end
+	in
+	loop (ctx
