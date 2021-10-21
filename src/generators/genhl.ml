@@ -1417,4 +1417,93 @@ and array_read ctx ra (at,vt) ridx p =
 		cast_to ctx r vt p
 	| HDyn ->
 		(* call getDyn *)
-		let
+		let r = alloc_tmp ctx HDyn in
+		op ctx (OCallMethod (r,0,[ra;ridx]));
+		unsafe_cast_to ctx r vt p
+	| _ ->
+		(* check bounds *)
+		hold ctx ridx;
+		let length = alloc_tmp ctx HI32 in
+		free ctx ridx;
+		op ctx (OField (length,ra,0));
+		let j = jump ctx (fun i -> OJULt (ridx,length,i)) in
+		let r = alloc_tmp ctx vt in
+		set_default ctx r;
+		let jend = jump ctx (fun i -> OJAlways i) in
+		j();
+		let tmp = alloc_tmp ctx HDyn in
+		let harr = alloc_tmp ctx HArray in
+		op ctx (OField (harr,ra,1));
+		op ctx (OGetArray (tmp,harr,ridx));
+		op ctx (OMov (r,unsafe_cast_to ctx tmp vt p));
+		jend();
+		r
+
+and jump_expr ctx e jcond =
+	match e.eexpr with
+	| TParenthesis e ->
+		jump_expr ctx e jcond
+	| TUnop (Not,_,e) ->
+		jump_expr ctx e (not jcond)
+	| TBinop (OpEq,{ eexpr = TConst(TNull) },e) | TBinop (OpEq,e,{ eexpr = TConst(TNull) }) ->
+		let r = eval_expr ctx e in
+		if is_nullable(rtype ctx r) then
+			jump ctx (fun i -> if jcond then OJNull (r,i) else OJNotNull (r,i))
+		else if not jcond then
+			jump ctx (fun i -> OJAlways i)
+		else
+			(fun i -> ())
+	| TBinop (OpNotEq,{ eexpr = TConst(TNull) },e) | TBinop (OpNotEq,e,{ eexpr = TConst(TNull) }) ->
+		let r = eval_expr ctx e in
+		if is_nullable(rtype ctx r) then
+			jump ctx (fun i -> if jcond then OJNotNull (r,i) else OJNull (r,i))
+		else if jcond then
+			jump ctx (fun i -> OJAlways i)
+		else
+			(fun i -> ())
+	| TBinop (OpEq | OpNotEq | OpGt | OpGte | OpLt | OpLte as jop, e1, e2) ->
+		let t = common_type ctx e1 e2 (match jop with OpEq | OpNotEq -> true | _ -> false) e.epos in
+		let r1 = eval_to ctx e1 t in
+		hold ctx r1;
+		let r2 = eval_to ctx e2 t in
+		free ctx r1;
+		let unsigned = unsigned_op e1 e2 in
+		jump ctx (fun i ->
+			let lt a b = if unsigned then OJULt (a,b,i) else if not jcond && is_float t then OJNotGte (a,b,i) else OJSLt (a,b,i) in
+			let gte a b = if unsigned then OJUGte (a,b,i) else if not jcond && is_float t then OJNotLt (a,b,i) else OJSGte (a,b,i) in
+			match jop with
+			| OpEq -> if jcond then OJEq (r1,r2,i) else OJNotEq (r1,r2,i)
+			| OpNotEq -> if jcond then OJNotEq (r1,r2,i) else OJEq (r1,r2,i)
+			| OpGt -> if jcond then lt r2 r1 else gte r2 r1
+			| OpGte -> if jcond then gte r1 r2 else lt r1 r2
+			| OpLt -> if jcond then lt r1 r2 else gte r1 r2
+			| OpLte -> if jcond then gte r2 r1 else lt r2 r1
+			| _ -> die "" __LOC__
+		)
+	| TBinop (OpBoolAnd, e1, e2) ->
+		let j = jump_expr ctx e1 false in
+		let j2 = jump_expr ctx e2 jcond in
+		if jcond then j();
+		(fun() -> if not jcond then j(); j2());
+	| TBinop (OpBoolOr, e1, e2) ->
+		let j = jump_expr ctx e1 true in
+		let j2 = jump_expr ctx e2 jcond in
+		if not jcond then j();
+		(fun() -> if jcond then j(); j2());
+	| _ ->
+		let r = eval_to ctx e HBool in
+		jump ctx (fun i -> if jcond then OJTrue (r,i) else OJFalse (r,i))
+
+and eval_args ctx el t p =
+	let rl = List.map2 (fun e t ->
+		let r = (match e.eexpr, t with
+		| TConst TNull, HRef _ ->
+			let r = alloc_tmp ctx t in
+			op ctx (ONull r);
+			r
+		| _ ->
+			eval_to ctx e t
+		) in
+		hold ctx r;
+		r
+	) el (match t with HFun (args,_) -> args | HDyn -> List.map (fun _ -> HDyn) el | _ -> d
