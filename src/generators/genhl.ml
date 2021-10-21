@@ -1331,4 +1331,90 @@ and get_access ctx e =
 	match e.eexpr with
 	| TField (ethis, a) ->
 		(match a, follow ethis.etype with
-		| FStatic (c,({ cf_
+		| FStatic (c,({ cf_kind = Var _ | Method MethDynamic } as f)), _ ->
+			let g, t = class_global ctx c in
+			AStaticVar (g, t, (match t with HObj o -> (try fst (get_index f.cf_name o) with Not_found -> die ~p:e.epos "" __LOC__) | _ -> die ~p:e.epos "" __LOC__))
+		| FStatic (c,({ cf_kind = Method _ } as f)), _ ->
+			AStaticFun (alloc_fid ctx c f)
+		| FClosure (Some (cdef,pl), f), TInst (c,_)
+		| FInstance (cdef,pl,f), TInst (c,_) when direct_method_call ctx c f ethis ->
+			(* cdef is the original definition, we want the last redefinition *)
+			let rec loop c =
+				if PMap.mem f.cf_name c.cl_fields then c else (match c.cl_super with None -> cdef | Some (c,_) -> loop c)
+			in
+			let last_def = loop c in
+			AInstanceFun (ethis, alloc_fid ctx (resolve_class ctx last_def pl false) f)
+		| (FInstance (cdef,pl,f) | FClosure (Some (cdef,pl), f)), _ ->
+			let rec loop t =
+				match follow t with
+				| TInst (c,pl) -> c, pl
+				| TAbstract (a,pl) -> loop (Abstract.get_underlying_type a pl)
+				| _ -> abort (s_type (print_context()) ethis.etype ^ " hl type should be interface") ethis.epos
+			in
+			let cdef, pl = if (has_class_flag cdef CInterface) then loop ethis.etype else cdef,pl in
+			object_access ctx ethis (class_type ctx cdef pl false) f
+		| (FAnon f | FClosure(None,f)), _ ->
+			object_access ctx ethis (to_type ctx ethis.etype) f
+		| FDynamic name, _ ->
+			ADynamic (ethis, alloc_string ctx name)
+		| FEnum (e,ef), _ ->
+			(match follow ef.ef_type with
+			| TFun _ -> AEnum (e,ef.ef_index)
+			| t -> AGlobal (alloc_global ctx (efield_name e ef) (to_type ctx t))))
+	| TLocal v ->
+		(match captured_index ctx v with
+		| None -> ALocal (v, alloc_var ctx v false)
+		| Some idx -> ACaptured idx)
+	| TParenthesis e ->
+		get_access ctx e
+	| TArray (a,i) ->
+		let rec loop t =
+			match follow t with
+			| TInst({ cl_path = [],"Array" },[t]) ->
+				let a = eval_null_check ctx a in
+				hold ctx a;
+				let i = eval_to ctx i HI32 in
+				free ctx a;
+				let t = to_type ctx t in
+				AArray (a,(t,t),i)
+			| TAbstract (a,pl) ->
+				loop (Abstract.get_underlying_type a pl)
+			| _ ->
+				let a = eval_to ctx a (class_type ctx ctx.array_impl.adyn [] false) in
+				op ctx (ONullCheck a);
+				hold ctx a;
+				let i = eval_to ctx i HI32 in
+				free ctx a;
+				AArray (a,(HDyn,to_type ctx e.etype),i)
+		in
+		loop a.etype
+	| _ ->
+		ANone
+
+and array_read ctx ra (at,vt) ridx p =
+	match at with
+	| HUI8 | HUI16 | HI32 | HF32 | HF64 ->
+		(* check bounds *)
+		hold ctx ridx;
+		let length = alloc_tmp ctx HI32 in
+		free ctx ridx;
+		op ctx (OField (length, ra, 0));
+		let j = jump ctx (fun i -> OJULt (ridx,length,i)) in
+		let r = alloc_tmp ctx (match at with HUI8 | HUI16 -> HI32 | _ -> at) in
+		(match at with
+		| HUI8 | HUI16 | HI32 ->
+			op ctx (OInt (r,alloc_i32 ctx 0l));
+		| HF32 | HF64 ->
+			op ctx (OFloat (r,alloc_float ctx 0.));
+		| _ ->
+			die "" __LOC__);
+		let jend = jump ctx (fun i -> OJAlways i) in
+		j();
+		let hbytes = alloc_tmp ctx HBytes in
+		op ctx (OField (hbytes, ra, 1));
+		read_mem ctx r hbytes (shl ctx ridx (type_size_bits at)) at;
+		jend();
+		cast_to ctx r vt p
+	| HDyn ->
+		(* call getDyn *)
+		let
