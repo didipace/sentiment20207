@@ -1218,4 +1218,117 @@ and cast_to ?(force=false) ctx (r:reg) (t:ttype) p =
 		let tmp = alloc_tmp ctx t in
 		op ctx (OToInt (tmp, i));
 		tmp
-	| HFun (args1,ret1), HFun (args2, ret2) whe
+	| HFun (args1,ret1), HFun (args2, ret2) when List.length args1 = List.length args2 ->
+		let fid = gen_method_wrapper ctx rt t p in
+		let fr = alloc_tmp ctx t in
+		op ctx (OJNotNull (r,2));
+		op ctx (ONull fr);
+		op ctx (OJAlways 1);
+		op ctx (OInstanceClosure (fr,fid,r));
+		fr
+	| HObj _, HObj _ when is_array_type rt && is_array_type t ->
+		let out = alloc_tmp ctx t in
+		op ctx (OSafeCast (out, r));
+		out
+	| HNull _, HRef t2 ->
+		let out = alloc_tmp ctx t in
+		op ctx (OJNotNull (r,2));
+		op ctx (ONull out);
+		let j = jump ctx (fun n -> OJAlways n) in
+		let r = cast_to ctx r t2 p in
+		let r2 = alloc_tmp ctx t2 in
+		op ctx (OMov (r2, r));
+		hold ctx r2; (* retain *)
+		op ctx (ORef (out,r2));
+		j();
+		out
+	| _, HRef t2 ->
+		let r = cast_to ctx r t2 p in
+		let r2 = alloc_tmp ctx t2 in
+		op ctx (OMov (r2, r));
+		hold ctx r2; (* retain *)
+		let out = alloc_tmp ctx t in
+		op ctx (ORef (out,r2));
+		out
+	| _ ->
+		if force then
+			let out = alloc_tmp ctx t in
+			op ctx (OSafeCast (out, r));
+			out
+		else
+			abort ("Don't know how to cast " ^ tstr rt ^ " to " ^ tstr t) p
+
+and unsafe_cast_to ?(debugchk=true) ctx (r:reg) (t:ttype) p =
+	let rt = rtype ctx r in
+	if safe_cast rt t then
+		r
+	else
+	match rt with
+	| HFun _ ->
+		cast_to ctx r t p
+	| HDyn when is_array_type t ->
+		cast_to ctx r t p
+	| (HDyn | HObj _) when (match t with HVirtual _ -> true | _ -> false) ->
+		cast_to ctx r t p
+	| HObj _ when is_array_type rt && is_array_type t ->
+		cast_to ctx r t p
+	| HVirtual _ when (match t with HObj _ | HVirtual _ -> true | _ -> false) ->
+		cast_to ~force:true ctx r t p
+	| _ ->
+		if is_dynamic (rtype ctx r) && is_dynamic t then
+			let r2 = alloc_tmp ctx t in
+			op ctx (OUnsafeCast (r2,r));
+			if ctx.com.debug && debugchk then begin
+				hold ctx r2;
+				let r3 = cast_to ~force:true ctx r t p in
+				let j = jump ctx (fun n -> OJEq (r2,r3,n)) in
+				op ctx (OAssert 0);
+				j();
+				free ctx r2;
+			end;
+			r2
+		else
+			cast_to ~force:true ctx r t p
+
+and object_access ctx eobj t f =
+	match t with
+	| HObj p | HStruct p ->
+		(try
+			let fid = fst (get_index f.cf_name p) in
+			if f.cf_kind = Method MethNormal then
+				AInstanceProto (eobj, -fid-1)
+			else
+				AInstanceField (eobj, fid)
+		with Not_found ->
+			ADynamic (eobj, alloc_string ctx f.cf_name))
+	| HVirtual v ->
+		(try
+			let fid = PMap.find f.cf_name v.vindex in
+			if f.cf_kind = Method MethNormal then
+				AVirtualMethod (eobj, fid)
+			else
+				AInstanceField (eobj, fid)
+		with Not_found ->
+			ADynamic (eobj, alloc_string ctx f.cf_name))
+	| HDyn ->
+		ADynamic (eobj, alloc_string ctx f.cf_name)
+	| _ ->
+		abort ("Unsupported field access " ^ tstr t) eobj.epos
+
+and direct_method_call ctx c f ethis =
+	if (match f.cf_kind with Method m -> m = MethDynamic | Var _ -> true) then
+		false
+	else if (has_class_flag c CInterface) then
+		false
+	else if (match c.cl_kind with KTypeParameter _ ->  true | _ -> false) then
+		false
+	else if is_overridden ctx c f && ethis.eexpr <> TConst(TSuper) then
+		false
+	else
+		true
+
+and get_access ctx e =
+	match e.eexpr with
+	| TField (ethis, a) ->
+		(match a, follow ethis.etype with
+		| FStatic (c,({ cf_
