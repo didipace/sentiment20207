@@ -1506,4 +1506,126 @@ and eval_args ctx el t p =
 		) in
 		hold ctx r;
 		r
-	) el (match t with HFun (args,_) -> args | HDyn -> List.map (fun _ -> HDyn) el | _ -> d
+	) el (match t with HFun (args,_) -> args | HDyn -> List.map (fun _ -> HDyn) el | _ -> die "" __LOC__) in
+	List.iter (free ctx) rl;
+	set_curpos ctx p;
+	rl
+
+and eval_null_check ctx e =
+	let r = eval_expr ctx e in
+	(match e.eexpr with
+	| TConst TThis | TConst TSuper -> ()
+	| _ -> op ctx (ONullCheck r));
+	r
+
+and make_const ctx c p =
+	let cidx = lookup ctx.cconstants c (fun() ->
+		let fields, t = (match c with
+		| CString s ->
+			let str, len = to_utf8 s p in
+			[alloc_string ctx str; alloc_i32 ctx (Int32.of_int len)], ctx.tstring
+		) in
+		let g = lookup_alloc ctx.cglobals t in
+		g, Array.of_list fields
+	) in
+	let g, _ = DynArray.get ctx.cconstants.arr cidx in
+	g
+
+and make_string ctx s p =
+	let r = alloc_tmp ctx ctx.tstring in
+	op ctx (OGetGlobal (r, make_const ctx (CString s) p));
+	r
+
+and get_enum_index ctx v =
+	let r = alloc_tmp ctx HI32 in
+	let re = eval_expr ctx v in
+	op ctx (ONullCheck re);
+	op ctx (OEnumIndex (r,re));
+	r
+
+and eval_var ctx v =
+	match captured_index ctx v with
+	| None -> alloc_var ctx v false
+	| Some idx ->
+		let r = alloc_tmp ctx (to_type ctx v.v_type) in
+		op ctx (OEnumField (r,ctx.m.mcaptreg,0,idx));
+		r
+
+and eval_expr ctx e =
+	set_curpos ctx e.epos;
+	match e.eexpr with
+	| TConst c ->
+		(match c with
+		| TInt i ->
+			let r = alloc_tmp ctx HI32 in
+			op ctx (OInt (r,alloc_i32 ctx i));
+			r
+		| TFloat f ->
+			let r = alloc_tmp ctx HF64 in
+			op ctx (OFloat (r,alloc_float ctx (float_of_string f)));
+			r
+		| TBool b ->
+			let r = alloc_tmp ctx HBool in
+			op ctx (OBool (r,b));
+			r
+		| TString s ->
+			make_string ctx s e.epos
+		| TThis | TSuper ->
+			0 (* first reg *)
+		| TNull ->
+			let r = alloc_tmp ctx (to_type ctx e.etype) in
+			op ctx (ONull r);
+			r)
+	| TVar (v,e) ->
+		(match e with
+		| None ->
+			if captured_index ctx v = None then decl_var ctx v
+		| Some e ->
+			let ri = eval_to ctx e (to_type ctx v.v_type) in
+			match captured_index ctx v with
+			| None ->
+				let r = alloc_var ctx v true in
+				push_op ctx (OMov (r,ri));
+				add_assign ctx v;
+			| Some idx ->
+				op ctx (OSetEnumField (ctx.m.mcaptreg, idx, ri));
+		);
+		alloc_tmp ctx HVoid
+	| TLocal v ->
+		cast_to ctx (match captured_index ctx v with
+		| None ->
+			(* we need to make a copy for cases such as (a - a++) *)
+			let r = alloc_var ctx v false in
+			let r2 = alloc_tmp ctx (rtype ctx r) in
+			op ctx (OMov (r2, r));
+			r2
+		| Some idx ->
+			let r = alloc_tmp ctx (to_type ctx v.v_type) in
+			op ctx (OEnumField (r, ctx.m.mcaptreg, 0, idx));
+			r) (to_type ctx e.etype) e.epos
+	| TReturn None ->
+		before_return ctx;
+		let r = alloc_tmp ctx HVoid in
+		op ctx (ORet r);
+		alloc_tmp ctx HDyn
+	| TReturn (Some e) ->
+		let r = eval_to ctx e ctx.m.mret in
+		before_return ctx;
+		op ctx (ORet r);
+		alloc_tmp ctx HDyn
+	| TParenthesis e ->
+		eval_expr ctx e
+	| TBlock el ->
+		let rec loop = function
+			| [e] -> eval_expr ctx e
+			| [] -> alloc_tmp ctx HVoid
+			| e :: l ->
+				ignore(eval_expr ctx e);
+				loop l
+		in
+		let old = ctx.m.mdeclared in
+		ctx.m.mdeclared <- [];
+		let r = loop el in
+		List.iter (fun vid ->
+			let r = try Hashtbl.find ctx.m.mvars vid with Not_found -> -1 in
+			if r >= 0 then 
