@@ -1740,4 +1740,122 @@ and eval_expr ctx e =
 				| HI64 | HF64 -> 3
 				| t -> abort ("Unsupported basic type " ^ tstr t) e.epos)
 			| _ ->
-				abort "Invalid By
+				abort "Invalid BytesAccess" eb.epos);
+		| "$bytes_nullvalue", [eb] ->
+			(match follow eb.etype with
+			| TAbstract({a_path = ["hl"],"BytesAccess"},[t]) ->
+				let t = to_type ctx t in
+				let r = alloc_tmp ctx t in
+				(match t with
+				| HUI8 | HUI16 | HI32 | HI64 ->
+					op ctx (OInt (r,alloc_i32 ctx 0l))
+				| HF32 | HF64 ->
+					op ctx (OFloat (r, alloc_float ctx 0.))
+				| t ->
+					abort ("Unsupported basic type " ^ tstr t) e.epos);
+				r
+			| _ ->
+				abort "Invalid BytesAccess" eb.epos);
+		| "$bget", [eb;pos] ->
+			(match follow eb.etype with
+			| TAbstract({a_path = ["hl"],"BytesAccess"},[t]) ->
+				let b = eval_to ctx eb HBytes in
+				hold ctx b;
+				let pos = eval_to ctx pos HI32 in
+				free ctx b;
+				let t = to_type ctx t in
+				(match t with
+				| HUI8 ->
+					let r = alloc_tmp ctx HI32 in
+					op ctx (OGetUI8 (r, b, pos));
+					r
+				| HUI16 ->
+					let r = alloc_tmp ctx HI32 in
+					op ctx (OGetUI16 (r, b, shl ctx pos 1));
+					r
+				| HI32 ->
+					let r = alloc_tmp ctx HI32 in
+					op ctx (OGetMem (r, b, shl ctx pos 2));
+					r
+				| HI64 ->
+					let r = alloc_tmp ctx HI64 in
+					op ctx (OGetMem (r, b, shl ctx pos 3));
+					r
+				| HF32 ->
+					let r = alloc_tmp ctx HF32 in
+					op ctx (OGetMem (r, b, shl ctx pos 2));
+					r
+				| HF64 ->
+					let r = alloc_tmp ctx HF64 in
+					op ctx (OGetMem (r, b, shl ctx pos 3));
+					r
+				| _ ->
+					abort ("Unsupported basic type " ^ tstr t) e.epos)
+			| _ ->
+				abort "Invalid BytesAccess" eb.epos);
+		| "$bset", [eb;pos;value] ->
+			(match follow eb.etype with
+			| TAbstract({a_path = ["hl"],"BytesAccess"},[t]) ->
+				let b = eval_to ctx eb HBytes in
+				hold ctx b;
+				let pos = eval_to ctx pos HI32 in
+				hold ctx pos;
+				let t = to_type ctx t in
+				let v = (match t with
+				| HUI8 ->
+					let v = eval_to ctx value HI32 in
+					op ctx (OSetUI8 (b, pos, v));
+					v
+				| HUI16 ->
+					let v = eval_to ctx value HI32 in
+					hold ctx v;
+					op ctx (OSetUI16 (b, shl ctx pos 1, v));
+					free ctx v;
+					v
+				| HI32 ->
+					let v = eval_to ctx value HI32 in
+					hold ctx v;
+					op ctx (OSetMem (b, shl ctx pos 2, v));
+					free ctx v;
+					v
+				| HI64 ->
+					let v = eval_to ctx value HI64 in
+					hold ctx v;
+					op ctx (OSetMem (b, shl ctx pos 3, v));
+					free ctx v;
+					v
+				| HF32 ->
+					let v = eval_to ctx value HF32 in
+					hold ctx v;
+					op ctx (OSetMem (b, shl ctx pos 2, v));
+					free ctx v;
+					v
+				| HF64 ->
+					let v = eval_to ctx value HF64 in
+					hold ctx v;
+					op ctx (OSetMem (b, shl ctx pos 3, v));
+					free ctx v;
+					v
+				| _ ->
+					abort ("Unsupported basic type " ^ tstr t) e.epos
+				) in
+				free ctx b;
+				free ctx pos;
+				v
+			| _ ->
+				abort "Invalid BytesAccess" eb.epos);
+		| "$bgetui8", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HI32 in
+			op ctx (OGetUI8 (r, b, pos));
+			r
+		| "$bgetui16", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HI32 in
+			op ct
