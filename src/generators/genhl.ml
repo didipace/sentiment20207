@@ -1628,4 +1628,116 @@ and eval_expr ctx e =
 		let r = loop el in
 		List.iter (fun vid ->
 			let r = try Hashtbl.find ctx.m.mvars vid with Not_found -> -1 in
-			if r >= 0 then 
+			if r >= 0 then begin
+				Hashtbl.remove ctx.m.mvars vid;
+				free ctx r;
+			end
+		) ctx.m.mdeclared;
+		ctx.m.mdeclared <- old;
+		r
+	| TCall ({ eexpr = TConst TSuper } as s, el) ->
+		(match follow s.etype with
+		| TInst (csup,_) ->
+			(match csup.cl_constructor with
+			| None -> die "" __LOC__
+			| Some f ->
+				let r = alloc_tmp ctx HVoid in
+				let el = eval_args ctx el (to_type ctx f.cf_type) e.epos in
+				op ctx (OCallN (r, alloc_fid ctx csup f, 0 :: el));
+				r
+			)
+		| _ -> die "" __LOC__);
+	| TCall ({ eexpr = TIdent s }, el) when s.[0] = '$' ->
+		let invalid() = abort "Invalid native call" e.epos in
+		(match s, el with
+		| "$new", [{ eexpr = TTypeExpr (TClassDecl _) }] ->
+			(match follow e.etype with
+			| TInst (c,pl) ->
+				let r = alloc_tmp ctx (class_type ctx c pl false) in
+				op ctx (ONew r);
+				r
+			| _ ->
+				invalid())
+		| "$int", [{ eexpr = TBinop (OpDiv, e1, e2) }] when is_int (to_type ctx e1.etype) && is_int (to_type ctx e2.etype) ->
+			let tmp = alloc_tmp ctx HI32 in
+			let r1 = eval_to ctx e1 HI32 in
+			hold ctx r1;
+			let r2 = eval_to ctx e2 HI32 in
+			free ctx r1;
+			op ctx (if unsigned_op e1 e2 then OUDiv (tmp,r1,r2) else OSDiv (tmp, r1, r2));
+			tmp
+		| "$int", [e] ->
+			let tmp = alloc_tmp ctx HI32 in
+			op ctx (OToInt (tmp, eval_expr ctx e));
+			tmp
+		| "$bsetui8", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HI32 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetUI8 (b, pos, r));
+			r
+		| "$bsetui16", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HI32 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetUI16 (b, pos, r));
+			r
+		| "$bseti32", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HI32 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetMem (b, pos, r));
+			r
+		| "$bseti64", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HI64 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetMem (b, pos, r));
+			r
+		| "$bsetf32", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HF32 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetMem (b, pos, r));
+			r
+		| "$bsetf64", [b;pos;v] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx v HF64 in
+			free ctx pos;
+			free ctx b;
+			op ctx (OSetMem (b, pos, r));
+			r
+		| "$bytes_sizebits", [eb] ->
+			(match follow eb.etype with
+			| TAbstract({a_path = ["hl"],"BytesAccess"},[t]) ->
+				reg_int ctx (match to_type ctx t with
+				| HUI8 -> 0
+				| HUI16 -> 1
+				| HI32 | HF32 -> 2
+				| HI64 | HF64 -> 3
+				| t -> abort ("Unsupported basic type " ^ tstr t) e.epos)
+			| _ ->
+				abort "Invalid By
