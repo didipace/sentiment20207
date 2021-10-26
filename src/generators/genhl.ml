@@ -1858,4 +1858,101 @@ and eval_expr ctx e =
 			let pos = eval_to ctx pos HI32 in
 			free ctx b;
 			let r = alloc_tmp ctx HI32 in
-			op ct
+			op ctx (OGetUI16 (r, b, pos));
+			r
+		| "$bgeti32", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HI32 in
+			op ctx (OGetMem (r, b, pos));
+			r
+		| "$bgeti64", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HI64 in
+			op ctx (OGetMem (r, b, pos));
+			r
+		| "$bgetf32", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HF32 in
+			op ctx (OGetMem (r, b, pos));
+			r
+		| "$bgetf64", [b;pos] ->
+			let b = eval_to ctx b HBytes in
+			hold ctx b;
+			let pos = eval_to ctx pos HI32 in
+			free ctx b;
+			let r = alloc_tmp ctx HF64 in
+			op ctx (OGetMem (r, b, pos));
+			r
+		| "$asize", [e] ->
+			let r = alloc_tmp ctx HI32 in
+			op ctx (OArraySize (r, eval_to ctx e HArray));
+			r
+		| "$aalloc", [esize] ->
+			let et = (match follow e.etype with TAbstract ({ a_path = ["hl"],"NativeArray" },[t]) -> to_type ctx t | _ -> invalid()) in
+			let size = eval_to ctx esize HI32 in
+			let a = alloc_tmp ctx HArray in
+			let rt = alloc_tmp ctx HType in
+			op ctx (OType (rt,et));
+			op ctx (OCall2 (a,alloc_std ctx "alloc_array" [HType;HI32] HArray,rt,size));
+			a
+		| "$aget", [a; pos] ->
+			(*
+				read/write on arrays are unsafe : the type of NativeArray needs to be correcly set.
+			*)
+			let at = (match follow a.etype with TAbstract ({ a_path = ["hl"],"NativeArray" },[t]) -> to_type ctx t | _ -> invalid()) in
+			let arr = eval_to ctx a HArray in
+			hold ctx arr;
+			let pos = eval_to ctx pos HI32 in
+			free ctx arr;
+			let r = alloc_tmp ctx at in
+			op ctx (OGetArray (r, arr, pos));
+			cast_to ctx r (to_type ctx e.etype) e.epos
+		| "$aset", [a; pos; value] ->
+			let et = (match follow a.etype with TAbstract ({ a_path = ["hl"],"NativeArray" },[t]) -> to_type ctx t | _ -> invalid()) in
+			let arr = eval_to ctx a HArray in
+			hold ctx arr;
+			let pos = eval_to ctx pos HI32 in
+			hold ctx pos;
+			let r = eval_to ctx value et in
+			free ctx pos;
+			free ctx arr;
+			op ctx (OSetArray (arr, pos, r));
+			r
+		| "$abytes", [a] ->
+			(match follow a.etype with
+			| TInst ({ cl_path = [], "Array" },[t]) when is_number (to_type ctx t) ->
+				let a = eval_expr ctx a in
+				let r = alloc_tmp ctx HBytes in
+				op ctx (ONullCheck a);
+				op ctx (OField (r,a,1));
+				r
+			| t ->
+				abort ("Invalid array type " ^ s_type (print_context()) t) a.epos)
+		| "$ref", [v] ->
+			(match v.eexpr with
+			| TLocal v ->
+				let r = alloc_tmp ctx (to_type ctx e.etype) in
+				let rv = (match rtype ctx r with HRef t -> alloc_var ctx v false | _ -> invalid()) in
+				hold ctx rv; (* infinite hold *)
+				op ctx (ORef (r,rv));
+				r
+			| _ ->
+				abort "Ref should be a local variable" v.epos)
+		| "$setref", [e1;e2] ->
+			let rec loop e = match e.eexpr with
+				| TParenthesis e1 | TMeta(_,e1) | TCast(e1,None) -> loop e1
+				| TLocal v -> v
+				| _ -> invalid()
+			in
+			let v = loop e1 in
+			let r = alloc_var ctx v false in
+			let rv = eval_to ctx e2 (match 
