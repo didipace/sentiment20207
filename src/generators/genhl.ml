@@ -1955,4 +1955,90 @@ and eval_expr ctx e =
 			in
 			let v = loop e1 in
 			let r = alloc_var ctx v false in
-			let rv = eval_to ctx e2 (match 
+			let rv = eval_to ctx e2 (match rtype ctx r with HRef t -> t | _ -> invalid()) in
+			op ctx (OSetref (r,rv));
+			r
+		| "$unref", [e1] ->
+			let rec loop e = match e.eexpr with
+				| TParenthesis e1 | TMeta(_,e1) | TCast(e1,None) -> loop e1
+				| TLocal v -> v
+				| _ -> invalid()
+			in
+			let v = loop e1 in
+			let r = alloc_var ctx v false in
+			let out = alloc_tmp ctx (match rtype ctx r with HRef t -> t | _ -> invalid()) in
+			op ctx (OUnref (out,r));
+			out
+		| "$refdata", [e1] ->
+			let v = eval_expr ctx e1 in
+			let r = alloc_tmp ctx (match to_type ctx e.etype with HRef _ as t -> t | _ -> invalid()) in
+			op ctx (ORefData (r,v));
+			r
+		| "$refoffset", [r;e1] ->
+			let r = eval_expr ctx r in
+			let e = eval_to ctx e1 HI32 in
+			let r2 = alloc_tmp ctx (match rtype ctx r with HRef _ as t -> t | _ -> invalid()) in
+			op ctx (ORefOffset (r2,r,e));
+			r2
+		| "$ttype", [v] ->
+			let r = alloc_tmp ctx HType in
+			op ctx (OType (r,to_type ctx v.etype));
+			r
+		| "$tdyntype", [v] ->
+			let r = alloc_tmp ctx HType in
+			op ctx (OGetType (r,eval_to ctx v HDyn));
+			r
+		| "$tkind", [v] ->
+			let r = alloc_tmp ctx HI32 in
+			op ctx (OGetTID (r,eval_to ctx v HType));
+			r
+		| "$resources", [] ->
+			let tdef = (try List.find (fun t -> (t_infos t).mt_path = (["haxe";"_Resource"],"ResourceContent")) ctx.com.types with Not_found -> die "" __LOC__) in
+			let t = class_type ctx (match tdef with TClassDecl c -> c | _ -> die "" __LOC__) [] false in
+			let arr = alloc_tmp ctx HArray in
+			let rt = alloc_tmp ctx HType in
+			op ctx (OType (rt,t));
+			let res = Hashtbl.fold (fun k v acc -> (k,v) :: acc) ctx.com.resources [] in
+			let size = reg_int ctx (List.length res) in
+			op ctx (OCall2 (arr,alloc_std ctx "alloc_array" [HType;HI32] HArray,rt,size));
+			let ro = alloc_tmp ctx t in
+			let rb = alloc_tmp ctx HBytes in
+			let ridx = reg_int ctx 0 in
+			hold ctx ridx;
+			let has_len = (match t with HObj p -> PMap.mem "dataLen" p.pindex | _ -> die "" __LOC__) in
+			list_iteri (fun i (k,v) ->
+				op ctx (ONew ro);
+				op ctx (OString (rb,alloc_string ctx k));
+				op ctx (OSetField (ro,0,rb));
+				(* fix for Resource.getString *)
+				let str = try ignore(String.index v '\x00'); v with Not_found -> v ^ "\x00" in
+				op ctx (OBytes (rb,alloc_bytes ctx (Bytes.of_string str)));
+				op ctx (OSetField (ro,1,rb));
+				if has_len then op ctx (OSetField (ro,2,reg_int ctx (String.length v)));
+				op ctx (OSetArray (arr,ridx,ro));
+				op ctx (OIncr ridx);
+			) res;
+			free ctx ridx;
+			arr
+		| "$rethrow", [v] ->
+			let r = alloc_tmp ctx HVoid in
+			op ctx (ORethrow (eval_to ctx v HDyn));
+			r
+		| "$allTypes", [] ->
+			let r = alloc_tmp ctx (to_type ctx e.etype) in
+			op ctx (OGetGlobal (r, alloc_global ctx "__types__" (rtype ctx r)));
+			r
+		| "$allTypes", [v] ->
+			let v = eval_expr ctx v in
+			op ctx (OSetGlobal (alloc_global ctx "__types__" (rtype ctx v), v));
+			v
+		| "$hash", [v] ->
+			(match v.eexpr with
+			| TConst (TString str) ->
+				let r = alloc_tmp ctx HI32 in
+				op ctx (OInt (r,alloc_i32 ctx (hl_hash str)));
+				r
+			| _ -> abort "Constant string required" v.epos)
+		| "$enumIndex", [v] ->
+			get_enum_index ctx v
+		| "$__mk_pos__", [{ eexpr = TConst (TString file) };mi
