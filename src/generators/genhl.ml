@@ -2110,4 +2110,88 @@ and eval_expr ctx e =
 		| AInstanceProto ({ eexpr = TConst TThis }, fid) ->
 			op ctx (OCallThis (ret, fid, el()))
 		| AInstanceProto (ethis, fid) | AVirtualMethod (ethis, fid) ->
-			let 
+			let r = eval_null_check ctx ethis in
+			hold ctx r;
+			let el = r :: el() in
+			free ctx r;
+			op ctx (OCallMethod (ret, fid, el))
+		| AEnum (_,index) ->
+			op ctx (OMakeEnum (ret, index, el()))
+		| AArray (a,t,idx) ->
+			let r = array_read ctx a t idx ec.epos in
+			hold ctx r;
+			op ctx (ONullCheck r);
+			op ctx (OCallClosure (ret, r, el())); (* if it's a value, it's a closure *)
+			free ctx r;
+		| _ ->
+			(* don't use real_type here *)
+			let tfun = to_type ctx ec.etype in
+			let r = eval_null_check ctx ec in
+			hold ctx r;
+			let el = eval_args ctx args tfun e.epos in
+			free ctx r;
+			let ret = alloc_tmp ctx (match tfun with HFun (_,r) -> r | _ -> HDyn) in
+			op ctx (OCallClosure (ret, r, el)); (* if it's a value, it's a closure *)
+			def_ret := Some (cast_to ~force:true ctx ret (to_type ctx e.etype) e.epos);
+		);
+		(match !def_ret with
+		| None ->
+			let rt = to_type ctx e.etype in
+			let is_valid_method t =
+				match follow t with
+				| TFun (_,rt) ->
+					(match follow rt with
+					| TInst({ cl_kind = KTypeParameter tl },_) ->
+						(* don't allow if we have a constraint virtual, see hxbit.Serializer.getRef *)
+						not (List.exists (fun t -> match to_type ctx t with HVirtual _ -> true | _ -> false) tl)
+					| _ -> false)
+				| _ ->
+					false
+			in
+			(match ec.eexpr with
+			| TField (_, FInstance(_,_,{ cf_kind = Method (MethNormal|MethInline); cf_type = t })) when is_valid_method t ->
+				(* let's trust the compiler when it comes to casting the return value from a type parameter *)
+				unsafe_cast_to ctx ret rt e.epos
+			| _ ->
+				cast_to ~force:true ctx ret rt e.epos)
+		| Some r ->
+			r)
+	| TField (ec,FInstance({ cl_path = [],"Array" },[t],{ cf_name = "length" })) when to_type ctx t = HDyn ->
+		let r = alloc_tmp ctx HI32 in
+		op ctx (OCall1 (r,alloc_fun_path ctx (["hl";"types"],"ArrayDyn") "get_length", eval_null_check ctx ec));
+		r
+	| TField (ec,a) ->
+		let r = alloc_tmp ctx (to_type ctx (field_type ctx a e.epos)) in
+		(match get_access ctx e with
+		| AGlobal g ->
+			op ctx (OGetGlobal (r,g));
+		| AStaticVar (g,t,fid) ->
+			let o = alloc_tmp ctx t in
+			op ctx (OGetGlobal (o,g));
+			op ctx (OField (r,o,fid));
+		| AStaticFun f ->
+			op ctx (OStaticClosure (r,f));
+		| AInstanceFun (ethis, f) ->
+			op ctx (OInstanceClosure (r, f, eval_null_check ctx ethis))
+		| AInstanceField (ethis,fid) ->
+			let robj = eval_null_check ctx ethis in
+			op ctx (match ethis.eexpr with TConst TThis -> OGetThis (r,fid) | _ -> OField (r,robj,fid));
+		| AInstanceProto (ethis,fid) | AVirtualMethod (ethis, fid) ->
+			let robj = eval_null_check ctx ethis in
+			(match rtype ctx robj with
+			| HObj _ ->
+				op ctx (OVirtualClosure (r,robj,fid))
+			| HVirtual vp ->
+				let _, sid, _ = vp.vfields.(fid) in
+				op ctx (ODynGet (r,robj, sid))
+			| _ ->
+				die "" __LOC__)
+		| ADynamic (ethis, f) ->
+			let robj = eval_null_check ctx ethis in
+			op ctx (ODynGet (r,robj,f))
+		| AEnum (en,index) ->
+			let cur_fid = DynArray.length ctx.cfids.arr in
+			let name = List.nth en.e_names index in
+			let fid = alloc_fun_path ctx en.e_path name in
+			if fid = cur_fid then begin
+				let ef = PMap.
