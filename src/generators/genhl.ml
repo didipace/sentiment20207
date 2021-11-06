@@ -2270,4 +2270,85 @@ and eval_expr ctx e =
 		let t = to_type ctx e.etype in
 		let out = alloc_tmp ctx t in
 		let j = jump_expr ctx cond false in
-		let 
+		let rif = if t = HVoid then eval_expr ctx eif else eval_to ctx eif t in
+		set_curpos ctx (max_pos eif);
+		if t <> HVoid then op ctx (OMov (out,rif));
+		(match eelse with
+		| None -> j()
+		| Some e ->
+			let jexit = jump ctx (fun i -> OJAlways i) in
+			j();
+			if t = HVoid then ignore(eval_expr ctx e) else op ctx (OMov (out,eval_to ctx e t));
+			jexit());
+		out
+	| TBinop (bop, e1, e2) ->
+		let is_unsigned() = unsigned_op e1 e2 in
+		let boolop r f =
+			let j = jump ctx f in
+			op ctx (OBool (r,false));
+			op ctx (OJAlways 1);
+			j();
+			op ctx (OBool (r, true));
+		in
+		let binop r a b =
+			let rec loop bop =
+				match bop with
+				| OpLte -> boolop r (fun d -> if is_unsigned() then OJUGte (b,a,d) else OJSLte (a,b,d))
+				| OpGt -> boolop r (fun d -> if is_unsigned() then OJULt (b,a,d) else OJSGt (a,b,d))
+				| OpGte -> boolop r (fun d -> if is_unsigned() then OJUGte (a,b,d) else OJSGte (a,b,d))
+				| OpLt -> boolop r (fun d -> if is_unsigned() then OJULt (a,b,d) else OJSLt (a,b,d))
+				| OpEq -> boolop r (fun d -> OJEq (a,b,d))
+				| OpNotEq -> boolop r (fun d -> OJNotEq (a,b,d))
+				| OpAdd ->
+					(match rtype ctx r with
+					| HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64 ->
+						op ctx (OAdd (r,a,b))
+					| HObj { pname = "String" } ->
+						op ctx (OCall2 (r,alloc_fun_path ctx ([],"String") "__add__",to_string ctx a e1.epos,to_string ctx b e2.epos))
+					| HDyn ->
+						op ctx (OCall2 (r,alloc_fun_path ctx ([],"Std") "__add__",a,b))
+					| t ->
+						abort ("Cannot add " ^ tstr t) e.epos)
+				| OpSub | OpMult | OpMod | OpDiv ->
+					(match rtype ctx r with
+					| HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64 ->
+						(match bop with
+						| OpSub -> op ctx (OSub (r,a,b))
+						| OpMult -> op ctx (OMul (r,a,b))
+						| OpMod -> op ctx (if unsigned e1.etype then OUMod (r,a,b) else OSMod (r,a,b))
+						| OpDiv -> op ctx (OSDiv (r,a,b)) (* don't use UDiv since both operands are float already *)
+						| _ -> die "" __LOC__)
+					| HDyn ->
+						op ctx (OCall3 (r, alloc_std ctx "dyn_op" [HI32;HDyn;HDyn] HDyn, reg_int ctx (match bop with OpSub -> 1 | OpMult -> 2 | OpMod -> 3 | OpDiv -> 4 | _ -> die "" __LOC__), a, b))
+					| _ ->
+						die "" __LOC__)
+				| OpShl | OpShr | OpUShr | OpAnd | OpOr | OpXor ->
+					(match rtype ctx r with
+					| HUI8 | HUI16 | HI32 | HI64 ->
+						(match bop with
+						| OpShl -> op ctx (OShl (r,a,b))
+						| OpShr -> op ctx (if unsigned e1.etype then OUShr (r,a,b) else OSShr (r,a,b))
+						| OpUShr -> op ctx (OUShr (r,a,b))
+						| OpAnd -> op ctx (OAnd (r,a,b))
+						| OpOr -> op ctx (OOr (r,a,b))
+						| OpXor -> op ctx (OXor (r,a,b))
+						| _ -> ())
+					| HDyn ->
+						op ctx (OCall3 (r, alloc_std ctx "dyn_op" [HI32;HDyn;HDyn] HDyn, reg_int ctx (match bop with OpShl -> 5 | OpShr -> 6 | OpUShr -> 7 | OpAnd -> 8 | OpOr -> 9 | OpXor -> 10 | _ -> die "" __LOC__), a, b))
+					| _ ->
+						die "" __LOC__)
+				| OpAssignOp bop ->
+					loop bop
+				| _ ->
+					die "" __LOC__
+			in
+			loop bop
+		in
+		(match bop with
+		| OpLte | OpGt | OpGte | OpLt ->
+			let r = alloc_tmp ctx HBool in
+			let t = common_type ctx e1 e2 false e.epos in
+			let a = eval_to ctx e1 t in
+			hold ctx a;
+			let b = eval_to ctx e2 t in
+			free ctx a;
