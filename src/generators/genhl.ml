@@ -2352,3 +2352,110 @@ and eval_expr ctx e =
 			hold ctx a;
 			let b = eval_to ctx e2 t in
 			free ctx a;
+			binop r a b;
+			r
+		| OpEq | OpNotEq ->
+			let r = alloc_tmp ctx HBool in
+			let t = common_type ctx e1 e2 true e.epos in
+			let a = eval_to ctx e1 t in
+			hold ctx a;
+			let b = eval_to ctx e2 t in
+			free ctx a;
+			binop r a b;
+			r
+		| OpAdd | OpSub | OpMult | OpDiv | OpMod | OpShl | OpShr | OpUShr | OpAnd | OpOr | OpXor ->
+			let t = (match to_type ctx e.etype with HNull t -> t | t -> t) in
+			let conv_string = bop = OpAdd && is_string t in
+			let eval e =
+				if conv_string then
+					let r = eval_expr ctx e in
+					to_string ctx r e.epos
+				else
+					eval_to ctx e t
+			in
+			let r = alloc_tmp ctx t in
+			let a = eval e1 in
+			hold ctx a;
+			let b = eval e2 in
+			free ctx a;
+			binop r a b;
+			r
+		| OpAssign ->
+			let value() = eval_to ctx e2 (real_type ctx e1) in
+			(match get_access ctx e1 with
+			| AGlobal g ->
+				let r = value() in
+				op ctx (OSetGlobal (g,r));
+				r
+			| AStaticVar (g,t,fid) ->
+				let r = value() in
+				hold ctx r;
+				let o = alloc_tmp ctx t in
+				free ctx r;
+				op ctx (OGetGlobal (o, g));
+				op ctx (OSetField (o, fid, r));
+				r
+			| AInstanceField ({ eexpr = TConst TThis }, fid) ->
+				let r = value() in
+				op ctx (OSetThis (fid,r));
+				r
+			| AInstanceField (ethis, fid) ->
+				let rthis = eval_null_check ctx ethis in
+				hold ctx rthis;
+				let r = value() in
+				free ctx rthis;
+				op ctx (OSetField (rthis, fid, r));
+				r
+			| ALocal (v,l) ->
+				let r = value() in
+				push_op ctx (OMov (l, r));
+				add_assign ctx v;
+				r
+			| AArray (ra,(at,vt),ridx) ->
+				hold ctx ra;
+				hold ctx ridx;
+				let v = cast_to ctx (value()) (match at with HUI16 | HUI8 -> HI32 | _ -> at) e.epos in
+				hold ctx v;
+				(* bounds check against length *)
+				(match at with
+				| HDyn ->
+					(* call setDyn() *)
+					op ctx (OCallMethod (alloc_tmp ctx HVoid,1,[ra;ridx;cast_to ctx v (if is_dynamic at then at else HDyn) e.epos]));
+				| _ ->
+					let len = alloc_tmp ctx HI32 in
+					op ctx (OField (len,ra,0)); (* length *)
+					let j = jump ctx (fun i -> OJULt (ridx,len,i)) in
+					op ctx (OCall2 (alloc_tmp ctx HVoid, alloc_fun_path ctx (array_class ctx at).cl_path "__expand", ra, ridx));
+					j();
+					match at with
+					| HI32 | HF64 | HUI16 | HF32 ->
+						let b = alloc_tmp ctx HBytes in
+						op ctx (OField (b,ra,1));
+						write_mem ctx b (shl ctx ridx (type_size_bits at)) at v
+					| _ ->
+						let arr = alloc_tmp ctx HArray in
+						op ctx (OField (arr,ra,1));
+						op ctx (OSetArray (arr,ridx,cast_to ctx v (if is_dynamic at then at else HDyn) e.epos))
+				);
+				free ctx v;
+				free ctx ra;
+				free ctx ridx;
+				v
+			| ADynamic (ethis,f) ->
+				let obj = eval_null_check ctx ethis in
+				hold ctx obj;
+				let r = eval_expr ctx e2 in
+				free ctx obj;
+				op ctx (ODynSet (obj,f,r));
+				r
+			| ACaptured index ->
+				let r = value() in
+				op ctx (OSetEnumField (ctx.m.mcaptreg,index,r));
+				r
+			| AEnum _ | ANone | AInstanceFun _ | AInstanceProto _ | AStaticFun _ | AVirtualMethod _ ->
+				die "" __LOC__)
+		| OpBoolOr ->
+			let r = alloc_tmp ctx HBool in
+			let j = jump_expr ctx e1 true in
+			let j2 = jump_expr ctx e2 true in
+			op ctx (
