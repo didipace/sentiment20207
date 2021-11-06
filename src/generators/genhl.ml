@@ -2458,4 +2458,110 @@ and eval_expr ctx e =
 			let r = alloc_tmp ctx HBool in
 			let j = jump_expr ctx e1 true in
 			let j2 = jump_expr ctx e2 true in
-			op ctx (
+			op ctx (OBool (r,false));
+			let jend = jump ctx (fun b -> OJAlways b) in
+			j();
+			j2();
+			op ctx (OBool (r,true));
+			jend();
+			r
+		| OpBoolAnd ->
+			let r = alloc_tmp ctx HBool in
+			let j = jump_expr ctx e1 false in
+			let j2 = jump_expr ctx e2 false in
+			op ctx (OBool (r,true));
+			let jend = jump ctx (fun b -> OJAlways b) in
+			j();
+			j2();
+			op ctx (OBool (r,false));
+			jend();
+			r
+		| OpAssignOp bop ->
+			(match get_access ctx e1 with
+			| ALocal (v,l) ->
+				let r = eval_to ctx { e with eexpr = TBinop (bop,e1,e2) } (to_type ctx e1.etype) in
+				push_op ctx (OMov (l, r));
+				add_assign ctx v;
+				r
+			| acc ->
+				gen_assign_op ctx acc e1 (fun r ->
+					hold ctx r;
+					let b = if bop = OpAdd && is_string (rtype ctx r) then to_string ctx (eval_expr ctx e2) e2.epos else eval_to ctx e2 (rtype ctx r) in
+					free ctx r;
+					binop r r b;
+					r))
+		| OpInterval | OpArrow | OpIn | OpNullCoal ->
+			die "" __LOC__)
+	| TUnop (Not,_,v) ->
+		let tmp = alloc_tmp ctx HBool in
+		let r = eval_to ctx v HBool in
+		op ctx (ONot (tmp,r));
+		tmp
+	| TUnop (Neg,_,v) ->
+		let t = to_type ctx e.etype in
+		let tmp = alloc_tmp ctx t in
+		let r = eval_to ctx v t in
+		op ctx (ONeg (tmp,r));
+		tmp
+	| TUnop (Spread,_,_) ->
+		die ~p:e.epos "Unexpected spread operator" __LOC__
+	| TUnop (NegBits,_,v) ->
+		let t = to_type ctx e.etype in
+		let tmp = alloc_tmp ctx t in
+		let r = eval_to ctx v t in
+		let mask = (match t with
+			| HUI8 -> 0xFFl
+			| HUI16 -> 0xFFFFl
+			| HI32 -> 0xFFFFFFFFl
+			| _ -> abort ("Unsupported " ^ tstr t) e.epos
+		) in
+		hold ctx r;
+		let r2 = alloc_tmp ctx t in
+		free ctx r;
+		op ctx (OInt (r2,alloc_i32 ctx mask));
+		op ctx (OXor (tmp,r,r2));
+		tmp
+	| TUnop (Increment|Decrement as uop,fix,v) ->
+		let rec unop r =
+			match rtype ctx r with
+			| HUI8 | HUI16 | HI32 | HI64 ->
+				if uop = Increment then op ctx (OIncr r) else op ctx (ODecr r)
+			| HF32 | HF64 as t ->
+				hold ctx r;
+				let tmp = alloc_tmp ctx t in
+				free ctx r;
+				op ctx (OFloat (tmp,alloc_float ctx 1.));
+				if uop = Increment then op ctx (OAdd (r,r,tmp)) else op ctx (OSub (r,r,tmp))
+			| HNull (HUI8 | HUI16 | HI32 | HI64 | HF32 | HF64 as t) ->
+				hold ctx r;
+				let tmp = alloc_tmp ctx t in
+				free ctx r;
+				op ctx (OSafeCast (tmp,r));
+				unop tmp;
+				op ctx (OToDyn (r,tmp));
+			| HDyn when uop = Increment ->
+				hold ctx r;
+				let tmp = alloc_tmp ctx HDyn in
+				free ctx r;
+				op ctx (OToDyn (tmp, reg_int ctx 1));
+				op ctx (OCall2 (r,alloc_fun_path ctx ([],"Std") "__add__",r,tmp))
+			| HDyn when uop = Decrement ->
+				let r2 = alloc_tmp ctx HF64 in
+				hold ctx r2;
+				let tmp = alloc_tmp ctx HF64 in
+				free ctx r2;
+				op ctx (OSafeCast (r2, r));
+				op ctx (OFloat (tmp, alloc_float ctx 1.));
+				op ctx (OSub (r2, r2, tmp));
+				op ctx (OSafeCast (r, r2));
+			| _ ->
+				die "" __LOC__
+		in
+		(match get_access ctx v, fix with
+		| ALocal (v,r), Prefix ->
+			unop r;
+			r
+		| ALocal (v,r), Postfix ->
+			let r2 = alloc_tmp ctx (rtype ctx r) in
+			hold ctx r2;
+			op ctx (OMov (r2,r));
