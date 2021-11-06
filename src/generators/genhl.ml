@@ -2194,4 +2194,80 @@ and eval_expr ctx e =
 			let name = List.nth en.e_names index in
 			let fid = alloc_fun_path ctx en.e_path name in
 			if fid = cur_fid then begin
-				let ef = PMap.
+				let ef = PMap.find name en.e_constrs in
+				let eargs, et = (match follow ef.ef_type with TFun (args,ret) -> args, ret | _ -> die "" __LOC__) in
+				let ct = ctx.com.basic in
+				let p = ef.ef_pos in
+				let eargs = List.map (fun (n,o,t) -> Type.alloc_var VGenerated n t en.e_pos, if o then Some (mk (TConst TNull) t_dynamic null_pos) else None) eargs in
+				let ecall = mk (TCall (e,List.map (fun (v,_) -> mk (TLocal v) v.v_type p) eargs)) et p in
+				let f = {
+					tf_args = eargs;
+					tf_type = et;
+					tf_expr = mk (TReturn (Some ecall)) ct.tvoid p;
+				} in
+				ignore(make_fun ctx ("","") fid f None None);
+			end;
+			op ctx (OStaticClosure (r,fid));
+		| ANone | ALocal _ | AArray _ | ACaptured _ ->
+			abort "Invalid access" e.epos);
+		let to_t = to_type ctx e.etype in
+		(match to_t with
+		| HFun _ -> cast_to ctx r to_t e.epos
+		| _ -> unsafe_cast_to ctx r to_t e.epos)
+	| TObjectDecl fl ->
+		(match to_type ctx e.etype with
+		| HVirtual vp as t when Array.length vp.vfields = List.length fl && not (List.exists (fun ((s,_,_),e) -> s = "toString" && is_to_string e.etype) fl)  ->
+			let r = alloc_tmp ctx t in
+			op ctx (ONew r);
+			hold ctx r;
+			List.iter (fun ((s,_,_),ev) ->
+				let fidx = (try PMap.find s vp.vindex with Not_found -> die "" __LOC__) in
+				let _, _, ft = vp.vfields.(fidx) in
+				let v = eval_to ctx ev ft in
+				op ctx (OSetField (r,fidx,v));
+			) fl;
+			free ctx r;
+			r
+		| _ ->
+			let r = alloc_tmp ctx HDynObj in
+			op ctx (ONew r);
+			hold ctx r;
+			let a = (match follow e.etype with TAnon a -> Some a | t -> if t == t_dynamic then None else die "" __LOC__) in
+			List.iter (fun ((s,_,_),ev) ->
+				let ft = (try (match a with None -> raise Not_found | Some a -> PMap.find s a.a_fields).cf_type with Not_found -> ev.etype) in
+				let v = eval_to ctx ev (to_type ctx ft) in
+				op ctx (ODynSet (r,alloc_string ctx s,v));
+				if s = "toString" && is_to_string ev.etype then begin
+					let f = alloc_tmp ctx (HFun ([],HBytes)) in
+					op ctx (OInstanceClosure (f, alloc_fun_path ctx ([],"String") "call_toString", r));
+					op ctx (ODynSet (r,alloc_string ctx "__string",f));
+				end;
+			) fl;
+			free ctx r;
+			cast_to ctx r (to_type ctx e.etype) e.epos)
+	| TNew (c,pl,el) ->
+		let c = resolve_class ctx c pl false in
+		let r = alloc_tmp ctx (class_type ctx c pl false) in
+		op ctx (ONew r);
+		hold ctx r;
+		(match c.cl_constructor with
+		| None -> if c.cl_implements <> [] then die "" __LOC__
+		| Some { cf_expr = None } -> abort (s_type_path c.cl_path ^ " does not have a constructor") e.epos
+		| Some ({ cf_expr = Some cexpr } as constr) ->
+			let rl = eval_args ctx el (to_type ctx cexpr.etype) e.epos in
+			let ret = alloc_tmp ctx HVoid in
+			let g = alloc_fid ctx c constr in
+			op ctx (match rl with
+			| [] -> OCall1 (ret,g,r)
+			| [a] -> OCall2 (ret,g,r,a)
+			| [a;b] -> OCall3 (ret,g,r,a,b)
+			| [a;b;c] -> OCall4 (ret,g,r,a,b,c)
+			| _ -> OCallN (ret,g,r :: rl));
+		);
+		free ctx r;
+		r
+	| TIf (cond,eif,eelse) ->
+		let t = to_type ctx e.etype in
+		let out = alloc_tmp ctx t in
+		let j = jump_expr ctx cond false in
+		let 
