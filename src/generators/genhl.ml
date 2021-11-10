@@ -2565,3 +2565,92 @@ and eval_expr ctx e =
 			let r2 = alloc_tmp ctx (rtype ctx r) in
 			hold ctx r2;
 			op ctx (OMov (r2,r));
+			unop r;
+			free ctx r2;
+			r2
+		| acc, _ ->
+			let ret = ref 0 in
+			(match acc with AArray (a,_,idx) -> hold ctx a; hold ctx idx | _ -> ());
+			ignore(gen_assign_op ctx acc v (fun r ->
+				if fix = Prefix then ret := r else begin
+					hold ctx r;
+					let tmp = alloc_tmp ctx (rtype ctx r) in
+					free ctx r;
+					op ctx (OMov (tmp, r));
+					ret := tmp;
+				end;
+				hold ctx !ret;
+				unop r;
+				r)
+			);
+			free ctx !ret;
+			(match acc with AArray (a,_,idx) -> free ctx a; free ctx idx | _ -> ());
+			!ret)
+	| TFunction f ->
+		let fid = alloc_function_name ctx ("function#" ^ string_of_int (DynArray.length ctx.cfids.arr)) in
+		let capt = make_fun ctx ("","") fid f None (Some ctx.m.mcaptured) in
+		let r = alloc_tmp ctx (to_type ctx e.etype) in
+		if capt == ctx.m.mcaptured then
+			op ctx (OInstanceClosure (r, fid, ctx.m.mcaptreg))
+		else (match Array.length capt.c_vars with
+		| 0 ->
+			op ctx (OStaticClosure (r, fid))
+		| 1 when not capt.c_group ->
+			op ctx (OInstanceClosure (r, fid, eval_var ctx capt.c_vars.(0)))
+		| _ ->
+			let env = alloc_tmp ctx capt.c_type in
+			op ctx (OEnumAlloc (env,0));
+			hold ctx env;
+			Array.iteri (fun i v -> op ctx (OSetEnumField (env,i,eval_var ctx v))) capt.c_vars;
+			free ctx env;
+			op ctx (OInstanceClosure (r, fid, env)));
+		r
+	(* throwing a catch var means we want to rethrow an exception *)
+	| TThrow ({ eexpr = TLocal v } as e1) when has_var_flag v VCaught ->
+		let r = alloc_tmp ctx HVoid in
+		op ctx (ORethrow (eval_to ctx e1 HDyn));
+		r
+	| TThrow v ->
+		op ctx (OThrow (eval_to ctx v HDyn));
+		alloc_tmp ctx HDyn
+	| TWhile (cond,eloop,NormalWhile) ->
+		let oldb = ctx.m.mbreaks and oldc = ctx.m.mcontinues and oldtrys = ctx.m.mloop_trys in
+		ctx.m.mbreaks <- [];
+		ctx.m.mcontinues <- [];
+		ctx.m.mloop_trys <- ctx.m.mtrys;
+		let continue_pos = current_pos ctx in
+		let ret = jump_back ctx in
+		let j = jump_expr ctx cond false in
+		ignore(eval_expr ctx eloop);
+		set_curpos ctx (max_pos e);
+		ret();
+		j();
+		List.iter (fun f -> f (current_pos ctx)) ctx.m.mbreaks;
+		List.iter (fun f -> f continue_pos) ctx.m.mcontinues;
+		ctx.m.mbreaks <- oldb;
+		ctx.m.mcontinues <- oldc;
+		ctx.m.mloop_trys <- oldtrys;
+		alloc_tmp ctx HVoid
+	| TWhile (cond,eloop,DoWhile) ->
+		let oldb = ctx.m.mbreaks and oldc = ctx.m.mcontinues and oldtrys = ctx.m.mloop_trys in
+		ctx.m.mbreaks <- [];
+		ctx.m.mcontinues <- [];
+		ctx.m.mloop_trys <- ctx.m.mtrys;
+		let start = jump ctx (fun p -> OJAlways p) in
+		let continue_pos = current_pos ctx in
+		let ret = jump_back ctx in
+		let j = jump_expr ctx cond false in
+		start();
+		ignore(eval_expr ctx eloop);
+		set_curpos ctx (max_pos e);
+		ret();
+		j();
+		List.iter (fun f -> f (current_pos ctx)) ctx.m.mbreaks;
+		List.iter (fun f -> f continue_pos) ctx.m.mcontinues;
+		ctx.m.mbreaks <- oldb;
+		ctx.m.mcontinues <- oldc;
+		ctx.m.mloop_trys <- oldtrys;
+		alloc_tmp ctx HVoid
+	| TCast ({ eexpr = TCast (v,None) },None) when not (is_number (to_type ctx e.etype)) ->
+		(* coalesce double casts into a single runtime check - temp fix for Map accesses *)
+		eval_expr ctx { e with eexpr = TCast(v,None) }
