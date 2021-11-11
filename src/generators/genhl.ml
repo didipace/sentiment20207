@@ -2750,4 +2750,101 @@ and eval_expr ctx e =
 			List.iter (fun (values,_) ->
 				List.iter (fun v ->
 					let i = get_int v in
-					if i < 0 then 
+					if i < 0 then raise Exit;
+					if i > !max then max := i;
+				) values;
+			) cases;
+			if !max > 255 || cases = [] then raise Exit;
+			let ridx = eval_to ctx en HI32 in
+			let indexes = Array.make (!max + 1) 0 in
+			op ctx (OSwitch (ridx,indexes,0));
+			let switch_pos = current_pos ctx in
+			(match def with
+			| None ->
+				if rt <> HVoid then set_default ctx r;
+			| Some e ->
+				let re = eval_to ctx e rt in
+				if rt <> HVoid then op ctx (OMov (r,re)));
+			let jends = ref [jump ctx (fun i -> OJAlways i)] in
+			List.iter (fun (values,ecase) ->
+				List.iter (fun v ->
+					Array.set indexes (get_int v) (current_pos ctx - switch_pos)
+				) values;
+				let re = eval_to ctx ecase rt in
+				if rt <> HVoid then op ctx (OMov (r,re));
+				jends := jump ctx (fun i -> OJAlways i) :: !jends
+			) cases;
+			set_op ctx (switch_pos - 1) (OSwitch (ridx,indexes,current_pos ctx - switch_pos));
+			List.iter (fun j -> j()) (!jends);
+		with Exit ->
+			let jends = ref [] in
+			let rvalue = eval_expr ctx en in
+			let loop (cases,e) =
+				hold ctx rvalue;
+				let ok = List.map (fun c ->
+					let ct = common_type ctx en c true c.epos in
+					match c.eexpr, ct with
+					| TConst (TString str), HObj { pname = "String" } ->
+						let jnull = jump ctx (fun n -> OJNull (rvalue,n)) in
+
+						(* compare len *)
+						let rlen = alloc_tmp ctx HI32 in
+						op ctx (OField (rlen, rvalue, 1));
+						hold ctx rlen;
+						let str, len = to_utf8 str c.epos in
+						let rlen2 = reg_int ctx len in
+						let jdiff = jump ctx (fun n -> OJNotEq (rlen, rlen2, n)) in
+						free ctx rlen;
+
+						(* compare data *)
+						let rbytes = alloc_tmp ctx HBytes in
+						op ctx (OField (rbytes, rvalue, 0));
+						hold ctx rbytes;
+						let rbytes2 = alloc_tmp ctx HBytes in
+						op ctx (OString (rbytes2,alloc_string ctx str));
+						let result = alloc_tmp ctx HI32 in
+						op ctx (OCall3 (result, alloc_std ctx "string_compare" [HBytes;HBytes;HI32] HI32,rbytes,rbytes2,rlen));
+						free ctx rbytes;
+
+						hold ctx result;
+						let zero = reg_int ctx 0 in
+						let jok = jump ctx (fun n -> OJEq (result, zero, n)) in
+						free ctx result;
+
+						jnull();
+						jdiff();
+						jok
+
+
+					| _ ->
+						let r = eval_to ctx c ct in
+						jump ctx (fun n -> OJEq (r,rvalue,n))
+				) cases in
+				free ctx rvalue;
+				(fun() ->
+					List.iter (fun f -> f()) ok;
+					let re = eval_to ctx e rt in
+					if rt <> HVoid then op ctx (OMov (r,re));
+					jends := jump ctx (fun n -> OJAlways n) :: !jends)
+			in
+			let all = List.map loop cases in
+			(match def with
+			| None ->
+				if rt <> HVoid then op ctx (ONull r)
+			| Some e ->
+				let rdef = eval_to ctx e rt in
+				if rt <> HVoid then op ctx (OMov (r,rdef)));
+			jends := jump ctx (fun n -> OJAlways n) :: !jends;
+			List.iter (fun f -> f()) all;
+			List.iter (fun j -> j()) (!jends);
+		);
+		r
+	| TEnumParameter (ec,f,index) ->
+		let pt, is_single = (match to_type ctx ec.etype with
+			| HEnum e ->
+				let _,_,args = e.efields.(f.ef_index) in
+				args.(index), Array.length e.efields = 1
+			| _ -> die "" __LOC__
+		) in
+		let er = eval_expr ctx ec in
+		if is_single then op ctx (
