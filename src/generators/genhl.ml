@@ -2654,3 +2654,100 @@ and eval_expr ctx e =
 	| TCast ({ eexpr = TCast (v,None) },None) when not (is_number (to_type ctx e.etype)) ->
 		(* coalesce double casts into a single runtime check - temp fix for Map accesses *)
 		eval_expr ctx { e with eexpr = TCast(v,None) }
+	| TCast (v,None) ->
+		let t = to_type ctx e.etype in
+		let rv = eval_expr ctx v in
+		(match t with
+		| HF32 | HF64 when unsigned v.etype ->
+			let r = alloc_tmp ctx t in
+			op ctx (OToUFloat (r,rv));
+			r
+		| HDyn when (match rtype ctx rv with HFun _ -> true | _ -> false) ->
+			(* if called, a HDyn method will return HDyn, not its usual return type *)
+			let r = alloc_tmp ctx t in
+			op ctx (OMov (r,rv));
+			r
+		| _ ->
+			cast_to ~force:true ctx rv t e.epos)
+	| TArrayDecl el ->
+		let r = alloc_tmp ctx (to_type ctx e.etype) in
+		let et = (match follow e.etype with TInst (_,[t]) -> to_type ctx t | _ -> die "" __LOC__) in
+		let array_bytes bits t tname get_op =
+			let b = alloc_tmp ctx HBytes in
+			let size = reg_int ctx ((List.length el) lsl bits) in
+			op ctx (OCall1 (b,alloc_std ctx "alloc_bytes" [HI32] HBytes,size));
+			let idx = reg_int ctx 0 in
+			hold ctx idx;
+			hold ctx b;
+			list_iteri (fun i e ->
+				let r = eval_to ctx e t in
+				hold ctx r;
+				op ctx (get_op b (shl ctx idx bits) r);
+				free ctx r;
+				op ctx (OIncr idx);
+			) el;
+			free ctx b;
+			free ctx idx;
+			op ctx (OCall2 (r, alloc_fun_path ctx (["hl";"types"],"ArrayBase") ("alloc" ^ tname), b, reg_int ctx (List.length el)));
+		in
+		(match et with
+		| HI32 ->
+			array_bytes 2 HI32 "I32" (fun b i r -> OSetMem (b,i,r))
+		| HUI16 ->
+			array_bytes 1 HI32 "UI16" (fun b i r -> OSetUI16 (b,i,r))
+		| HF32 ->
+			array_bytes 2 HF32 "F32" (fun b i r -> OSetMem (b,i,r))
+		| HF64 ->
+			array_bytes 3 HF64 "F64" (fun b i r -> OSetMem (b,i,r))
+		| _ ->
+			let at = if is_dynamic et then et else HDyn in
+			let a = alloc_tmp ctx HArray in
+			let rt = alloc_tmp ctx HType in
+			op ctx (OType (rt,at));
+			let size = reg_int ctx (List.length el) in
+			op ctx (OCall2 (a,alloc_std ctx "alloc_array" [HType;HI32] HArray,rt,size));
+			hold ctx a;
+			list_iteri (fun i e ->
+				let r = eval_to ctx e at in
+				op ctx (OSetArray (a,reg_int ctx i,r));
+			) el;
+			free ctx a;
+			let tmp = if et = HDyn then alloc_tmp ctx (class_type ctx ctx.array_impl.aobj [] false) else r in
+			op ctx (OCall1 (tmp, alloc_fun_path ctx (["hl";"types"],"ArrayObj") "alloc", a));
+			if tmp <> r then begin
+				let re = alloc_tmp ctx HBool in
+				op ctx (OBool (re,true));
+				let ren = alloc_tmp ctx (HRef HBool) in
+				op ctx (ORef (ren, re));
+				op ctx (OCall2 (r, alloc_fun_path ctx (["hl";"types"],"ArrayDyn") "alloc", tmp, ren));
+			end;
+		);
+		r
+	| TArray _ ->
+		(match get_access ctx e with
+		| AArray (a,at,idx) ->
+			array_read ctx a at idx e.epos
+		| _ ->
+			die "" __LOC__)
+	| TMeta (_,e) ->
+		eval_expr ctx e
+	| TFor (v,it,loop) ->
+		eval_expr ctx (Texpr.for_remap ctx.com.basic v it loop e.epos)
+	| TSwitch (en,cases,def) ->
+		let rt = to_type ctx e.etype in
+		let r = alloc_tmp ctx rt in
+		(try
+			let max = ref (-1) in
+			let rec get_int e =
+				match e.eexpr with
+				| TConst (TInt i) ->
+					let v = Int32.to_int i in
+					if Int32.of_int v <> i then raise Exit;
+					v
+				| _ ->
+					raise Exit
+			in
+			List.iter (fun (values,_) ->
+				List.iter (fun v ->
+					let i = get_int v in
+					if i < 0 then 
