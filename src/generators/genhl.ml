@@ -2847,4 +2847,87 @@ and eval_expr ctx e =
 			| _ -> die "" __LOC__
 		) in
 		let er = eval_expr ctx ec in
-		if is_single then op ctx (
+		if is_single then op ctx (ONullCheck er); (* #7560 *)
+		let r = alloc_tmp ctx pt in
+		op ctx (OEnumField (r,er,f.ef_index,index));
+		cast_to ctx r (to_type ctx e.etype) e.epos
+	| TContinue ->
+		before_break_continue ctx;
+		let pos = current_pos ctx in
+		op ctx (OJAlways (-1)); (* loop *)
+		ctx.m.mcontinues <- (fun target -> set_op ctx pos (OJAlways (target - (pos + 1)))) :: ctx.m.mcontinues;
+		alloc_tmp ctx HVoid
+	| TBreak ->
+		before_break_continue ctx;
+		let pos = current_pos ctx in
+		op ctx (OJAlways (-1)); (* loop *)
+		ctx.m.mbreaks <- (fun target -> set_op ctx pos (OJAlways (target - (pos + 1)))) :: ctx.m.mbreaks;
+		alloc_tmp ctx HVoid
+	| TTry (etry,catches) ->
+		let pos = current_pos ctx in
+		let rtrap = alloc_tmp ctx HDyn in
+		op ctx (OTrap (rtrap,-1)); (* loop *)
+		ctx.m.mtrys <- ctx.m.mtrys + 1;
+		let tret = to_type ctx e.etype in
+		let result = alloc_tmp ctx tret in
+		let r = eval_expr ctx etry in
+		if tret <> HVoid then op ctx (OMov (result,cast_to ctx r tret etry.epos));
+		ctx.m.mtrys <- ctx.m.mtrys - 1;
+		op ctx (OEndTrap true);
+		let j = jump ctx (fun n -> OJAlways n) in
+		set_op ctx pos (OTrap (rtrap, current_pos ctx - (pos + 1)));
+		let rec loop l =
+			match l with
+			| [] ->
+				op ctx (ORethrow rtrap);
+				[]
+			| (v,ec) :: next ->
+				let rv = alloc_var ctx v true in
+				let jnext = if follow v.v_type == t_dynamic then begin
+					op ctx (OMov (rv, rtrap));
+					(fun() -> ())
+				end else
+					let ct = (match follow v.v_type with
+					| TInst (c,_) -> TClassDecl c
+					| TAbstract (a,_) -> TAbstractDecl a
+					| TEnum (e,_) -> TEnumDecl e
+					| _ -> die "" __LOC__
+					) in
+					hold ctx rtrap;
+					let r = type_value ctx ct ec.epos in
+					free ctx rtrap;
+					let rb = alloc_tmp ctx HBool in
+					op ctx (OCall2 (rb, alloc_fun_path ctx (["hl"],"BaseType") "check",r,rtrap));
+					let jnext = jump ctx (fun n -> OJFalse (rb,n)) in
+					op ctx (OMov (rv, unsafe_cast_to ~debugchk:false ctx rtrap (to_type ctx v.v_type) ec.epos));
+					jnext
+				in
+				let r = eval_expr ctx ec in
+				if tret <> HVoid then op ctx (OMov (result,cast_to ctx r tret ec.epos));
+				if follow v.v_type == t_dynamic then [] else
+				let jend = jump ctx (fun n -> OJAlways n) in
+				jnext();
+				jend :: loop next
+		in
+		List.iter (fun j -> j()) (loop catches);
+		j();
+		result
+	| TTypeExpr t ->
+		type_value ctx t e.epos
+	| TCast (ev,Some _) ->
+		let t = to_type ctx e.etype in
+		let re = eval_expr ctx ev in
+		let rt = alloc_tmp ctx t in
+		if safe_cast (rtype ctx re) t then
+			op ctx (OMov (rt,re))
+		else (match Abstract.follow_with_abstracts e.etype with
+		| TInst(c,_) when (has_class_flag c CInterface) ->
+			hold ctx re;
+			let c = eval_to ctx { eexpr = TTypeExpr(TClassDecl c); epos = e.epos; etype = t_dynamic } (class_type ctx ctx.base_type [] false) in
+			hold ctx c;
+			let rb = alloc_tmp ctx HBool in
+			op ctx (OCall2 (rb, alloc_fun_path ctx (["hl"],"BaseType") "check",c,re));
+			let jnext = jump ctx (fun n -> OJTrue (rb,n)) in
+			let jnext2 = jump ctx (fun n -> OJNull (re,n)) in
+			op ctx (OThrow (make_string ctx "Cast error" e.epos));
+			jnext();
