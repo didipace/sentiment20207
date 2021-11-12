@@ -2931,3 +2931,119 @@ and eval_expr ctx e =
 			let jnext2 = jump ctx (fun n -> OJNull (re,n)) in
 			op ctx (OThrow (make_string ctx "Cast error" e.epos));
 			jnext();
+			jnext2();
+			op ctx (OMov (rt, unsafe_cast_to ~debugchk:false ctx re (to_type ctx e.etype) e.epos));
+			free ctx c;
+			free ctx re;
+		| _ ->
+			op ctx (OSafeCast (rt,re)));
+		rt
+	| TIdent s ->
+		abort ("Unbound identifier " ^ s) e.epos
+
+and gen_assign_op ctx acc e1 f =
+	let f r =
+		match rtype ctx r with
+		| HNull t ->
+			let r2 = alloc_tmp ctx t in
+			op ctx (OSafeCast (r2,r));
+			let r3 = alloc_tmp ctx (HNull t) in
+			op ctx (OToDyn (r3,f r2));
+			r3
+		| _ ->
+			f r
+	in
+	match acc with
+	| AInstanceField (eobj, findex) ->
+		let robj = eval_null_check ctx eobj in
+		hold ctx robj;
+		let t = real_type ctx e1 in
+		let r = alloc_tmp ctx t in
+		op ctx (OField (r,robj,findex));
+		let r = cast_to ctx r (to_type ctx e1.etype) e1.epos in
+		let r = f r in
+		free ctx robj;
+		op ctx (OSetField (robj,findex,cast_to ctx r t e1.epos));
+		r
+	| AStaticVar (g,t,fid) ->
+		let o = alloc_tmp ctx t in
+		op ctx (OGetGlobal (o,g));
+		let r = alloc_tmp ctx (to_type ctx e1.etype) in
+		op ctx (OField (r,o,fid));
+		hold ctx o;
+		let r = f r in
+		free ctx o;
+		op ctx (OSetField (o,fid,r));
+		r
+	| AGlobal g ->
+		let r = alloc_tmp ctx (to_type ctx e1.etype) in
+		op ctx (OGetGlobal (r,g));
+		let r = f r in
+		op ctx (OSetGlobal (g,r));
+		r
+	| ACaptured idx ->
+		let r = alloc_tmp ctx (to_type ctx e1.etype) in
+		op ctx (OEnumField (r, ctx.m.mcaptreg, 0, idx));
+		let r = f r in
+		op ctx (OSetEnumField (ctx.m.mcaptreg,idx,r));
+		r
+	| AArray (ra,(at,_),ridx) ->
+		hold ctx ra;
+		hold ctx ridx;
+		let r = (match at with
+		| HDyn ->
+			(* call getDyn() *)
+			let r = alloc_tmp ctx HDyn in
+			op ctx (OCallMethod (r,0,[ra;ridx]));
+			let r = f r in
+			(* call setDyn() *)
+			op ctx (OCallMethod (alloc_tmp ctx HVoid,1,[ra;ridx;r]));
+			r
+		| _ ->
+			(* bounds check against length *)
+			let len = alloc_tmp ctx HI32 in
+			op ctx (OField (len,ra,0)); (* length *)
+			let j = jump ctx (fun i -> OJULt (ridx,len,i)) in
+			op ctx (OCall2 (alloc_tmp ctx HVoid, alloc_fun_path ctx (array_class ctx at).cl_path "__expand", ra, ridx));
+			j();
+			match at with
+			| HUI8 | HUI16 | HI32 | HF32 | HF64 ->
+				let hbytes = alloc_tmp ctx HBytes in
+				op ctx (OField (hbytes, ra, 1));
+				let ridx = shl ctx ridx (type_size_bits at) in
+				hold ctx ridx;
+				hold ctx hbytes;
+				let r = alloc_tmp ctx at in
+				read_mem ctx r hbytes ridx at;
+				let r = f r in
+				write_mem ctx hbytes ridx at r;
+				free ctx ridx;
+				free ctx hbytes;
+				r
+			| _ ->
+				let arr = alloc_tmp ctx HArray in
+				op ctx (OField (arr,ra,1));
+				let r = alloc_tmp ctx at in
+				op ctx (OGetArray (r,arr,ridx));
+				hold ctx arr;
+				let r = f r in
+				free ctx arr;
+				op ctx (OSetArray (arr,ridx,r));
+				r
+		) in
+		free ctx ra;
+		free ctx ridx;
+		r
+	| ADynamic (eobj, fid) ->
+		let robj = eval_null_check ctx eobj in
+		hold ctx robj;
+		let t = real_type ctx e1 in
+		let r = alloc_tmp ctx t in
+		op ctx (ODynGet (r,robj,fid));
+		let r = cast_to ctx r (to_type ctx e1.etype) e1.epos in
+		let r = f r in
+		let r = cast_to ctx r t e1.epos in
+		free ctx robj;
+		op ctx (ODynSet (robj,fid,r));
+		r
+	| ANone | ALocal 
