@@ -3046,4 +3046,93 @@ and gen_assign_op ctx acc e1 f =
 		free ctx robj;
 		op ctx (ODynSet (robj,fid,r));
 		r
-	| ANone | ALocal 
+	| ANone | ALocal _ | AStaticFun _ | AInstanceFun _ | AInstanceProto _ | AVirtualMethod _ | AEnum _ ->
+		die "" __LOC__
+
+and build_capture_vars ctx f =
+	let ignored_vars = ref PMap.empty in
+	let used_vars = ref PMap.empty in
+	(* get all captured vars in scope, ignore vars that are declared *)
+	let decl_var v =
+		if has_var_flag v VCaptured then ignored_vars := PMap.add v.v_id () !ignored_vars
+	in
+	let use_var v =
+		if has_var_flag v VCaptured then used_vars := PMap.add v.v_id v !used_vars
+	in
+	let rec loop e =
+		(match e.eexpr with
+		| TLocal v ->
+			use_var v;
+		| TVar (v,_) ->
+			decl_var v
+		| TTry (_,catches) ->
+			List.iter (fun (v,_) -> decl_var v) catches
+		| TFunction f ->
+			List.iter (fun (v,_) -> decl_var v) f.tf_args;
+		| _ ->
+			()
+		);
+		Type.iter loop e
+	in
+	List.iter (fun (v,_) -> decl_var v) f.tf_args;
+	loop f.tf_expr;
+	let cvars = Array.of_list (PMap.fold (fun v acc -> if PMap.mem v.v_id !ignored_vars then acc else v :: acc) !used_vars []) in
+	Array.sort (fun v1 v2 -> v1.v_id - v2.v_id) cvars;
+	let indexes = ref PMap.empty in
+	let v0t = (if Array.length cvars = 1 then to_type ctx cvars.(0).v_type else HDyn) in
+	let ct, group = (match Array.length cvars with
+		| 0 -> HVoid, false
+		| 1 when is_nullable v0t -> v0t, false
+		| _ ->
+			Array.iteri (fun i v -> indexes := PMap.add v.v_id i !indexes) cvars;
+			let ctypes = Array.map (fun v -> to_type ctx v.v_type) cvars in
+			let ct = tuple_type ctx (Array.to_list ctypes) in
+			ct, true
+	) in
+	{
+		c_map = !indexes;
+		c_vars = cvars;
+		c_type = ct;
+		c_group = group;
+	}
+
+and gen_method_wrapper ctx rt t p =
+	try
+		PMap.find (rt,t) ctx.method_wrappers
+	with Not_found ->
+		let fid = lookup_alloc ctx.cfids () in
+		ctx.method_wrappers <- PMap.add (rt,t) fid ctx.method_wrappers;
+		let old = ctx.m in
+		let targs, tret = (match t with HFun (args, ret) -> args, ret | _ -> die "" __LOC__) in
+		let iargs, iret = (match rt with HFun (args, ret) -> args, ret | _ -> die "" __LOC__) in
+		ctx.m <- method_context fid HDyn null_capture false;
+		let rfun = alloc_tmp ctx rt in
+		let rargs = List.map (fun t ->
+			let r = alloc_tmp ctx t in
+			hold ctx r;
+			r
+		) targs in
+		let casts = List.map2 (fun r t -> let r2 = cast_to ~force:true ctx r t p in hold ctx r2; free ctx r; r2) rargs iargs in
+		List.iter (free ctx) casts;
+		let rret = alloc_tmp ctx iret in
+		op ctx (OCallClosure (rret,rfun,casts));
+		op ctx (ORet (cast_to ctx rret tret p));
+		let f = {
+			fpath = "","";
+			findex = fid;
+			ftype = HFun (rt :: targs, tret);
+			regs = DynArray.to_array ctx.m.mregs.arr;
+			code = DynArray.to_array ctx.m.mops;
+			debug = make_debug ctx ctx.m.mdebug;
+			assigns = Array.of_list (List.rev ctx.m.massign);
+		} in
+		ctx.m <- old;
+		DynArray.add ctx.cfunctions f;
+		fid
+
+and make_fun ?gen_content ctx name fidx f cthis cparent =
+	let old = ctx.m in
+	let capt = build_capture_vars ctx f in
+	let has_captured_vars = Array.length capt.c_vars > 0 in
+	let capt, use_parent_capture = (match cparent with
+		| Some cparent when has_captured_vars && List.for_al
