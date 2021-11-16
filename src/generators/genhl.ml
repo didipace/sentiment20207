@@ -3135,4 +3135,97 @@ and make_fun ?gen_content ctx name fidx f cthis cparent =
 	let capt = build_capture_vars ctx f in
 	let has_captured_vars = Array.length capt.c_vars > 0 in
 	let capt, use_parent_capture = (match cparent with
-		| Some cparent when has_captured_vars && List.for_al
+		| Some cparent when has_captured_vars && List.for_all (fun v -> PMap.mem v.v_id cparent.c_map) (Array.to_list capt.c_vars) -> cparent, true
+		| _ -> capt, false
+	) in
+
+	ctx.m <- method_context fidx (to_type ctx f.tf_type) capt (cthis <> None);
+
+	set_curpos ctx f.tf_expr.epos;
+
+	let tthis = (match cthis with
+	| None -> None
+	| Some c ->
+		let t = to_type ctx (TInst (c,[])) in
+		hold ctx (alloc_tmp ctx t); (* index 0 *)
+		Some t
+	) in
+
+	let rcapt = match has_captured_vars && cparent <> None with
+		| true when capt.c_group ->
+			let r = alloc_tmp ctx capt.c_type in
+			hold ctx r;
+			Some r
+		| true ->
+			Some (alloc_var ctx capt.c_vars.(0) true)
+		| false ->
+			None
+	in
+
+	let args = List.map (fun (v,o) ->
+		let t = to_type ctx v.v_type in
+		let r = alloc_var ctx (if o = None then v else { v with v_type = if not (is_nullable t) then TAbstract(ctx.ref_abstract,[v.v_type]) else v.v_type }) true in
+		add_assign ctx v; (* record var name *)
+		rtype ctx r
+	) f.tf_args in
+
+	if has_captured_vars then ctx.m.mcaptreg <- (match rcapt with
+		| None when not capt.c_group ->
+			-1
+		| None ->
+			let r = alloc_tmp ctx capt.c_type in
+			hold ctx r;
+			op ctx (OEnumAlloc (r,0));
+			add_capture ctx r;
+			r
+		| Some r ->
+			add_capture ctx r;
+			r
+	);
+
+	List.iter (fun (v, o) ->
+		let r = alloc_var ctx v false in
+		let vt = to_type ctx v.v_type in
+		let capt = captured_index ctx v in
+		(match o with
+		| None | Some {eexpr = TConst TNull} -> ()
+		| Some c when not (is_nullable vt) ->
+			(* if optional but not null, turn into a not nullable here *)
+			let j = jump ctx (fun n -> OJNotNull (r,n)) in
+			let t = alloc_tmp ctx vt in
+			(match vt with
+			| HUI8 | HUI16 | HI32 | HI64 ->
+				(match c.eexpr with
+				| TConst (TInt i) -> op ctx (OInt (t,alloc_i32 ctx i))
+				| TConst (TFloat s) -> op ctx (OInt (t,alloc_i32 ctx  (Int32.of_float (float_of_string s))))
+				| _ -> die "" __LOC__)
+			| HF32 | HF64 ->
+				(match c.eexpr with
+				| TConst (TInt i) -> op ctx (OFloat (t,alloc_float ctx (Int32.to_float i)))
+				| TConst (TFloat s) -> op ctx (OFloat (t,alloc_float ctx  (float_of_string s)))
+				| _ -> die "" __LOC__)
+			| HBool ->
+				(match c.eexpr with
+				| TConst (TBool b) -> op ctx (OBool (t,b))
+				| _ -> die "" __LOC__)
+			| _ ->
+				die "" __LOC__);
+			if capt = None then add_assign ctx v;
+			let jend = jump ctx (fun n -> OJAlways n) in
+			j();
+			op ctx (OUnref (t,r));
+			if capt = None then add_assign ctx v;
+			jend();
+			Hashtbl.replace ctx.m.mvars v.v_id t;
+			free ctx r;
+			hold ctx t
+		| Some c ->
+			let j = jump ctx (fun n -> OJNotNull (r,n)) in
+			(match c.eexpr with
+			| TConst (TNull | TThis | TSuper) -> die "" __LOC__
+			| TConst (TInt i) when (match to_type ctx (Abstract.follow_with_abstracts v.v_type) with HUI8 | HUI16 | HI32 | HI64 | HDyn -> true | _ -> false) ->
+				let tmp = alloc_tmp ctx HI32 in
+				op ctx (OInt (tmp, alloc_i32 ctx i));
+				op ctx (OToDyn (r, tmp));
+			| TConst (TFloat s) when (match to_type ctx (Abstract.follow_with_abstracts v.v_type) with HUI8 | HUI16 | HI32 | HI64 -> true | _ -> false) ->
+				let tmp = alloc_tmp ctx HI32 i
