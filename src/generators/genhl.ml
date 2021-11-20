@@ -3228,4 +3228,101 @@ and make_fun ?gen_content ctx name fidx f cthis cparent =
 				op ctx (OInt (tmp, alloc_i32 ctx i));
 				op ctx (OToDyn (r, tmp));
 			| TConst (TFloat s) when (match to_type ctx (Abstract.follow_with_abstracts v.v_type) with HUI8 | HUI16 | HI32 | HI64 -> true | _ -> false) ->
-				let tmp = alloc_tmp ctx HI32 i
+				let tmp = alloc_tmp ctx HI32 in
+				op ctx (OInt (tmp, alloc_i32 ctx (Int32.of_float (float_of_string s))));
+				op ctx (OToDyn (r, tmp));
+			| TConst (TInt i) ->
+				let tmp = alloc_tmp ctx HF64 in
+				op ctx (OFloat (tmp, alloc_float ctx (Int32.to_float i)));
+				op ctx (OToDyn (r, tmp));
+			| TConst (TFloat s) ->
+				let tmp = alloc_tmp ctx HF64 in
+				op ctx (OFloat (tmp, alloc_float ctx (float_of_string s)));
+				op ctx (OToDyn (r, tmp));
+			| TConst (TBool b) ->
+				let tmp = alloc_tmp ctx HBool in
+				op ctx (OBool (tmp, b));
+				op ctx (OToDyn (r, tmp));
+			| TConst (TString s) ->
+				op ctx (OMov (r, make_string ctx s f.tf_expr.epos))
+			| _ ->
+				op ctx (OMov (r, eval_to ctx c vt))
+			);
+			j();
+		);
+		(match capt with
+		| None -> ()
+		| Some index ->
+			op ctx (OSetEnumField (ctx.m.mcaptreg, index, alloc_var ctx v false)));
+	) f.tf_args;
+
+	(match gen_content with
+	| None -> ()
+	| Some f -> f());
+
+	ignore(eval_expr ctx f.tf_expr);
+	let tret = to_type ctx f.tf_type in
+	let rec has_final_jump e =
+		(* prevents a jump outside function bounds error *)
+		match e.eexpr with
+		| TBlock el -> (match List.rev el with e :: _ -> has_final_jump e | [] -> false)
+		| TParenthesis e -> has_final_jump e
+		| TReturn _ -> false
+		| _ -> true
+	in
+	set_curpos ctx (max_pos f.tf_expr);
+	if tret = HVoid then
+		op ctx (ORet (alloc_tmp ctx HVoid))
+	else if has_final_jump f.tf_expr then begin
+		let r = alloc_tmp ctx tret in
+		(match tret with
+		| HI32 | HUI8 | HUI16 | HI64 -> op ctx (OInt (r,alloc_i32 ctx 0l))
+		| HF32 | HF64 -> op ctx (OFloat (r,alloc_float ctx 0.))
+		| HBool -> op ctx (OBool (r,false))
+		| _ -> op ctx (ONull r));
+		op ctx (ORet r)
+	end;
+	let fargs = (match tthis with None -> [] | Some t -> [t]) @ (match rcapt with None -> [] | Some r -> [rtype ctx r]) @ args in
+	let hlf = {
+		fpath = name;
+		findex = fidx;
+		ftype = HFun (fargs, tret);
+		regs = DynArray.to_array ctx.m.mregs.arr;
+		code = DynArray.to_array ctx.m.mops;
+		debug = make_debug ctx ctx.m.mdebug;
+		assigns = Array.of_list (List.rev ctx.m.massign);
+	} in
+	ctx.m <- old;
+	Hashtbl.add ctx.defined_funs fidx ();
+	let f = if ctx.optimize && (gen_content = None || name <> ("","")) then begin
+		let t = Timer.timer ["generate";"hl";"opt"] in
+		let f = Hlopt.optimize ctx.dump_out (DynArray.get ctx.cstrings.arr) hlf f in
+		t();
+		f
+	end else
+		hlf
+	in
+	DynArray.add ctx.cfunctions f;
+	capt
+
+let generate_static ctx c f =
+	match f.cf_kind with
+	| Var _ ->
+		()
+	| Method _ when has_class_field_flag f CfExtern ->
+		()
+	| Method m ->
+		let add_native lib name =
+			let fid = alloc_fid ctx c f in
+			ignore(lookup ctx.cnatives (name ^ "@" ^ lib,fid) (fun() ->
+				Hashtbl.add ctx.defined_funs fid ();
+				(alloc_string ctx lib, alloc_string ctx name,to_type ctx f.cf_type,fid)
+			));
+		in
+		let rec loop = function
+			| (Meta.HlNative,[(EConst(String(lib,_)),_);(EConst(String(name,_)),_)] ,_ ) :: _ ->
+				add_native lib name
+			| (Meta.HlNative,[(EConst(String(lib,_)),_)] ,_ ) :: _ ->
+				add_native lib f.cf_name
+			| (Meta.HlNative,[(EConst(Float(ver,_)),_)] ,_ ) :: _ ->
+				let cur_ver = (try Common.defined_value ctx.com Define.
