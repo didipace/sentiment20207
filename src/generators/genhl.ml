@@ -3491,3 +3491,102 @@ let generate_static_init ctx types main =
 					op ctx (OType (rct, ct));
 					hold ctx rct;
 
+					let rt = alloc_tmp ctx HType in
+					op ctx (OType (rt, t));
+
+					let rname = alloc_tmp ctx HBytes in
+					op ctx (OString (rname, alloc_string ctx (s_type_path path)));
+
+					let rc = alloc_tmp ctx (class_type ctx ctx.base_class [] false) in
+					op ctx (OCall3 (rc, alloc_fun_path ctx ([],"Type") "initClass", rct, rt, rname));
+					hold ctx rc;
+					free ctx rct;
+					rc
+				) in
+
+				let gather_implements() =
+					let classes = ref [] in
+					let rec lookup cv =
+						List.exists (fun (i,_) -> i == c || lookup i) cv.cl_implements
+					in
+					let check = function
+						| TClassDecl c when (has_class_flag c CInterface) = false && not (has_class_flag c CExtern) -> if lookup c then classes := c :: !classes
+						| _ -> ()
+					in
+					List.iter check ctx.com.types;
+					!classes
+				in
+				if (has_class_flag c CInterface) then begin
+					let l = gather_implements() in
+					let ra = alloc_tmp ctx HArray in
+					let rt = alloc_tmp ctx HType in
+					op ctx (OType (rt, HType));
+					op ctx (OCall2 (ra, alloc_std ctx "alloc_array" [HType;HI32] HArray, rt, reg_int ctx (List.length l)));
+					list_iteri (fun i intf ->
+						op ctx (OType (rt, to_type ctx (TInst (intf,[]))));
+						op ctx (OSetArray (ra, reg_int ctx i, rt));
+					) l;
+					op ctx (OSetField (rc,index "__implementedBy__",ra));
+
+					(* TODO : use a plain class for interface object since we don't allow statics *)
+					let rt = alloc_tmp ctx ct in
+					op ctx (OSafeCast (rt, rc));
+					op ctx (OSetGlobal (g, rt));
+				end;
+
+				(match Texpr.build_metadata ctx.com.basic (TClassDecl c) with
+				| None -> ()
+				| Some e ->
+					let r = eval_to ctx e HDyn in
+					op ctx (OSetField (rc,index "__meta__",r)));
+
+				free ctx rc;
+
+			| TEnumDecl e when not e.e_extern ->
+
+				let et = enum_class ctx e in
+				let t = enum_type ctx e in
+
+				let ret = alloc_tmp ctx HType in
+				op ctx (OType (ret, et));
+				hold ctx ret;
+				let rt = alloc_tmp ctx HType in
+				op ctx (OType (rt, t));
+				let r = alloc_tmp ctx (class_type ctx ctx.base_enum [] false) in
+				op ctx (OCall2 (r, alloc_fun_path ctx ([],"Type") "initEnum", ret, rt));
+				free ctx ret;
+
+				let index name =
+					match et with
+					| HObj o ->
+						fst (try get_index name o with Not_found -> die "" __LOC__)
+					| _ ->
+						die "" __LOC__
+				in
+
+				let avalues = alloc_tmp ctx HArray in
+				op ctx (OField (avalues, r, index "__evalues__"));
+
+				List.iter (fun n ->
+					let f = PMap.find n e.e_constrs in
+					match follow f.ef_type with
+					| TFun _ -> ()
+					| _ ->
+						let g = alloc_global ctx (efield_name e f) t in
+						let r = alloc_tmp ctx t in
+						let rd = alloc_tmp ctx HDyn in
+						op ctx (OGetArray (rd,avalues, reg_int ctx f.ef_index));
+						op ctx (OSafeCast (r, rd));
+						op ctx (OSetGlobal (g,r));
+				) e.e_names;
+
+				(match Texpr.build_metadata ctx.com.basic (TEnumDecl e) with
+				| None -> ()
+				| Some e -> op ctx (OSetField (r,index "__meta__",eval_to ctx e HDyn)));
+
+
+			| TAbstractDecl { a_path = [], name; a_pos = pos } ->
+				(match name with
+				| "Int" | "Float" | "Dynamic" | "Bool" ->
+					let is_bool = name = "Bool" in
+					let t = class_type ctx (if i
