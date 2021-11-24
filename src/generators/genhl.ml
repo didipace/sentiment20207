@@ -3589,4 +3589,109 @@ let generate_static_init ctx types main =
 				(match name with
 				| "Int" | "Float" | "Dynamic" | "Bool" ->
 					let is_bool = name = "Bool" in
-					let t = class_type ctx (if i
+					let t = class_type ctx (if is_bool then ctx.core_enum else ctx.core_type) [] false in
+
+					let index name =
+						match t with
+						| HObj o ->
+							fst (try get_index name o with Not_found -> die "" __LOC__)
+						| _ ->
+							die "" __LOC__
+					in
+
+					let g = alloc_global ctx ("$" ^ name) t in
+					let r = alloc_tmp ctx t in
+					let rt = alloc_tmp ctx HType in
+					op ctx (ONew r);
+					op ctx (OType (rt,(match name with "Int" -> HI32 | "Float" -> HF64 | "Dynamic" -> HDyn | "Bool" -> HBool | _ -> die "" __LOC__)));
+					op ctx (OSetField (r,index "__type__",rt));
+					op ctx (OSetField (r,index (if is_bool then "__ename__" else "__name__"),make_string ctx name pos));
+					op ctx (OSetGlobal (g,r));
+
+					let bytes = alloc_tmp ctx HBytes in
+					op ctx (OString (bytes, alloc_string ctx name));
+					op ctx (OCall2 (alloc_tmp ctx HVoid, alloc_fun_path ctx ([],"Type") "register",bytes,r));
+				| _ ->
+					())
+			| _ ->
+				()
+
+		) types;
+
+		let j = jump ctx (fun d -> OJTrue (is_init,d)) in
+		op ctx (ORet (alloc_tmp ctx HVoid));
+		j();
+		free ctx is_init;
+	in
+	(* init class statics *)
+	let init_exprs = ref [] in
+	List.iter (fun t ->
+		(match t with TClassDecl { cl_init = Some e } -> init_exprs := e :: !init_exprs | _ -> ());
+		match t with
+		| TClassDecl c when not (has_class_flag c CExtern) ->
+			List.iter (fun f ->
+				match f.cf_kind, f.cf_expr with
+				| Var _, Some e ->
+					let p = e.epos in
+					let e = mk (TBinop (OpAssign,(mk (TField (mk (TTypeExpr t) t_dynamic p,FStatic (c,f))) f.cf_type p), e)) f.cf_type p in
+					exprs := e :: !exprs;
+				| _ ->
+					()
+			) c.cl_ordered_statics;
+		| _ -> ()
+	) types;
+	(* call main() *)
+	(match main with
+	| None -> ()
+	| Some e -> exprs := e :: !exprs);
+	let fid = lookup_alloc ctx.cfids () in
+	let exprs = List.rev !init_exprs @ List.rev !exprs in
+	ignore(make_fun ~gen_content ctx ("","") fid { tf_expr = mk (TBlock exprs) t_void null_pos; tf_args = []; tf_type = t_void } None None);
+	fid
+
+(* --------------------------------------------------------------------------------------------------------------------- *)
+(* WRITE *)
+
+
+(* 	from -500M to +500M
+	0[7] = 0-127
+	10[+/-][5] [8] = -x2000/+x2000
+	11[+/-][5] [24] = -x20000000/+x20000000
+*)
+let write_index_gen b i =
+	if i < 0 then
+		let i = -i in
+		if i < 0x2000 then begin
+			b ((i lsr 8) lor 0xA0);
+			b (i land 0xFF);
+		end else if i >= 0x20000000 then die "" __LOC__ else begin
+			b ((i lsr 24) lor 0xE0);
+			b ((i lsr 16) land 0xFF);
+			b ((i lsr 8) land 0xFF);
+			b (i land 0xFF);
+		end
+	else if i < 0x80 then
+		b i
+	else if i < 0x2000 then begin
+		b ((i lsr 8) lor 0x80);
+		b (i land 0xFF);
+	end else if i >= 0x20000000 then die "" __LOC__ else begin
+		b ((i lsr 24) lor 0xC0);
+		b ((i lsr 16) land 0xFF);
+		b ((i lsr 8) land 0xFF);
+		b (i land 0xFF);
+	end
+
+let write_code ch code debug =
+
+	let all_types, htypes = gather_types code in
+	let byte = IO.write_byte ch in
+	let write_index = write_index_gen byte in
+
+	let rec write_type t =
+		write_index (try PMap.find t htypes with Not_found -> die (tstr t) __LOC__)
+	in
+
+	let write_op op =
+
+		l
