@@ -3325,4 +3325,77 @@ let generate_static ctx c f =
 			| (Meta.HlNative,[(EConst(String(lib,_)),_)] ,_ ) :: _ ->
 				add_native lib f.cf_name
 			| (Meta.HlNative,[(EConst(Float(ver,_)),_)] ,_ ) :: _ ->
-				let cur_ver = (try Common.defined_value ctx.com Define.
+				let cur_ver = (try Common.defined_value ctx.com Define.HlVer with Not_found -> "") in
+				if cur_ver < ver then
+					let gen_content() =
+						op ctx (OThrow (make_string ctx ("Requires compiling with -D hl-ver=" ^ ver ^ ".0 or higher") null_pos));
+					in
+					ignore(make_fun ctx ~gen_content (s_type_path c.cl_path,f.cf_name) (alloc_fid ctx c f) (match f.cf_expr with Some { eexpr = TFunction f } -> f | _ -> abort "Missing function body" f.cf_pos) None None)
+				else
+				add_native "std" f.cf_name
+			| (Meta.HlNative,[] ,_ ) :: _ ->
+				add_native "std" f.cf_name
+			| (Meta.HlNative,_ ,p) :: _ ->
+				abort "Invalid @:hlNative decl" p
+			| [] ->
+				ignore(make_fun ctx (s_type_path c.cl_path,f.cf_name) (alloc_fid ctx c f) (match f.cf_expr with Some { eexpr = TFunction f } -> f | _ -> abort "Missing function body" f.cf_pos) None None)
+			| _ :: l ->
+				loop l
+		in
+		loop f.cf_meta
+
+
+let rec generate_member ctx c f =
+	match f.cf_kind with
+	| Var _ -> ()
+	| _ when is_extern_field f -> ()
+	| Method m ->
+		let gen_content = if f.cf_name <> "new" then None else Some (fun() ->
+
+			let o = (match class_type ctx c (extract_param_types c.cl_params) false with
+				| HObj o | HStruct o -> o
+				| _ -> die "" __LOC__
+			) in
+
+			(*
+				init dynamic functions
+			*)
+			List.iter (fun f ->
+				match f.cf_kind with
+				| Method MethDynamic ->
+					let r = alloc_tmp ctx (to_type ctx f.cf_type) in
+					let fid = (try fst (get_index f.cf_name o) with Not_found -> die "" __LOC__) in
+					op ctx (OGetThis (r,fid));
+					op ctx (OJNotNull (r,2));
+					op ctx (OInstanceClosure (r,alloc_fid ctx c f,0));
+					op ctx (OSetThis (fid,r));
+				| _ -> ()
+			) c.cl_ordered_fields;
+		) in
+		let ff = match f.cf_expr with
+			| Some { eexpr = TFunction f } -> f
+			| None when has_class_field_flag f CfAbstract ->
+				let tl,tr = match follow f.cf_type with
+					| TFun(tl,tr) -> tl,tr
+					| _ -> die "" __LOC__
+				in
+				let args = List.map (fun (n,_,t) ->
+					let v = Type.alloc_var VGenerated n t null_pos in
+					(v,None)
+				) tl in
+				{
+					tf_args = args;
+					tf_type = tr;
+					tf_expr = mk (TThrow (mk (TConst TNull) t_dynamic null_pos)) t_dynamic null_pos;
+				}
+			| _ -> abort "Missing function body" f.cf_pos
+		in
+		ignore(make_fun ?gen_content ctx (s_type_path c.cl_path,f.cf_name) (alloc_fid ctx c f) ff (Some c) None);
+		if f.cf_name = "toString" && not (has_class_field_flag f CfOverride) && not (PMap.mem "__string" c.cl_fields) && is_to_string f.cf_type then begin
+			let p = f.cf_pos in
+			(* function __string() return this.toString().bytes *)
+			let ethis = mk (TConst TThis) (TInst (c,extract_param_types c.cl_params)) p in
+			let tstr = mk (TCall (mk (TField (ethis,FInstance(c,extract_param_types c.cl_params,f))) f.cf_type p,[])) ctx.com.basic.tstring p in
+			let cstr, cf_bytes = (try (match ctx.com.basic.tstring with TInst(c,_) -> c, PMap.find "bytes" c.cl_fields | _ -> die "" __LOC__) with Not_found -> die "" __LOC__) in
+			let estr = mk (TReturn (Some (mk (TField (tstr,FInstance (cstr,[],cf_bytes))) cf_bytes.cf_type p))) ctx.com.basic.tvoid p in
+			ignore(make_fun ctx (s_type_path c.cl_path,"__string") (alloc_fun_path ctx c.cl_path "__string") { tf_
