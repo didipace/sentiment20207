@@ -3694,4 +3694,139 @@ let write_code ch code debug =
 
 	let write_op op =
 
-		l
+		let o = Obj.repr op in
+		let oid = Obj.tag o in
+
+		match op with
+		| OLabel _ | ONop _ | OAssert _ ->
+			byte oid
+		| OCall2 (r,g,a,b) ->
+			byte oid;
+			write_index r;
+			write_index g;
+			write_index a;
+			write_index b;
+		| OCall3 (r,g,a,b,c) ->
+			byte oid;
+			write_index r;
+			write_index g;
+			write_index a;
+			write_index b;
+			write_index c;
+		| OCall4 (r,g,a,b,c,d) ->
+			byte oid;
+			write_index r;
+			write_index g;
+			write_index a;
+			write_index b;
+			write_index c;
+			write_index d;
+		| OCallN (r,f,rl) | OCallClosure (r,f,rl) | OCallMethod (r,f,rl) | OCallThis (r,f,rl) | OMakeEnum (r,f,rl) ->
+			byte oid;
+			write_index r;
+			write_index f;
+			let n = List.length rl in
+			if n > 0xFF then die "" __LOC__;
+			byte n;
+			List.iter write_index rl
+		| OType (r,t) ->
+			byte oid;
+			write_index r;
+			write_type t
+		| OSwitch (r,pl,eend) ->
+			byte oid;
+			write_index r;
+			write_index (Array.length pl);
+			Array.iter write_index pl;
+			write_index eend
+		| OEnumField (r,e,i,idx) ->
+			byte oid;
+			write_index r;
+			write_index e;
+			write_index i;
+			write_index idx;
+		| _ ->
+			let field n = (Obj.magic (Obj.field o n) : int) in
+			match Obj.size o with
+			| 1 ->
+				let a = field 0 in
+				byte oid;
+				write_index a;
+			| 2 ->
+				let a = field 0 in
+				let b = field 1 in
+				byte oid;
+				write_index a;
+				write_index b;
+			| 3 ->
+				let a = field 0 in
+				let b = field 1 in
+				let c = field 2 in
+				byte oid;
+				write_index a;
+				write_index b;
+				write_index c;
+			| _ ->
+				die "" __LOC__
+	in
+
+	IO.nwrite_string ch "HLB";
+	byte code.version;
+
+	let flags = ref 0 in
+	if debug then flags := !flags lor 1;
+	byte !flags;
+
+	write_index (Array.length code.ints);
+	write_index (Array.length code.floats);
+	write_index (Array.length code.strings);
+	if code.version >= 5 then write_index (Array.length code.bytes);
+	write_index (Array.length all_types);
+	write_index (Array.length code.globals);
+	write_index (Array.length code.natives);
+	write_index (Array.length code.functions);
+	write_index (Array.length code.constants);
+	write_index code.entrypoint;
+
+	Array.iter (IO.write_real_i32 ch) code.ints;
+	Array.iter (IO.write_double ch) code.floats;
+
+	let write_strings strings =
+		let str_length = ref 0 in
+		Array.iter (fun str -> str_length := !str_length + String.length str + 1) strings;
+		IO.write_i32 ch !str_length;
+		Array.iter (IO.write_string ch) strings;
+		Array.iter (fun str -> write_index (String.length str)) strings;
+	in
+	write_strings code.strings;
+
+	let write_bytes bytes =
+		let bytes_length = ref 0 in
+		Array.iter (fun b -> bytes_length := !bytes_length + Bytes.length b) bytes;
+		IO.write_i32 ch !bytes_length;
+		Array.iter (IO.nwrite ch) bytes;
+		let bytes_pos = ref 0 in
+		Array.iter (fun b ->
+			write_index (!bytes_pos);
+			bytes_pos := !bytes_pos + Bytes.length b
+		) bytes;
+	in
+	if code.version >= 5 then write_bytes code.bytes;
+
+	if debug then begin
+		write_index (Array.length code.debugfiles);
+		write_strings code.debugfiles;
+	end;
+
+	Array.iter (fun t ->
+		match t with
+		| HVoid -> byte 0
+		| HUI8 -> byte 1
+		| HUI16 -> byte 2
+		| HI32 -> byte 3
+		| HI64 -> byte 4
+		| HF32 -> byte 5
+		| HF64 -> byte 6
+		| HBool -> byte 7
+		| HBytes -> byte 8
+		| HDyn -> byt
