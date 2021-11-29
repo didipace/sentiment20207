@@ -4045,4 +4045,89 @@ let add_types ctx types =
 				| _ ->
 					false
 			in
-			if not ctx.is_macro then List.iter (fun f -> if has_class_field_flag f CfOverride then ignore(loop c.cl_super
+			if not ctx.is_macro then List.iter (fun f -> if has_class_field_flag f CfOverride then ignore(loop c.cl_super f)) c.cl_ordered_fields;
+			List.iter (fun (m,args,p) ->
+				if m = Meta.HlNative then
+					let lib, prefix = (match args with
+					| [(EConst (String(lib,_)),_)] -> lib, ""
+					| [(EConst (String(lib,_)),_);(EConst (String(p,_)),_)] -> lib, p
+					| _ -> abort "hlNative on class requires library name" p
+					) in
+					(* adds :hlNative for all empty methods *)
+					List.iter (fun f ->
+						match f.cf_kind with
+						| Method MethNormal when not (List.exists (fun (m,_,_) -> m = Meta.HlNative) f.cf_meta) ->
+							(match f.cf_expr with
+							| Some { eexpr = TFunction { tf_expr = { eexpr = TBlock ([] | [{ eexpr = TReturn (Some { eexpr = TConst _ })}]) } } } | None ->
+								let name = prefix ^ String.lowercase (Str.global_replace (Str.regexp "[A-Z]+") "_\\0" f.cf_name) in
+								f.cf_meta <- (Meta.HlNative, [(EConst (String(lib,SDoubleQuotes)),p);(EConst (String(name,SDoubleQuotes)),p)], p) :: f.cf_meta;
+							| _ -> ())
+						| _ -> ()
+					) c.cl_ordered_statics
+			) c.cl_meta;
+ 		| _ -> ()
+	) types;
+	List.iter (generate_type ctx) types
+
+let build_code ctx types main =
+	let ep = generate_static_init ctx types main in
+	let bytes = DynArray.to_array ctx.cbytes.arr in
+	{
+		version = if Array.length bytes = 0 then 4 else 5;
+		entrypoint = ep;
+		strings = DynArray.to_array ctx.cstrings.arr;
+		bytes = bytes;
+		ints = DynArray.to_array ctx.cints.arr;
+		floats = DynArray.to_array ctx.cfloats.arr;
+		globals = DynArray.to_array ctx.cglobals.arr;
+		natives = DynArray.to_array ctx.cnatives.arr;
+		functions = DynArray.to_array ctx.cfunctions;
+		debugfiles = DynArray.to_array ctx.cdebug_files.arr;
+		constants = DynArray.to_array ctx.cconstants.arr;
+	}
+
+let check ctx =
+	PMap.iter (fun (s,p) fid ->
+		if not (Hashtbl.mem ctx.defined_funs fid) then failwith (Printf.sprintf "Unresolved method %s:%s(@%d)" (s_type_path p) s fid)
+	) ctx.cfids.map
+
+let make_context_sign com =
+	let mhash = Hashtbl.create 0 in
+	List.iter (fun t ->
+		let mt = t_infos t in
+		let mid = mt.mt_module.m_id in
+		Hashtbl.add mhash mid true
+	) com.types;
+	let data = Marshal.to_string mhash [No_sharing] in
+	Digest.to_hex (Digest.string data)
+
+let prev_sign = ref "" and prev_data = ref ""
+
+let generate com =
+	let dump = Common.defined com Define.Dump in
+	let hl_check = Common.raw_defined com "hl_check" in
+
+	let sign = make_context_sign com in
+	if sign = !prev_sign && not dump && not hl_check then begin
+		(* reuse previously generated data *)
+		let ch = open_out_bin com.file in
+		output_string ch !prev_data;
+		close_out ch;
+	end else
+
+	let ctx = create_context com false dump in
+	add_types ctx com.types;
+	let code = build_code ctx com.types com.main in
+	Array.sort (fun (lib1,_,_,_) (lib2,_,_,_) -> lib1 - lib2) code.natives;
+	if dump then begin
+		(match ctx.dump_out with None -> () | Some ch -> IO.close_out ch);
+		let ch = open_out_bin "dump/hlcode.txt" in
+		Hlcode.dump (fun s -> output_string ch (s ^ "\n")) code;
+		close_out ch;
+	end;
+	(*if Common.raw_defined com "hl_dump_spec" then begin
+		let ch = open_out_bin "dump/hlspec.txt" in
+		let write s = output_string ch (s ^ "\n") in
+		Array.iter (fun f ->
+			write (fundecl_name f);
+			let spec = Hlinterp.make_s
