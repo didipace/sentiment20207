@@ -3945,3 +3945,104 @@ let write_code ch code debug =
 		write_index (Array.length f.regs);
 		write_index (Array.length f.code);
 		Array.iter write_type f.regs;
+		Array.iter write_op f.code;
+		if debug then begin
+			write_debug_infos f.debug;
+			write_index (Array.length f.assigns);
+			Array.iter (fun (i,p) ->
+				write_index i;
+				write_index (p + 1);
+			) f.assigns;
+		end;
+	) code.functions;
+	Array.iter (fun (g,fields) ->
+		write_index g;
+		write_index (Array.length fields);
+		Array.iter write_index fields;
+	) code.constants
+
+(* --------------------------------------------------------------------------------------------------------------------- *)
+
+let create_context com is_macro dump =
+	let get_type name =
+		try
+			List.find (fun t -> (t_infos t).mt_path = (["hl"],name)) com.types
+		with Not_found -> try
+			List.find (fun t -> (t_infos t).mt_path = (["hl";"types"],name)) com.types
+		with Not_found ->
+			failwith ("hl type " ^ name ^ " not found")
+	in
+	let get_class name =
+		match get_type name with
+		| TClassDecl c -> c
+		| _ -> die "" __LOC__
+	in
+	let get_abstract name =
+		match get_type name with
+		| TAbstractDecl a -> a
+		| _ -> die "" __LOC__
+	in
+	let ctx = {
+		com = com;
+		is_macro = is_macro;
+		optimize = not (Common.raw_defined com "hl_no_opt");
+		dump_out = if dump then Some (IO.output_channel (open_out_bin "dump/hlopt.txt")) else None;
+		m = method_context 0 HVoid null_capture false;
+		cints = new_lookup();
+		cstrings = new_lookup();
+		cbytes = new_lookup();
+		cfloats = new_lookup();
+		cglobals = new_lookup();
+		cnatives = new_lookup();
+		cconstants = new_lookup();
+		cfunctions = DynArray.create();
+		overrides = Hashtbl.create 0;
+		cached_types = PMap.empty;
+		cached_tuples = PMap.empty;
+		cfids = new_lookup();
+		defined_funs = Hashtbl.create 0;
+		tstring = HVoid;
+		array_impl = {
+			aall = get_class "ArrayAccess";
+			abase = get_class "ArrayBase";
+			adyn = get_class "ArrayDyn";
+			aobj = get_class "ArrayObj";
+			aui16 = get_class "ArrayBytes_hl_UI16";
+			ai32 = get_class "ArrayBytes_Int";
+			af32 = get_class "ArrayBytes_hl_F32";
+			af64 = get_class "ArrayBytes_Float";
+		};
+		base_class = get_class "Class";
+		base_enum = get_class "Enum";
+		base_type = get_class "BaseType";
+		core_type = get_class "CoreType";
+		core_enum = get_class "CoreEnum";
+		ref_abstract = get_abstract "Ref";
+		anons_cache = PMap.empty;
+		rec_cache = [];
+		method_wrappers = PMap.empty;
+		cdebug_files = new_lookup();
+		macro_typedefs = Hashtbl.create 0;
+		ct_delayed = [];
+		ct_depth = 0;
+	} in
+	ctx.tstring <- to_type ctx ctx.com.basic.tstring;
+	ignore(alloc_string ctx "");
+	ignore(class_type ctx ctx.base_class [] false);
+	ctx
+
+let add_types ctx types =
+	List.iter (fun t ->
+		match t with
+		| TClassDecl ({ cl_path = ["hl";"types"], ("BytesIterator"|"BytesKeyValueIterator"|"ArrayBytes") } as c) ->
+			add_class_flag c CExtern
+		| TClassDecl c ->
+			let rec loop p f =
+				match p with
+				| Some (p,_) when PMap.mem f.cf_name p.cl_fields || loop p.cl_super f ->
+					Hashtbl.replace ctx.overrides (f.cf_name,p.cl_path) true;
+					true
+				| _ ->
+					false
+			in
+			if not ctx.is_macro then List.iter (fun f -> if has_class_field_flag f CfOverride then ignore(loop c.cl_super
