@@ -3829,4 +3829,119 @@ let write_code ch code debug =
 		| HF64 -> byte 6
 		| HBool -> byte 7
 		| HBytes -> byte 8
-		| HDyn -> byt
+		| HDyn -> byte 9
+		| HFun (args,ret) | HMethod (args,ret) ->
+			let n = List.length args in
+			if n > 0xFF then die "" __LOC__;
+			byte (match t with HFun _ -> 10 | _ -> 20);
+			byte n;
+			List.iter write_type args;
+			write_type ret
+		| HObj p | HStruct p ->
+			byte (if is_struct t then 21 else 11);
+			write_index p.pid;
+			(match p.psuper with
+			| None -> write_index (-1)
+			| Some tsup -> write_type (match t with HObj _ -> HObj tsup | _ -> HStruct tsup));
+			(match p.pclassglobal with
+			| None -> write_index 0
+			| Some g -> write_index (g + 1));
+			write_index (Array.length p.pfields);
+			write_index (Array.length p.pproto);
+			write_index (List.length p.pbindings);
+			Array.iter (fun (_,n,t) -> write_index n; write_type t) p.pfields;
+			Array.iter (fun f -> write_index f.fid; write_index f.fmethod; write_index (match f.fvirtual with None -> -1 | Some i -> i)) p.pproto;
+			List.iter (fun (fid,fidx) -> write_index fid; write_index fidx) p.pbindings;
+		| HArray ->
+			byte 12
+		| HType ->
+			byte 13
+		| HRef t ->
+			byte 14;
+			write_type t
+		| HVirtual v ->
+			byte 15;
+			write_index (Array.length v.vfields);
+			Array.iter (fun (_,sid,t) -> write_index sid; write_type t) v.vfields
+		| HDynObj ->
+			byte 16
+		| HAbstract (_,i) ->
+			byte 17;
+			write_index i
+		| HEnum e ->
+			byte 18;
+			write_index e.eid;
+			(match e.eglobal with
+			| None -> write_index 0
+			| Some g -> write_index (g + 1));
+			write_index (Array.length e.efields);
+			Array.iter (fun (_,nid,tl) ->
+				write_index nid;
+				if Array.length tl > 0xFF then die "" __LOC__;
+				byte (Array.length tl);
+				Array.iter write_type tl;
+			) e.efields
+		| HNull t ->
+			byte 19;
+			write_type t
+		| HPacked t ->
+			byte 22;
+			write_type t
+	) all_types;
+
+	let write_debug_infos debug =
+		let curfile = ref (-1) in
+		let curpos = ref 0 in
+		let rcount = ref 0 in
+		let rec flush_repeat p =
+			if !rcount > 0 then begin
+				if !rcount > 15 then begin
+					byte ((15 lsl 2) lor 2);
+					rcount := !rcount - 15;
+					flush_repeat(p)
+				end else begin
+					let delta = p - !curpos in
+					let delta = (if delta > 0 && delta < 4 then delta else 0) in
+					byte ((delta lsl 6) lor (!rcount lsl 2) lor 2);
+					rcount := 0;
+					curpos := !curpos + delta;
+				end
+			end
+		in
+		Array.iter (fun (f,p) ->
+			if f <> !curfile then begin
+				flush_repeat(p);
+				curfile := f;
+				byte ((f lsr 7) lor 1);
+				byte (f land 0xFF);
+			end;
+			if p <> !curpos then flush_repeat(p);
+			if p = !curpos then
+				rcount := !rcount + 1
+			else
+				let delta = p - !curpos in
+				if delta > 0 && delta < 32 then
+					byte ((delta lsl 3) lor 4)
+				else begin
+					byte (p lsl 3);
+					byte (p lsr 5);
+					byte (p lsr 13);
+				end;
+				curpos := p;
+		) debug;
+		flush_repeat(!curpos)
+	in
+
+	Array.iter write_type code.globals;
+	Array.iter (fun (lib_index, name_index,ttype,findex) ->
+		write_index lib_index;
+		write_index name_index;
+		write_type ttype;
+		write_index findex;
+	) code.natives;
+	Array.iter (fun f ->
+		write_type f.ftype;
+		write_index f.findex;
+		write_index (Array.length f.regs);
+		write_index (Array.length f.code);
+		Array.iter write_type f.regs;
