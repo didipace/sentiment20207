@@ -26,4 +26,35 @@ extern class AVSegmentedSource extends AVSource {
 	function getTrackInfo(periodIndex : Int, payloadType : String, trackIndex : Int) : AVTrackInfo;
 	private function get_networkingParams() : AVNetworkingParams;
 	function insertByLocalTime(periodIndex : Int, insertionTime : Float, handle : Int, userData : Int = 0, replaceDuration : Float = 0) : AVInsertionResult;
-	function insertByVirtualTime(insertionTime : Float, handle : Int, userData : Int = 0, replaceDuration : Float = 0) :
+	function insertByVirtualTime(insertionTime : Float, handle : Int, userData : Int = 0, replaceDuration : Float = 0) : AVInsertionResult;
+	function load(url : String, ?containerType : String, userData : Int = 0) : AVResult;
+	function loadManifest(uri : String, userData : Int = 0, ?containerType : String) : AVResult;
+	function loadWithBackgroundManifest(url : String, containerType : String, userData : Int, backgroundManifest : String) : AVResult;
+	function releaseManifest(handle : Int) : AVResult;
+	function removeByLocalTime(periodIndex : Int, timeStart : Float, timeEnd : Float, replaceWithMainMedia : Bool) : AVResult;
+	function removeByVirtualTime(virtualTimeStart : Float, virtualTimeEnd : Float) : AVResult;
+	function removeByVirtualTimeWithReplacement(virtualTimeStart : Float, virtualTimeEnd : Float, replaceWithMainMedia : Bool) : AVResult;
+	function selectTrack(periodIndex : Int, payloadType : String, trackIndex : Int) : AVResult;
+	function selectTrackString(periodIndex : Int, payloadType : String, trackString : String) : AVResult;
+	function setABRParameters(params : AVABRParameters) : AVResult;
+	function setBandwidth(bitsPerSecond : Int) : AVResult;
+	function setCuePointTags(tagArray : Array<Dynamic>) : AVResult;
+	function setHoldAt(time : Float) : AVResult;
+	function setPauseAtPeriodEnd(periodIndex : Int, userData : Int = 0) : AVResult;
+	function setSubscribedTags(tagArray : Array<Dynamic>) : AVResult;
+	function setSubscribedTagsForBackgroundManifest(tagArray : Array<Dynamic>) : AVResult;
+	private function set_cookieHeader(value : String) : String;
+	private function set_masterUpdateInterval(value : Int) : Int;
+	private function set_networkingParams(value : AVNetworkingParams) : AVNetworkingParams;
+	private function set_useRedirectedUrl(value : Bool) : Bool;
+	static final AUDIO : String;
+	static final AUDIO_DESCRIPTION : String;
+	static final AUDIO_LANGUAGE : String;
+	static final AUDIO_PID : String;
+	static final DASH : String;
+	static final DATA : String;
+	static final DATA_DESCRIPTION : String;
+	static final HLS : String;
+	static final VIDEO : String;
+	static final VIDEO_DESCRIPTION : String;
+}
