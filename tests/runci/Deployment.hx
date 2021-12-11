@@ -95,4 +95,117 @@ class Deployment {
 			case remoteRepo:
 				var localRepo = "extra/api.haxe.org";
 				runCommand("git", ["clone", remoteRepo, localRepo]);
-				runCommand("haxe", ["--cwd", localRepo, "--run", "ImportXml", FileSystem.abso
+				runCommand("haxe", ["--cwd", localRepo, "--run", "ImportXml", FileSystem.absolutePath("extra/doc")]);
+		}
+	}
+
+	static function cleanup32BitDlls()
+	{
+		infoMsg('Cleaning up the 32-bit DLLS');
+		cleanup32BitDll('zlib1.dll');
+	}
+
+	static function cleanup32BitDll(name:String)
+	{
+		var cygRoot = Sys.getEnv("CYG_ROOT");
+		if (cygRoot != null) {
+			while (true)
+			{
+				var proc = new sys.io.Process('$cygRoot/bin/bash', ['-lc', '/usr/bin/cygpath -w "`which $name`"']);
+				var out = proc.stdout.readAll().toString().trim();
+				var err = proc.stderr.readAll().toString().trim();
+				if (proc.exitCode() == 0)
+				{
+					if (!is64BitDll(out))
+					{
+						infoMsg('Deleting the file $out because it is a 32-bit DLL');
+						sys.FileSystem.deleteFile(out);
+					} else {
+						break;
+					}
+				} else {
+					infoMsg('Error while getting the cygpath for $name: $out\n$err');
+					break; // no more dlls
+				}
+			}
+		} else {
+			var path = Sys.getEnv('PATH').split(';');
+			for (base in path)
+			{
+				var fullPath = '$base/$name';
+				if (sys.FileSystem.exists(fullPath) && !is64BitDll(fullPath))
+				{
+					infoMsg('Deleting the file $fullPath because it is a 32-bit DLL');
+					sys.FileSystem.deleteFile(fullPath);
+				}
+			}
+		}
+	}
+
+	static function is64BitDll(path:String)
+	{
+		if (!sys.FileSystem.exists(path))
+		{
+			throw 'The DLL at path $path was not found';
+		}
+
+		var file = sys.io.File.read(path);
+		if (file.readByte() != 'M'.code || file.readByte() != 'Z'.code)
+		{
+			throw 'The DLL at path $path is invalid: Invalid MZ magic header';
+		}
+		file.seek(0x3c, SeekBegin);
+		var peSigOffset = file.readInt32();
+		file.seek(peSigOffset, SeekBegin);
+		if (file.readByte() != 'P'.code || file.readByte() != 'E'.code || file.readByte() != 0 || file.readByte() != 0)
+		{
+			throw 'Invalid PE header signature: PE expected';
+		}
+		// coff header
+		file.readString(20);
+		// pe header
+		var peKind = file.readUInt16();
+		file.close();
+		switch(peKind)
+		{
+			case 0x20b: // 64 bit
+				return true;
+			case 0x10b: // 32 bit
+				return false;
+			case 0x107: // rom
+				return false;
+			case _:
+				throw 'Unknown PE header kind $peKind';
+		}
+	}
+
+	static function fileExtension(file:String) {
+		file = haxe.io.Path.withoutDirectory(file);
+		var idx = file.indexOf('.');
+		if (idx < 0) {
+			return '';
+		} else {
+			return file.substr(idx);
+		}
+	}
+
+	/**
+		Deploy source package to ppa:haxe/snapshots.
+	*/
+	static function deployPPA():Void {
+		if (
+			gitInfo.branch == "development" &&
+			Sys.getEnv("DEPLOY") != null &&
+			Sys.getEnv("haxeci_decrypt") != null
+		) {
+			// setup deb info
+			runCommand("git config --global user.name \"${DEBFULLNAME}\"");
+			runCommand("git config --global user.email \"${DEBEMAIL}\"");
+			// setup haxeci_ssh
+			runCommand("openssl aes-256-cbc -k \"$haxeci_decrypt\" -in extra/haxeci_ssh.enc -out extra/haxeci_ssh -d");
+			runCommand("chmod 600 extra/haxeci_ssh");
+			runCommand("ssh-add extra/haxeci_ssh");
+			// setup haxeci_sec.gpg
+			runCommand("openssl aes-256-cbc -k \"$haxeci_decrypt\" -in extra/haxeci_sec.gpg.enc -out extra/haxeci_sec.gpg -d");
+			runCommand("gpg --allow-secret-key-import --import extra/haxeci_sec.gpg");
+			runCommand("sudo apt-get ins
