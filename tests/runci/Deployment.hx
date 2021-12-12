@@ -208,4 +208,59 @@ class Deployment {
 			// setup haxeci_sec.gpg
 			runCommand("openssl aes-256-cbc -k \"$haxeci_decrypt\" -in extra/haxeci_sec.gpg.enc -out extra/haxeci_sec.gpg -d");
 			runCommand("gpg --allow-secret-key-import --import extra/haxeci_sec.gpg");
-			runCommand("sudo apt-get ins
+			runCommand("sudo apt-get install devscripts git-buildpackage ubuntu-dev-tools dh-make -y");
+			var compatDate = ~/[^0-9]/g.replace(gitInfo.date, "");
+			var SNAPSHOT_VERSION = '${haxeVerFull}+1SNAPSHOT${compatDate}+${gitInfo.commit.substr(0,7)}';
+			runCommand('cp out/haxe*_src.tar.gz "../haxe_${SNAPSHOT_VERSION}.orig.tar.gz"');
+			changeDirectory("..");
+			runCommand("git clone https://github.com/HaxeFoundation/haxe-debian.git");
+			changeDirectory("haxe-debian");
+			runCommand("git checkout upstream");
+			runCommand("git checkout next");
+			runCommand('gbp import-orig "../haxe_${SNAPSHOT_VERSION}.orig.tar.gz" -u "${SNAPSHOT_VERSION}" --debian-branch=next');
+			runCommand('dch -v "1:${SNAPSHOT_VERSION}-1" --urgency low "snapshot build"');
+			runCommand("debuild -S -sa");
+			runCommand("backportpackage -d yakkety --upload ${PPA} --yes ../haxe_*.dsc");
+			runCommand("backportpackage -d xenial  --upload ${PPA} --yes ../haxe_*.dsc");
+			runCommand("backportpackage -d vivid   --upload ${PPA} --yes ../haxe_*.dsc");
+			runCommand("backportpackage -d trusty  --upload ${PPA} --yes ../haxe_*.dsc");
+			runCommand("git checkout debian/changelog");
+			runCommand("git merge -X ours --no-edit origin/next-precise");
+			runCommand('dch -v "1:${SNAPSHOT_VERSION}-1" --urgency low "snapshot build"');
+			runCommand("debuild -S -sa");
+			runCommand("backportpackage -d precise --upload ${PPA} --yes ../haxe_*.dsc");
+		}
+	}
+
+	static var haxeVer(default, never) = {
+		var haxe_ver = haxe.macro.Compiler.getDefine("haxe_ver");
+		switch (haxe_ver.split(".")) {
+			case [major]:
+				major;
+			case [major, minor] if (minor.length == 1):
+				'${major}.${minor}';
+			case [major, minor] if (minor.length > 1):
+				var patch = Std.parseInt(minor.substr(1));
+				var minor = minor.charAt(0);
+				'${major}.${minor}.${patch}';
+			case _:
+				throw haxe_ver;
+		}
+	}
+
+	static var haxeVerFull(default, never) = {
+		var ver = haxeVer.split(".");
+		while (ver.length < 3) {
+			ver.push("0");
+		}
+		ver.join(".");
+	}
+
+	static public function deploy():Void {
+		if (isDeployApiDocsRequired()) {
+			deployApiDoc();
+		} else {
+			infoMsg("Not deploying API doc");
+		}
+	}
+}
