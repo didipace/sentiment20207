@@ -207,4 +207,89 @@ let output_crc ch =
 let parse_header ch =
 	let width = IO.BigEndian.read_i32 ch in
 	let height = IO.BigEndian.read_i32 ch in
-	if width < 0 || height < 0 then error Invalid_header
+	if width < 0 || height < 0 then error Invalid_header;
+	let bits = IO.read_byte ch in
+	let color = IO.read_byte ch in
+	let color = (match color with
+		| 0 -> ClGreyScale (match bits with 1 -> GBits1 | 2 -> GBits2 | 4 -> GBits4 | 8 -> GBits8 | 16 -> GBits16 | _ -> error Invalid_colors)
+		| 2 -> ClTrueColor ((match bits with 8 -> TBits8 | 16 -> TBits16 | _ -> error Invalid_colors) , NoAlpha)
+		| 3 -> ClIndexed (match bits with 1 -> IBits1 | 2 -> IBits2 | 4 -> IBits4 | 8 -> IBits8 | _ -> error Invalid_colors)
+		| 4 -> ClGreyAlpha (match bits with 8 -> GABits8 | 16 -> GABits16 | _ -> error Invalid_colors)
+		| 6 -> ClTrueColor ((match bits with 8 -> TBits8 | 16 -> TBits16 | _ -> error Invalid_colors) , HaveAlpha)
+		| _ -> error Invalid_colors)
+	in
+	let compress = IO.read_byte ch in
+	let filter = IO.read_byte ch in
+	if compress <> 0 || filter <> 0 then error Invalid_header;
+	let interlace = IO.read_byte ch in
+	let interlace = (match interlace with 0 -> false | 1 -> true | _ -> error Invalid_header) in
+	{
+		png_width = width;
+		png_height = height;
+		png_color = color;
+		png_interlace = interlace;
+	}
+
+let parse_chunk ch =
+	let len = IO.BigEndian.read_i32 ch in
+	let ch2 , crc = input_crc ch in
+	let id = IO.nread_string ch2 4 in
+	if len < 0 || not (is_id_char id.[0]) || not (is_id_char id.[1]) || not (is_id_char id.[2]) || not (is_id_char id.[3]) then error Invalid_file;
+	let data = IO.nread_string ch2 len in
+	let crc_val = IO.BigEndian.read_real_i32 ch in
+	if crc_val <> crc() then error Invalid_CRC;
+	match id with
+	| "IEND" -> CEnd
+	| "IHDR" -> CHeader (parse_header (IO.input_string data))
+	| "IDAT" -> CData data
+	| "PLTE" -> CPalette data
+	| _ -> CUnknown (id,data)
+
+let png_sign = "\137\080\078\071\013\010\026\010"
+
+let parse ch =
+	let sign = (try IO.nread_string ch (String.length png_sign) with IO.No_more_input -> error Invalid_header) in
+	if sign <> png_sign then error Invalid_header;
+	let rec loop acc =
+		match parse_chunk ch with
+		| CEnd -> List.rev acc
+		| c -> loop (c :: acc)
+	in
+	try
+		loop []
+	with
+		| IO.No_more_input -> error Truncated_file
+		| IO.Overflow _ -> error Invalid_file
+
+let write_chunk ch cid cdata =
+	IO.BigEndian.write_i32 ch (String.length cdata);
+	let ch2 , crc = output_crc ch in
+	IO.nwrite_string ch2 cid;
+	IO.nwrite_string ch2 cdata;
+	IO.BigEndian.write_real_i32 ch (crc())
+
+let write_header real_ch h =
+	let ch = IO.output_string() in
+	IO.BigEndian.write_i32 ch h.png_width;
+	IO.BigEndian.write_i32 ch h.png_height;
+	IO.write_byte ch (color_bits h.png_color);
+	IO.write_byte ch (match h.png_color with
+		| ClGreyScale _ -> 0
+		| ClTrueColor (_,NoAlpha) -> 2
+		| ClIndexed _ -> 3
+		| ClGreyAlpha _ -> 4
+		| ClTrueColor (_,HaveAlpha) -> 6);
+	IO.write_byte ch 0;
+	IO.write_byte ch 0;
+	IO.write_byte ch (if h.png_interlace then 1 else 0);
+	let data = IO.close_out ch in
+	write_chunk real_ch "IHDR" data
+
+let write ch png =
+	IO.nwrite_string ch png_sign;
+	List.iter (function
+		| CEnd -> write_chunk ch "IEND" ""
+		| CHeader h -> write_header ch h
+		| CData s -> write_chunk ch "IDAT" s
+		| CPalette s -> write_chunk ch "PLTE" s
+		| CUnknown (id,data) -> write_ch
