@@ -292,4 +292,102 @@ let write ch png =
 		| CHeader h -> write_header ch h
 		| CData s -> write_chunk ch "IDAT" s
 		| CPalette s -> write_chunk ch "PLTE" s
-		| CUnknown (id,data) -> write_ch
+		| CUnknown (id,data) -> write_chunk ch id data
+	) png
+
+let filter png data =
+	let head = header png in
+	let w = head.png_width in
+	let h = head.png_height in
+	match head.png_color with
+	| ClGreyScale _
+	| ClGreyAlpha _
+	| ClIndexed _
+	| ClTrueColor (TBits16,_) -> error Unsupported_colors
+	| ClTrueColor (TBits8,alpha) ->
+		let alpha = (match alpha with NoAlpha -> false | HaveAlpha -> true) in
+		let buf = Bytes.create (w * h * 4) in
+		let nbytes = if alpha then 4 else 3 in
+		let stride = nbytes * w + 1 in
+		if String.length data < h * stride then error Invalid_datasize;
+		let bp = ref 0 in
+		let get p = int_of_char (String.unsafe_get data p) in
+		let bget p = int_of_char (Bytes.unsafe_get buf p) in
+		let set v = Bytes.unsafe_set buf !bp (Char.unsafe_chr v); incr bp in
+		let filters = [|
+			(fun x y v -> v
+			);
+			(fun x y v ->
+				let v2 = if x = 0 then 0 else bget (!bp - 4) in
+				v + v2
+			);
+			(fun x y v ->
+				let v2 = if y = 0 then 0 else bget (!bp - 4*w) in
+				v + v2
+			);
+			(fun x y v ->
+				let v2 = if x = 0 then 0 else bget (!bp - 4) in
+				let v3 = if y = 0 then 0 else bget (!bp - 4*w) in
+				v + (v2 + v3) / 2
+			);
+			(fun x y v ->
+				let a = if x = 0 then 0 else bget (!bp - 4) in
+				let b = if y = 0 then 0 else bget (!bp - 4*w) in
+				let c = if x = 0 || y = 0 then 0 else bget (!bp - 4 - 4*w) in
+				let p = a + b - c in
+				let pa = abs (p - a) in
+				let pb = abs (p - b) in
+				let pc = abs (p - c) in
+				let d = (if pa <= pb && pa <= pc then a else if pb <= pc then b else c) in
+				v + d
+			);
+		|] in
+		for y = 0 to h - 1 do
+			let f = get (y * stride) in
+			let f = (if f < 5 then filters.(f) else error (Invalid_filter f)) in
+			for x = 0 to w - 1 do
+				let p = x * nbytes + y * stride in
+				if not alpha then begin
+					set 255;
+					for c = 1 to 3 do
+						let v = get (p + c) in
+						set (f x y v)
+					done;
+				end else begin
+					let v = get (p + 4) in
+					let a = f x y v in
+					set a;
+					for c = 1 to 3 do
+						let v = get (p + c) in
+						set (f x y v)
+					done;
+				end;
+			done;
+		done;
+		Bytes.to_string buf
+
+let make ~width ~height ~pixel ~compress =
+	let data = Bytes.create (width * height * 4 + height) in
+	let p = ref 0 in
+	let set v = Bytes.unsafe_set data !p (Char.unsafe_chr v); incr p in
+	for y = 0 to height - 1 do
+		set 0;
+		for x = 0 to width - 1 do
+			let c = pixel x y in
+			let ic = Int32.to_int c in
+			(* RGBA *)
+			set (ic lsr 16);
+			set (ic lsr 8);
+			set ic;
+			set (Int32.to_int (Int32.shift_right_logical c 24));
+		done;
+	done;
+	let data = Bytes.to_string data in
+	let data = compress data in
+	let header = {
+		png_width = width;
+		png_height = height;
+		png_color = ClTrueColor (TBits8,HaveAlpha);
+		png_interlace = false;
+	} in
+	[CHeader header; CData data; CEnd]
