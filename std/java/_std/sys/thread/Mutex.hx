@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,10 +21,27 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\TextDecoder.webidl. Do not edit!
+package sys.thread;
 
-package js.html;
+import java.util.concurrent.locks.ReentrantLock;
 
-typedef TextDecodeOptions = {
-	var ?stream : Bool;
+@:coreApi
+@:native('haxe.java.vm.Mutex') class Mutex {
+	@:private var lock:ReentrantLock;
+
+	public function new() {
+		this.lock = new ReentrantLock();
+	}
+
+	public function tryAcquire():Bool {
+		return this.lock.tryLock();
+	}
+
+	public function acquire():Void {
+		this.lock.lock();
+	}
+
+	public function release():Void {
+		this.lock.unlock();
+	}
 }

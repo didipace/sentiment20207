@@ -20,10 +20,29 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\TextDecoder.webidl. Do not edit!
+// This file is generated from mozilla\WebGLRenderingContext.webidl. Do not edit!
 
-package js.html;
+package js.html.webgl.extension;
 
-typedef TextDecodeOptions = {
-	var ?stream : Bool;
-}
+/**
+	The `EXT_sRGB` extension is part of the WebGL API and adds sRGB support to textures and framebuffer objects.
+
+	Documentation [EXT_sRGB](https://developer.mozilla.org/en-US/docs/Web/API/EXT_sRGB) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/EXT_sRGB$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/EXT_sRGB>
+**/
+@:native("EXT_sRGB")
+extern class EXTSrgb {
+	
+	/**
+		Unsized sRGB format that leaves the precision up to the driver.
+	**/
+	static inline var SRGB_EXT : Int = 35904;
+	
+	/**
+		Unsized sRGB format with unsized alpha component.
+	**/
+	static inline var SRGB_ALPHA_EXT : Int = 35906;
+	
+	/**
+		Sized (8-bit) sRGB an
