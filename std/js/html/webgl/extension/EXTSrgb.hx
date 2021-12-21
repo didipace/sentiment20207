@@ -45,4 +45,13 @@ extern class EXTSrgb {
 	static inline var SRGB_ALPHA_EXT : Int = 35906;
 	
 	/**
-		Sized (8-bit) sRGB an
+		Sized (8-bit) sRGB and alpha formats.
+	**/
+	static inline var SRGB8_ALPHA8_EXT : Int = 35907;
+	
+	/**
+		Returns the framebuffer color encoding (`gl.LINEAR` or `ext.SRGB_EXT`).
+	**/
+	static inline var FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT : Int = 33296;
+	
+}
