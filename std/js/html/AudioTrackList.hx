@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,22 +21,27 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\XMLHttpRequest.webidl. Do not edit!
+// This file is generated from mozilla\AudioTrackList.webidl. Do not edit!
 
 package js.html;
 
 /**
-	The `XMLHttpRequestResponseType` type is an enumerated set of strings which are used to specify the type of data contained in the `response` of an `XMLHttpRequest`.
+	The `AudioTrackList` interface is used to represent a list of the audio tracks contained within a given HTML media element, with each track represented by a separate `AudioTrack` object in the list.
 
-	Documentation [XMLHttpRequestResponseType](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequestResponseType) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequestResponseType$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+	Documentation [AudioTrackList](https://developer.mozilla.org/en-US/docs/Web/API/AudioTrackList) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/AudioTrackList$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequestResponseType>
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/AudioTrackList>
 **/
-enum abstract XMLHttpRequestResponseType(String) {
-	var NONE = "";
-	var ARRAYBUFFER = "arraybuffer";
-	var BLOB = "blob";
-	var DOCUMENT = "document";
-	var JSON = "json";
-	var TEXT = "text";
+@:native("AudioTrackList")
+extern class AudioTrackList extends EventTarget implements ArrayAccess<AudioTrack> {
+	
+	/**
+		The number of tracks in the list.
+	**/
+	var length(default,null) : Int;
+	var onchange : haxe.Constraints.Function;
+	var onaddtrack : haxe.Constraints.Function;
+	var onremovetrack : haxe.Constraints.Function;
+	
+	function getTrackById( id : String ) : AudioTrack;
 }
