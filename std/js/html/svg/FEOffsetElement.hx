@@ -20,17 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\PopupBlockedEvent.webidl. Do not edit!
+// This file is generated from mozilla\SVGFEOffsetElement.webidl. Do not edit!
 
-package js.html;
+package js.html.svg;
 
-@:native("PopupBlockedEvent")
-extern class PopupBlockedEvent extends Event {
-	var requestingWindow(default,null) : Window;
-	var popupWindowURI(default,null) : Dynamic/*MISSING URI*/;
-	var popupWindowName(default,null) : String;
-	var popupWindowFeatures(default,null) : String;
-	
-	/** @throws DOMError */
-	function new( type : String, ?eventInitDict : PopupBlockedEventInit ) : Void;
-}
+/**
+	The `SVGFEOffsetElement` interface corresponds to the `feOffset` element.
+
+	Documentation [SVGFEOffsetElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGFEOffsetElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGFEOffsetElement$h
