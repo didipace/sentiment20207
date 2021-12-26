@@ -40,4 +40,8 @@ extern class Rectangle {
 	private function set_left(value : Float) : Float;
 	private function set_right(value : Float) : Float;
 	private function set_size(value : Point) : Point;
-	private function set_top(value : 
+	private function set_top(value : Float) : Float;
+	private function set_topLeft(value : Point) : Point;
+	function toString() : String;
+	function union(toUnion : Rectangle) : Rectangle;
+}
