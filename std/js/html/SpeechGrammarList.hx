@@ -55,4 +55,8 @@ extern class SpeechGrammarList implements ArrayAccess<SpeechGrammar> {
 	function addFromURI( src : String, ?weight : Float ) : Void;
 	
 	/**
-		Takes a grammar present in a specific `DOMString` within the code base (e.g. stored in a variable) and adds it to the `SpeechGrammarL
+		Takes a grammar present in a specific `DOMString` within the code base (e.g. stored in a variable) and adds it to the `SpeechGrammarList` as a new `SpeechGrammar` object.
+		@throws DOMError
+	**/
+	function addFromString( string : String, ?weight : Float ) : Void;
+}
