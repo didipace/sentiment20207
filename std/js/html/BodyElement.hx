@@ -40,4 +40,42 @@ extern class BodyElement extends Element {
 	var text : String;
 	
 	/**
-		Is a `DOMString` that represents the co
+		Is a `DOMString` that represents the color of unvisited links.
+	**/
+	var link : String;
+	
+	/**
+		Is a `DOMString` that represents the color of visited links.
+	**/
+	var vLink : String;
+	
+	/**
+		Is a `DOMString` that represents the color of active hyperlinks.
+	**/
+	var aLink : String;
+	
+	/**
+		Is a `DOMString` that represents the background color for the document.
+	**/
+	var bgColor : String;
+	
+	/**
+		Is a `DOMString` that represents the description of the location of the background image resource. Note that this is not an URI, though some older version of some browsers do expect it.
+	**/
+	var background : String;
+	var onafterprint : haxe.Constraints.Function;
+	var onbeforeprint : haxe.Constraints.Function;
+	var onbeforeunload : Event -> Null<String>;
+	var onhashchange : haxe.Constraints.Function;
+	var onlanguagechange : haxe.Constraints.Function;
+	var onmessage : haxe.Constraints.Function;
+	var onmessageerror : haxe.Constraints.Function;
+	var onoffline : haxe.Constraints.Function;
+	var ononline : haxe.Constraints.Function;
+	var onpagehide : haxe.Constraints.Function;
+	var onpageshow : haxe.Constraints.Function;
+	var onpopstate : haxe.Constraints.Function;
+	var onstorage : haxe.Constraints.Function;
+	var onunload : haxe.Constraints.Function;
+	
+}
