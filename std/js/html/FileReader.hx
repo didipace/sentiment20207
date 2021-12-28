@@ -45,4 +45,93 @@ extern class FileReader extends EventTarget {
 		   <tr>
 		    <td><code>EMPTY</code></td>
 		    <td><code>0</code></td>
-		    <td>No data h
+		    <td>No data has been loaded yet.</td>
+		   </tr>
+		   <tr>
+		    <td><code>LOADING</code></td>
+		    <td><code>1</code></td>
+		    <td>Data is currently being loaded.</td>
+		   </tr>
+		   <tr>
+		    <td><code>DONE</code></td>
+		    <td><code>2</code></td>
+		    <td>The entire read request has been completed.</td>
+		   </tr>
+		  
+		 </table>
+		 
+	**/
+	var readyState(default,null) : Int;
+	
+	/**
+		The file's contents. This property is only valid after the read operation is complete, and the format of the data depends on which of the methods was used to initiate the read operation.
+	**/
+	var result(default,null) : Dynamic;
+	
+	/**
+		A `DOMException` representing the error that occurred while reading the file.
+	**/
+	var error(default,null) : DOMException;
+	
+	/**
+		A handler for the `loadstart` event. This event is triggered each time the reading is starting.
+	**/
+	var onloadstart : haxe.Constraints.Function;
+	
+	/**
+		A handler for the `progress` event. This event is triggered while reading a `Blob` content.
+	**/
+	var onprogress : haxe.Constraints.Function;
+	
+	/**
+		A handler for the `load` event. This event is triggered each time the reading operation is successfully completed.
+	**/
+	var onload : haxe.Constraints.Function;
+	
+	/**
+		A handler for the `abort` event. This event is triggered each time the reading operation is aborted.
+	**/
+	var onabort : haxe.Constraints.Function;
+	
+	/**
+		A handler for the `error` event. This event is triggered each time the reading operation encounter an error.
+	**/
+	var onerror : haxe.Constraints.Function;
+	
+	/**
+		A handler for the `loadend` event. This event is triggered each time the reading operation is completed (either in success or failure).
+	**/
+	var onloadend : haxe.Constraints.Function;
+	
+	/** @throws DOMError */
+	function new() : Void;
+	
+	/**
+		Starts reading the contents of the specified `Blob`, once finished, the `result` attribute contains an `ArrayBuffer` representing the file's data.
+		@throws DOMError
+	**/
+	function readAsArrayBuffer( blob : Blob ) : Void;
+	
+	/**
+		Starts reading the contents of the specified `Blob`, once finished, the `result` attribute contains the raw binary data from the file as a string.
+		@throws DOMError
+	**/
+	function readAsBinaryString( filedata : Blob ) : Void;
+	
+	/**
+		Starts reading the contents of the specified `Blob`, once finished, the `result` attribute contains the contents of the file as a text string.
+		@throws DOMError
+	**/
+	function readAsText( blob : Blob, ?label : String ) : Void;
+	
+	/**
+		Starts reading the contents of the specified `Blob`, once finished, the `result` attribute contains a `data:` URL representing the file's data.
+		@throws DOMError
+	**/
+	function readAsDataURL( blob : Blob ) : Void;
+	
+	/**
+		Aborts the read operation. Upon return, the `readyState` will be `DONE`.
+	**/
+	function abort() : Void;
+}
