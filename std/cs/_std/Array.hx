@@ -155,4 +155,167 @@ final class Array<T> implements ArrayAccess<T> {
 		}
 
 		__a[length] = x;
-		r
+		return ++length;
+	}
+
+	public function reverse():Void {
+		var i = 0;
+		var l = this.length;
+		var a = this.__a;
+		var half = l >> 1;
+		l -= 1;
+		while (i < half) {
+			var tmp = a[i];
+			a[i] = a[l - i];
+			a[l - i] = tmp;
+			i += 1;
+		}
+	}
+
+	public function shift():Null<T> {
+		var l = this.length;
+		if (l == 0)
+			return null;
+
+		var a = this.__a;
+		var x = a[0];
+		l -= 1;
+		cs.system.Array.Copy(a, 1, a, 0, length - 1);
+		a[l] = null;
+		this.length = l;
+
+		return x;
+	}
+
+	public function slice(pos:Int, ?end:Int):Array<T> {
+		if (pos < 0) {
+			pos = this.length + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (end == null)
+			end = this.length;
+		else if (end < 0)
+			end = this.length + end;
+		if (end > this.length)
+			end = this.length;
+		var len = end - pos;
+		if (len < 0)
+			return new Array();
+
+		var newarr = new NativeArray(len);
+		cs.system.Array.Copy(__a, pos, newarr, 0, len);
+
+		return ofNative(newarr);
+	}
+
+	public function sort(f:T->T->Int):Void {
+		if (length == 0)
+			return;
+		quicksort(0, length - 1, f);
+	}
+
+	private function quicksort(lo:Int, hi:Int, f:T->T->Int):Void {
+		var buf = __a;
+		var i = lo, j = hi;
+		var p = buf[(i + j) >> 1];
+		while (i <= j) {
+			while (i < hi && f(buf[i], p) < 0)
+				i++;
+			while (j > lo && f(buf[j], p) > 0)
+				j--;
+			if (i <= j) {
+				var t = buf[i];
+				buf[i++] = buf[j];
+				buf[j--] = t;
+			}
+		}
+
+		if (lo < j)
+			quicksort(lo, j, f);
+		if (i < hi)
+			quicksort(i, hi, f);
+	}
+
+	public function splice(pos:Int, len:Int):Array<T> {
+		if (len < 0)
+			return new Array();
+		if (pos < 0) {
+			pos = this.length + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (pos > this.length) {
+			pos = 0;
+			len = 0;
+		} else if (pos + len > this.length) {
+			len = this.length - pos;
+			if (len < 0)
+				len = 0;
+		}
+		var a = this.__a;
+
+		var ret = new NativeArray(len);
+		cs.system.Array.Copy(a, pos, ret, 0, len);
+		var ret = ofNative(ret);
+
+		var end = pos + len;
+		cs.system.Array.Copy(a, end, a, pos, this.length - end);
+		this.length -= len;
+		while (--len >= 0)
+			a[this.length + len] = null;
+		return ret;
+	}
+
+	private function spliceVoid(pos:Int, len:Int):Void {
+		if (len < 0)
+			return;
+		if (pos < 0) {
+			pos = this.length + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (pos > this.length) {
+			pos = 0;
+			len = 0;
+		} else if (pos + len > this.length) {
+			len = this.length - pos;
+			if (len < 0)
+				len = 0;
+		}
+		var a = this.__a;
+
+		var end = pos + len;
+		cs.system.Array.Copy(a, end, a, pos, this.length - end);
+		this.length -= len;
+		while (--len >= 0)
+			a[this.length + len] = null;
+	}
+
+	public function toString():String {
+		if (__hx_toString_depth >= 5) {
+			return "...";
+		}
+		++__hx_toString_depth;
+		try {
+			var s = __hx_toString();
+			--__hx_toString_depth;
+			return s;
+		} catch (e:Dynamic) {
+			--__hx_toString_depth;
+			throw(e);
+		}
+	}
+
+	@:skipReflection
+	function __hx_toString():String {
+		var ret = new StringBuf();
+		var a = __a;
+		ret.add("[");
+		var first = true;
+		for (i in 0...length) {
+			if (first)
+				first = false;
+			else
+				ret.add(",");
+			ret.ad
