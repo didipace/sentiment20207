@@ -469,4 +469,11 @@ final class Array<T> implements ArrayAccess<T> {
 		return __a[idx] = v;
 	}
 
-	private inline functi
+	private inline function __unsafe_get(idx:Int):T {
+		return __a[idx];
+	}
+
+	private inline function __unsafe_set(idx:Int, val:T):T {
+		return __a[idx] = val;
+	}
+}
