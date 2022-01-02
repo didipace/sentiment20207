@@ -318,4 +318,155 @@ final class Array<T> implements ArrayAccess<T> {
 				first = false;
 			else
 				ret.add(",");
-			ret.ad
+			ret.add(a[i]);
+		}
+
+		ret.add("]");
+		return ret.toString();
+	}
+
+	public function unshift(x:T):Void {
+		var __a = __a;
+		var length = length;
+		if (length >= __a.Length) {
+			var newLen = (length << 1) + 1;
+			var newarr = new NativeArray(newLen);
+			cs.system.Array.Copy(__a, 0, newarr, 1, length);
+
+			this.__a = newarr;
+		} else {
+			cs.system.Array.Copy(__a, 0, __a, 1, length);
+		}
+
+		this.__a[0] = x;
+		++this.length;
+	}
+
+	public function insert(pos:Int, x:T):Void {
+		var l = this.length;
+		if (pos < 0) {
+			pos = l + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (pos >= l) {
+			this.push(x);
+			return;
+		} else if (pos == 0) {
+			this.unshift(x);
+			return;
+		}
+
+		if (l >= __a.Length) {
+			var newLen = (length << 1) + 1;
+			var newarr = new NativeArray(newLen);
+			cs.system.Array.Copy(__a, 0, newarr, 0, pos);
+			newarr[pos] = x;
+			cs.system.Array.Copy(__a, pos, newarr, pos + 1, l - pos);
+
+			this.__a = newarr;
+			++this.length;
+		} else {
+			var __a = __a;
+			cs.system.Array.Copy(__a, pos, __a, pos + 1, l - pos);
+			cs.system.Array.Copy(__a, 0, __a, 0, pos);
+			__a[pos] = x;
+			++this.length;
+		}
+	}
+
+	public function remove(x:T):Bool {
+		var __a = __a;
+		var i = -1;
+		var length = length;
+		while (++i < length) {
+			if (__a[i] == x) {
+				cs.system.Array.Copy(__a, i + 1, __a, i, length - i - 1);
+				__a[--this.length] = null;
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public inline function map<S>(f:T->S):Array<S> {
+		var ret = alloc(length);
+		for (i in 0...length)
+			ret.__unsafe_set(i, f(__unsafe_get(i)));
+		return ret;
+	}
+
+	public function contains(x:T):Bool {
+		var __a = __a;
+		var i = -1;
+		var length = length;
+		while (++i < length) {
+			if (__a[i] == x)
+				return true;
+		}
+		return false;
+	}
+
+	public inline function filter(f:T->Bool):Array<T> {
+		var ret = [];
+		for (i in 0...length) {
+			var elt = __unsafe_get(i);
+			if (f(elt))
+				ret.push(elt);
+		}
+		return ret;
+	}
+
+	public function copy():Array<T> {
+		var len = length;
+		var __a = __a;
+		var newarr = new NativeArray(len);
+		cs.system.Array.Copy(__a, 0, newarr, 0, len);
+		return ofNative(newarr);
+	}
+
+	public inline function iterator():haxe.iterators.ArrayIterator<T> {
+		return new haxe.iterators.ArrayIterator(this);
+	}
+
+	public inline function keyValueIterator() : ArrayKeyValueIterator<T>
+	{
+		return new ArrayKeyValueIterator(this);
+	}
+
+	public function resize(len:Int):Void {
+		if (length < len) {
+			if (__a.length < len) {
+				cs.system.Array.Resize(__a, len);
+			}
+			this.length = len;
+		} else if (length > len) {
+			spliceVoid(len, length - len);
+		}
+	}
+
+	private function __get(idx:Int):T {
+		return if ((cast idx : UInt) >= length) null else __a[idx];
+	}
+
+	private function __set(idx:Int, v:T):T {
+		var idx:UInt = idx;
+		var __a = __a;
+		if (idx >= __a.Length) {
+			var len = idx + 1;
+			if (idx == __a.Length)
+				len = (idx << 1) + 1;
+			var newArr = new NativeArray<T>(len);
+			__a.CopyTo(newArr, 0);
+			this.__a = __a = newArr;
+		}
+
+		if (idx >= length)
+			this.length = idx + 1;
+
+		return __a[idx] = v;
+	}
+
+	private inline functi
