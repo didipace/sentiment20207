@@ -379,4 +379,133 @@ type import = placed_name list * import_mode
 type type_def =
 	| EClass of (class_flag, class_field list) definition
 	| EEnum of (enum_flag, enum_constructor list) definition
-	| ETypedef
+	| ETypedef of (enum_flag, type_hint) definition
+	| EAbstract of (abstract_flag, class_field list) definition
+	| EStatic of (placed_access, class_field_kind) definition
+	| EImport of import
+	| EUsing of placed_name list
+
+type type_decl = type_def * pos
+
+type package = string list * type_decl list
+
+let mk_type_path ?(params=[]) ?sub (pack,name) =
+	if name = "" then
+		raise (Invalid_argument "Empty module name is not allowed");
+	{ tpackage = pack; tname = name; tsub = sub; tparams = params; }
+
+let mk_evar ?(final=false) ?(static=false) ?(t:type_hint option) ?eo ?(meta=[]) name =
+	{
+		ev_name = name;
+		ev_final = final;
+		ev_static = static;
+		ev_type = t;
+		ev_expr = eo;
+		ev_meta = meta;
+	}
+
+let is_lower_ident i =
+	if String.length i = 0 then
+		raise (Invalid_argument "Identifier name must not be empty")
+	else
+		let rec loop p =
+			match String.unsafe_get i p with
+			| 'a'..'z' -> true
+			| '_' -> p + 1 >= String.length i || loop (p + 1)
+			| _ -> false
+		in
+		loop 0
+
+let pos = snd
+
+let doc_from_string s = Some { doc_own = Some s; doc_inherited = []; }
+
+let doc_from_string_opt = Option.map (fun s -> { doc_own = Some s; doc_inherited = []; })
+
+(**
+	Generates full doc block text out of `doc_block` structure
+	by concatenating `d.doc_own` and all entries of `d.doc_inherited` with new lines
+	in between.
+*)
+let gen_doc_text d =
+	let docs =
+		match d.doc_own with
+		| Some s -> s :: d.doc_inherited
+		| None -> d.doc_inherited
+	in
+	String.concat "\n" docs
+
+
+let gen_doc_text_opt = Option.map gen_doc_text
+
+let get_own_doc_opt = Option.map_default (fun d -> d.doc_own) None
+
+let rec is_postfix (e,_) op = match op with
+	| Increment | Decrement | Not -> true
+	| Neg | NegBits | Spread -> false
+
+let base_class_name = snd
+
+let punion p p2 =
+	{
+		pfile = p.pfile;
+		pmin = min p.pmin p2.pmin;
+		pmax = max p.pmax p2.pmax;
+	}
+
+let rec punion_el el = match el with
+	| [] ->
+		null_pos
+	| (_,p) :: [] ->
+		p
+	| (_,p) :: el ->
+		punion p (punion_el el)
+
+let parse_path s =
+	match List.rev (ExtString.String.nsplit s ".") with
+	| [] -> [],"" (* This is how old extlib behaved. *)
+	| x :: l -> List.rev l, x
+
+let s_constant = function
+	| Int (s, None) -> s
+	| Int (s, Some suffix) -> s ^ suffix
+	| Float (s, None) -> s
+	| Float (s, Some suffix) -> s ^ suffix
+	| String(s,qs) ->
+		begin match qs with
+		| SDoubleQuotes -> "\"" ^ StringHelper.s_escape s ^ "\""
+		| SSingleQuotes -> "\"" ^ StringHelper.s_escape s ^ "\""
+		end
+	| Ident s -> s
+	| Regexp (r,o) -> "~/" ^ r ^ "/"
+
+let s_access = function
+	| APublic -> "public"
+	| APrivate -> "private"
+	| AStatic -> "static"
+	| AOverride -> "override"
+	| ADynamic -> "dynamic"
+	| AInline -> "inline"
+	| AMacro -> "macro"
+	| AFinal -> "final"
+	| AExtern -> "extern"
+	| AAbstract -> "abstract"
+	| AOverload -> "overload"
+
+let s_placed_access (a,_) = s_access a
+
+let s_keyword = function
+	| Function -> "function"
+	| Class -> "class"
+	| Static -> "static"
+	| Var -> "var"
+	| If -> "if"
+	| Else -> "else"
+	| While -> "while"
+	| Do -> "do"
+	| For -> "for"
+	| Break -> "break"
+	| Return -> "return"
+	| Continue -> "continue"
+	| Extends -> "extends"
+	| Implements -> "implemen
