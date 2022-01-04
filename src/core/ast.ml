@@ -231,4 +231,152 @@ and expr_def =
 	| EDisplay of expr * display_kind
 	| ETernary of expr * expr * expr
 	| ECheckType of expr * type_hint
-	| EMeta of metad
+	| EMeta of metadata_entry * expr
+
+and expr = expr_def * pos
+
+and type_param = {
+	tp_name : placed_name;
+	tp_params :	type_param list;
+	tp_constraints : type_hint option;
+	tp_default : type_hint option;
+	tp_meta : metadata;
+}
+
+(**
+	This structure represents a documentation comment of a symbol.
+
+	Use `Ast.get_doc_text` to generate a final user-readable text for a doc_block.
+*)
+and doc_block = {
+	(** Contains own docs written nearby the symbol in Haxe code *)
+	doc_own: string option;
+	(**
+		This field is for docs pointed by @:inheritDoc meta.
+
+		It's populated with `InheritDoc.build_*` functions.
+		Each string in this list is compiled of a doc a single @:inheritDoc points to.
+
+		E.g. calling `InheritDoc.build_class_field_doc` for `field4` (from sample below)
+		will produce `doc_inherited = ["Own field3 doc"; "Own field2 doc\nOwn field1 doc"]`.
+
+		Sample:
+		```
+		class MyClass {
+
+			/** Own field1 doc */
+			function field1();
+
+			/** Own field2 doc */
+			@:inheritDoc(MyClass.field1) function field2();
+
+			/** Own field3 doc */
+			function field2();
+
+			/** Own field4 doc */
+			@:inheritDoc(MyClass.field3)
+			@:inheritDoc(MyClass.field2)
+			function field4();
+		}
+		```
+	*)
+	mutable doc_inherited: string list;
+}
+
+and documentation = doc_block option
+
+and metadata_entry = (Meta.strict_meta * expr list * pos)
+and metadata = metadata_entry list
+
+and access =
+	| APublic
+	| APrivate
+	| AStatic
+	| AOverride
+	| ADynamic
+	| AInline
+	| AMacro
+	| AFinal
+	| AExtern
+	| AAbstract
+	| AOverload
+
+and placed_access = access * pos
+
+and class_field_kind =
+	| FVar of type_hint option * expr option
+	| FFun of func
+	| FProp of placed_name * placed_name * type_hint option * expr option
+
+and class_field = {
+	cff_name : placed_name;
+	cff_doc : documentation;
+	cff_pos : pos;
+	mutable cff_meta : metadata;
+	mutable cff_access : placed_access list;
+	mutable cff_kind : class_field_kind;
+}
+
+and evar = {
+	ev_name : placed_name;
+	ev_final : bool;
+	ev_static : bool;
+	ev_type : type_hint option;
+	ev_expr : expr option;
+	ev_meta : metadata;
+}
+
+(* TODO: should we introduce CTMono instead? *)
+let ct_mono = CTPath { tpackage = ["$"]; tname = "_hx_mono"; tparams = []; tsub = None }
+
+type enum_flag =
+	| EPrivate
+	| EExtern
+
+type class_flag =
+	| HInterface
+	| HExtern
+	| HPrivate
+	| HExtends of placed_type_path
+	| HImplements of placed_type_path
+	| HFinal
+	| HAbstract
+
+type abstract_flag =
+	| AbPrivate
+	| AbFrom of type_hint
+	| AbTo of type_hint
+	| AbOver of type_hint
+	| AbExtern
+	| AbEnum
+
+type enum_constructor = {
+	ec_name : placed_name;
+	ec_doc : documentation;
+	ec_meta : metadata;
+	ec_args : (string * bool * type_hint) list;
+	ec_pos : pos;
+	ec_params : type_param list;
+	ec_type : type_hint option;
+}
+
+type ('a,'b) definition = {
+	d_name : placed_name;
+	d_doc : documentation;
+	d_params : type_param list;
+	d_meta : metadata;
+	d_flags : 'a list;
+	d_data : 'b;
+}
+
+type import_mode =
+	| INormal
+	| IAsName of placed_name
+	| IAll
+
+type import = placed_name list * import_mode
+
+type type_def =
+	| EClass of (class_flag, class_field list) definition
+	| EEnum of (enum_flag, enum_constructor list) definition
+	| ETypedef
