@@ -508,4 +508,131 @@ let s_keyword = function
 	| Return -> "return"
 	| Continue -> "continue"
 	| Extends -> "extends"
-	| Implements -> "implemen
+	| Implements -> "implements"
+	| Import -> "import"
+	| Switch -> "switch"
+	| Case -> "case"
+	| Default -> "default"
+	| Private -> "private"
+	| Public -> "public"
+	| Try -> "try"
+	| Catch -> "catch"
+	| New -> "new"
+	| This -> "this"
+	| Throw -> "throw"
+	| Extern -> "extern"
+	| Enum -> "enum"
+	| In -> "in"
+	| Interface -> "interface"
+	| Untyped -> "untyped"
+	| Cast -> "cast"
+	| Override -> "override"
+	| Typedef -> "typedef"
+	| Dynamic -> "dynamic"
+	| Package -> "package"
+	| Inline -> "inline"
+	| Using -> "using"
+	| Null -> "null"
+	| True -> "true"
+	| False -> "false"
+	| Abstract -> "abstract"
+	| Macro -> "macro"
+	| Final -> "final"
+	| Operator -> "operator"
+	| Overload -> "overload"
+
+let rec s_binop = function
+	| OpAdd -> "+"
+	| OpMult -> "*"
+	| OpDiv -> "/"
+	| OpSub -> "-"
+	| OpAssign -> "="
+	| OpEq -> "=="
+	| OpNotEq -> "!="
+	| OpGte -> ">="
+	| OpLte -> "<="
+	| OpGt -> ">"
+	| OpLt -> "<"
+	| OpAnd -> "&"
+	| OpOr -> "|"
+	| OpXor -> "^"
+	| OpBoolAnd -> "&&"
+	| OpBoolOr -> "||"
+	| OpShr -> ">>"
+	| OpUShr -> ">>>"
+	| OpShl -> "<<"
+	| OpMod -> "%"
+	| OpAssignOp op -> s_binop op ^ "="
+	| OpInterval -> "..."
+	| OpArrow -> "=>"
+	| OpIn -> " in "
+	| OpNullCoal -> "??"
+
+let s_unop = function
+	| Increment -> "++"
+	| Decrement -> "--"
+	| Not -> "!"
+	| Neg -> "-"
+	| NegBits -> "~"
+	| Spread -> "..."
+
+let s_token = function
+	| Eof -> "<end of file>"
+	| Const c -> s_constant c
+	| Kwd k -> s_keyword k
+	| Comment s -> "/*"^s^"*/"
+	| CommentLine s -> "//"^s
+	| Binop o -> s_binop o
+	| Unop o -> s_unop o
+	| Semicolon -> ";"
+	| Comma -> ","
+	| BkOpen -> "["
+	| BkClose -> "]"
+	| BrOpen -> "{"
+	| BrClose -> "}"
+	| POpen -> "("
+	| PClose -> ")"
+	| Dot -> "."
+	| DblDot -> ":"
+	| QuestionDot -> "?."
+	| Arrow -> "->"
+	| IntInterval s -> s ^ "..."
+	| Sharp s -> "#" ^ s
+	| Question -> "?"
+	| At -> "@"
+	| Dollar v -> "$" ^ v
+	| Spread -> "..."
+
+exception Invalid_escape_sequence of char * int * (string option)
+
+let efield (e,s) =
+	EField(e,s,EFNormal)
+
+let unescape s =
+	let b = Buffer.create 0 in
+	let rec loop esc i =
+		if i = String.length s then
+			()
+		else
+			let c = s.[i] in
+			let fail msg = raise (Invalid_escape_sequence(c,i,msg)) in
+			if esc then begin
+				let inext = ref (i + 1) in
+				(match c with
+				| 'n' -> Buffer.add_char b '\n'
+				| 'r' -> Buffer.add_char b '\r'
+				| 't' -> Buffer.add_char b '\t'
+				| '"' | '\'' | '\\' -> Buffer.add_char b c
+				| '0'..'3' ->
+					let u = (try (int_of_string ("0o" ^ String.sub s i 3)) with _ -> fail None) in
+					if u > 127 then
+						fail (Some ("Values greater than \\177 are not allowed. Use \\u00" ^ (Printf.sprintf "%02x" u) ^ " instead."));
+					Buffer.add_char b (char_of_int u);
+					inext := !inext + 2;
+				| 'x' ->
+					let fail_no_hex () = fail (Some "Must be followed by a hexadecimal sequence.") in
+					let hex = try String.sub s (i+1) 2 with _ -> fail_no_hex () in
+					let u = (try (int_of_string ("0x" ^ hex)) with _ -> fail_no_hex ()) in
+					if u > 127 then
+						fail (Some ("Values greater than \\x7f are not allowed. Use \\u00" ^ hex ^ " instead."));
+			
