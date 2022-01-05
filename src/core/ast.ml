@@ -840,4 +840,53 @@ let iter_expr loop (e,p) =
 		opt f.f_expr
 	| EVars vl -> List.iter (fun v -> opt v.ev_expr) vl
 
-let s_object_key_name name =  funct
+let s_object_key_name name =  function
+	| DoubleQuotes -> "\"" ^ StringHelper.s_escape name ^ "\""
+	| NoQuotes -> name
+
+let s_display_kind = function
+	| DKCall -> "DKCall"
+	| DKDot -> "DKDot"
+	| DKStructure -> "DKStructure"
+	| DKMarked -> "DKMarked"
+	| DKPattern _ -> "DKPattern"
+
+module Printer = struct
+	let rec s_expr_inner tabs (e,_) =
+		match e with
+		| EConst c -> s_constant c
+		| EArray (e1,e2) -> s_expr_inner tabs e1 ^ "[" ^ s_expr_inner tabs e2 ^ "]"
+		| EBinop (op,e1,e2) -> s_expr_inner tabs e1 ^ " " ^ s_binop op ^ " " ^ s_expr_inner tabs e2
+		| EField (e,f,efk) -> s_expr_inner tabs e ^ (match efk with EFNormal -> "." | EFSafe -> "?.") ^ f
+		| EParenthesis e -> "(" ^ (s_expr_inner tabs e) ^ ")"
+		| EObjectDecl fl -> "{ " ^ (String.concat ", " (List.map (fun ((n,_,qs),e) -> (s_object_key_name n qs) ^ " : " ^ (s_expr_inner tabs e)) fl)) ^ " }"
+		| EArrayDecl el -> "[" ^ s_expr_list tabs el ", " ^ "]"
+		| ECall (e,el) -> s_expr_inner tabs e ^ "(" ^ s_expr_list tabs el ", " ^ ")"
+		| ENew (t,el) -> "new " ^ s_complex_type_path tabs t ^ "(" ^ s_expr_list tabs el ", " ^ ")"
+		| EUnop (op,Postfix,e) -> s_expr_inner tabs e ^ s_unop op
+		| EUnop (op,Prefix,e) -> s_unop op ^ s_expr_inner tabs e
+		| EFunction (FKNamed((n,_),inline),f) -> (if inline then "inline " else "") ^ "function " ^ n ^ s_func tabs f
+		| EFunction (FKAnonymous,f) -> "function" ^ s_func tabs f
+		| EFunction (FKArrow,f) -> "function" ^ s_func ~is_arrow:true tabs f
+		| EVars vl -> "var " ^ String.concat ", " (List.map (s_var tabs) vl)
+		| EBlock [] -> "{ }"
+		| EBlock el -> s_block tabs el "{" "\n" "}"
+		| EFor (e1,e2) -> "for (" ^ s_expr_inner tabs e1 ^ ") " ^ s_expr_inner tabs e2
+		| EIf (e,e1,None) -> "if (" ^ s_expr_inner tabs e ^ ") " ^ s_expr_inner tabs e1
+		| EIf (e,e1,Some e2) -> "if (" ^ s_expr_inner tabs e ^ ") " ^ s_expr_inner tabs e1 ^ " else " ^ s_expr_inner tabs e2
+		| EWhile (econd,e,NormalWhile) -> "while (" ^ s_expr_inner tabs econd ^ ") " ^ s_expr_inner tabs e
+		| EWhile (econd,e,DoWhile) -> "do " ^ s_expr_inner tabs e ^ " while (" ^ s_expr_inner tabs econd ^ ")"
+		| ESwitch (e,cases,def) -> "switch " ^ s_expr_inner tabs e ^ " {\n\t" ^ tabs ^ String.concat ("\n\t" ^ tabs) (List.map (s_case tabs) cases) ^
+			(match def with None -> "" | Some (def,_) -> "\n\t" ^ tabs ^ "default:" ^
+			(match def with None -> "" | Some def -> s_expr_omit_block tabs def)) ^ "\n" ^ tabs ^ "}"
+		| ETry (e,catches) -> "try " ^ s_expr_inner tabs e ^ String.concat "" (List.map (s_catch tabs) catches)
+		| EReturn e -> "return" ^ s_opt_expr tabs e " "
+		| EBreak -> "break"
+		| EContinue -> "continue"
+		| EUntyped e -> "untyped " ^ s_expr_inner tabs e
+		| EThrow e -> "throw " ^ s_expr_inner tabs e
+		| ECast (e,Some (t,_)) -> "cast (" ^ s_expr_inner tabs e ^ ", " ^ s_complex_type tabs t ^ ")"
+		| ECast (e,None) -> "cast " ^ s_expr_inner tabs e
+		| EIs (e,(t,_)) -> s_expr_inner tabs e ^ " is " ^ s_complex_type tabs t
+		| ETernary (e1,e2,e3) -> s_expr_inner tabs e1 ^ " ? " ^ s_expr_inner tabs e2 ^ " : " ^ s_expr_inner tabs e3
+		| ECheckType (e,(t,_)) -> "(" ^ s_
