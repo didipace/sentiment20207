@@ -738,4 +738,106 @@ let map_expr loop (e,p) =
 		let e2 = loop e2 in
 		EBinop (op,e1,e2)
 	| EField (e,f,efk) -> EField (loop e, f, efk)
-	| EParenthesis e -> EPare
+	| EParenthesis e -> EParenthesis (loop e)
+	| EObjectDecl fl -> EObjectDecl (List.map (fun (k,e) -> k,loop e) fl)
+	| EArrayDecl el -> EArrayDecl (List.map loop el)
+	| ECall (e,el) ->
+		let e = loop e in
+		let el = List.map loop el in
+		ECall (e,el)
+	| ENew (t,el) ->
+		let t = tpath t in
+		let el = List.map loop el in
+		ENew (t,el)
+	| EUnop (op,f,e) -> EUnop (op,f,loop e)
+	| EVars vl ->
+		EVars (List.map (fun v ->
+			let t = opt type_hint v.ev_type in
+			let eo = opt loop v.ev_expr in
+			{ v with ev_type = t; ev_expr = eo }
+		) vl)
+	| EFunction (kind,f) -> EFunction (kind,func f)
+	| EBlock el -> EBlock (List.map loop el)
+	| EFor (e1,e2) ->
+		let e1 = loop e1 in
+		let e2 = loop e2 in
+		EFor (e1,e2)
+	| EIf (e,e1,e2) ->
+		let e = loop e in
+		let e1 = loop e1 in
+		let e2 = opt loop e2 in
+		EIf (e,e1,e2)
+	| EWhile (econd,e,f) ->
+		let econd = loop econd in
+		let e = loop e in
+		EWhile (econd,e,f)
+	| ESwitch (e,cases,def) ->
+		let e = loop e in
+		let cases = List.map (fun (el,eg,e,p) ->
+			let el = List.map loop el in
+			let eg = opt loop eg in
+			let e = opt loop e in
+			el,eg,e,p
+		) cases in
+		let def = opt (fun (eo,p) -> opt loop eo,p) def in
+		ESwitch (e, cases, def)
+	| ETry (e,catches) ->
+		let e = loop e in
+		let catches = List.map (fun (n,t,e,p) -> n,Option.map type_hint t,loop e,p) catches in
+		ETry (e,catches)
+	| EReturn e -> EReturn (opt loop e)
+	| EBreak -> EBreak
+	| EContinue -> EContinue
+	| EUntyped e -> EUntyped (loop e)
+	| EThrow e -> EThrow (loop e)
+	| ECast (e,t) ->
+		let e = loop e in
+		let t = opt type_hint t in
+		ECast (e,t)
+	| EIs (e,t) ->
+		let e = loop e in
+		let t = type_hint t in
+		EIs (e,t)
+	| EDisplay (e,f) -> EDisplay (loop e,f)
+	| ETernary (e1,e2,e3) ->
+		let e1 = loop e1 in
+		let e2 = loop e2 in
+		let e3 = loop e3 in
+		ETernary (e1,e2,e3)
+	| ECheckType (e,t) ->
+		let e = loop e in
+		let t = type_hint t in
+		ECheckType (e,t)
+	| EMeta (m,e) -> EMeta(m, loop e)
+	) in
+	(e,p)
+
+let iter_expr loop (e,p) =
+	let opt eo = match eo with None -> () | Some e -> loop e in
+	let exprs = List.iter loop in
+	match e with
+	| EConst _ | EContinue | EBreak | EReturn None -> ()
+	| EParenthesis e1 | EField(e1,_,_) | EUnop(_,_,e1) | EReturn(Some e1) | EThrow e1 | EMeta(_,e1)
+	| ECheckType(e1,_) | EDisplay(e1,_) | ECast(e1,_) | EIs(e1,_) | EUntyped e1 -> loop e1;
+	| EArray(e1,e2) | EBinop(_,e1,e2) | EFor(e1,e2) | EWhile(e1,e2,_) | EIf(e1,e2,None) -> loop e1; loop e2;
+	| ETernary(e1,e2,e3) | EIf(e1,e2,Some e3) -> loop e1; loop e2; loop e3;
+	| EArrayDecl el | ENew(_,el) | EBlock el -> List.iter loop el
+	| ECall(e1,el) -> loop e1; exprs el;
+	| EObjectDecl fl -> List.iter (fun (_,e) -> loop e) fl;
+	| ETry(e1,catches) ->
+		loop e1;
+		List.iter (fun (_,_,e,_) -> loop e) catches
+	| ESwitch(e1,cases,def) ->
+		loop e1;
+		List.iter (fun (el,eg,e,_) ->
+			exprs el;
+			opt eg;
+			opt e;
+		) cases;
+		(match def with None -> () | Some (e,_) -> opt e);
+	| EFunction(_,f) ->
+		List.iter (fun (_,_,_,_,eo) -> opt eo) f.f_args;
+		opt f.f_expr
+	| EVars vl -> List.iter (fun v -> opt v.ev_expr) vl
+
+let s_object_key_name name =  funct
