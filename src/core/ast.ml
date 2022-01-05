@@ -635,4 +635,107 @@ let unescape s =
 					let u = (try (int_of_string ("0x" ^ hex)) with _ -> fail_no_hex ()) in
 					if u > 127 then
 						fail (Some ("Values greater than \\x7f are not allowed. Use \\u00" ^ hex ^ " instead."));
-			
+					Buffer.add_char b (char_of_int u);
+					inext := !inext + 2;
+				| 'u' ->
+					let fail_no_hex () = fail (Some "Must be followed by a hexadecimal sequence enclosed in curly brackets.") in
+					let (u, a) =
+						try
+							(int_of_string ("0x" ^ String.sub s (i+1) 4), 4)
+						with _ -> try
+							assert (s.[i+1] = '{');
+							let l = String.index_from s (i+3) '}' - (i+2) in
+							let u = int_of_string ("0x" ^ String.sub s (i+2) l) in
+							if u > 0x10FFFF then
+								fail (Some "Maximum allowed value for unicode escape sequence is \\u{10FFFF}");
+							(u, l+2)
+						with
+							| Invalid_escape_sequence (c,i,msg) as e -> raise e
+							| _ -> fail_no_hex ()
+					in
+					if u >= 0xD800 && u < 0xE000 then
+						fail (Some "UTF-16 surrogates are not allowed in strings.");
+					UTF8.add_uchar b (UCharExt.uchar_of_int u);
+					inext := !inext + a;
+				| _ ->
+					fail None);
+				loop false !inext;
+			end else
+				match c with
+				| '\\' -> loop true (i + 1)
+				| c ->
+					Buffer.add_char b c;
+					loop false (i + 1)
+	in
+	loop false 0;
+	Buffer.contents b
+
+let map_expr loop (e,p) =
+	let opt f o =
+		match o with None -> None | Some v -> Some (f v)
+	in
+	let rec tparam = function
+		| TPType t -> TPType (type_hint t)
+		| TPExpr e -> TPExpr (loop e)
+	and cfield f =
+		{ f with cff_kind = (match f.cff_kind with
+			| FVar (t,e) ->
+				let t = opt type_hint t in
+				let e = opt loop e in
+				FVar (t,e)
+			| FFun f -> FFun (func f)
+			| FProp (get,set,t,e) ->
+				let t = opt type_hint t in
+				let e = opt loop e in
+				FProp (get,set,t,e))
+		}
+	and type_hint (t,p) = (match t with
+		| CTPath t -> CTPath { t with tparams = List.map tparam t.tparams }
+		| CTFunction (cl,c) ->
+			let cl = List.map type_hint cl in
+			let c = type_hint c in
+			CTFunction (cl,c)
+		| CTAnonymous fl -> CTAnonymous (List.map cfield fl)
+		| CTParent t -> CTParent (type_hint t)
+		| CTExtend (tl,fl) ->
+			let tl = List.map tpath tl in
+			let fl = List.map cfield fl in
+			CTExtend (tl,fl)
+		| CTOptional t -> CTOptional (type_hint t)
+		| CTNamed (n,t) -> CTNamed (n,type_hint t)
+		| CTIntersection tl -> CTIntersection(List.map type_hint tl)
+		),p
+	and tparamdecl t =
+		let constraints = opt type_hint t.tp_constraints in
+		let default = opt type_hint t.tp_default in
+		let params = List.map tparamdecl t.tp_params in
+		{ tp_name = t.tp_name; tp_constraints = constraints; tp_default = default; tp_params = params; tp_meta = t.tp_meta }
+	and func f =
+		let params = List.map tparamdecl f.f_params in
+		let args = List.map (fun (n,o,m,t,e) ->
+			let t = opt type_hint t in
+			let e = opt loop e in
+			n,o,m,t,e
+		) f.f_args in
+		let t = opt type_hint f.f_type in
+		let e = opt loop f.f_expr in
+		{
+			f_params = params;
+			f_args = args;
+			f_type = t;
+			f_expr = e;
+		}
+	and tpath (t,p) = { t with tparams = List.map tparam t.tparams },p
+	in
+	let e = (match e with
+	| EConst _ -> e
+	| EArray (e1,e2) ->
+		let e1 = loop e1 in
+		let e2 = loop e2 in
+		EArray (e1,e2)
+	| EBinop (op,e1,e2) ->
+		let e1 = loop e1 in
+		let e2 = loop e2 in
+		EBinop (op,e1,e2)
+	| EField (e,f,efk) -> EField (loop e, f, efk)
+	| EParenthesis e -> EPare
