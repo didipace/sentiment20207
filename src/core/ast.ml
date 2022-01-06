@@ -957,3 +957,100 @@ module Printer = struct
 		match t with
 		| Some(t,_) -> pre ^ s_complex_type tabs t
 		| None -> ""
+	and s_func ?(is_arrow=false) tabs f =
+		s_type_param_list tabs f.f_params ^
+		"(" ^ String.concat ", " (List.map (s_func_arg tabs) f.f_args) ^ ")" ^
+		s_opt_type_hint tabs f.f_type ":" ^
+		(if is_arrow then " -> " else "") ^
+		s_opt_expr tabs f.f_expr " "
+	and s_type_param tabs t =
+		fst (t.tp_name) ^ s_type_param_list tabs t.tp_params ^
+		begin match t.tp_constraints with
+			| None -> ""
+			| Some(th,_) -> ":(" ^ s_complex_type tabs th ^ ")"
+		end
+	and s_type_param_list tabs tl =
+		if List.length tl > 0 then "<" ^ String.concat ", " (List.map (s_type_param tabs) tl) ^ ">" else ""
+	and s_func_arg tabs ((n,_),o,_,t,e) =
+		if o then "?" else "" ^ n ^ s_opt_type_hint tabs t ":" ^ s_opt_expr tabs e " = "
+	and s_var tabs v =
+		let s = (fst v.ev_name) ^ (s_opt_type_hint tabs v.ev_type ":") ^ s_opt_expr tabs v.ev_expr " = " in
+		if v.ev_meta = [] then s
+		else (String.concat " " (List.map (s_metadata tabs) v.ev_meta)) ^ " " ^ s
+	and s_case tabs (el,e1,e2,_) =
+		"case " ^ s_expr_list tabs el ", " ^
+		(match e1 with None -> ":" | Some e -> " if (" ^ s_expr_inner tabs e ^ "):") ^
+		(match e2 with None -> "" | Some e -> s_expr_omit_block tabs e)
+	and s_catch tabs ((n,_),t,e,_) =
+		let hint = Option.map_default (fun (t,_) -> ":" ^ s_complex_type tabs t) "" t in
+		" catch(" ^ n ^ hint ^ ") " ^ s_expr_inner tabs e
+	and s_block tabs el opn nl cls =
+		 opn ^ "\n\t" ^ tabs ^ (s_expr_list (tabs ^ "\t") el (";\n\t" ^ tabs)) ^ ";" ^ nl ^ tabs ^ cls
+	and s_expr_omit_block tabs e =
+		match e with
+		| (EBlock [],_) -> ""
+		| (EBlock el,_) -> s_block (tabs ^ "\t") el "" "" ""
+		| _ -> s_expr_inner (tabs ^ "\t") e ^ ";"
+
+	let s_expr e = s_expr_inner "" e
+end
+
+let get_value_meta meta =
+	try
+		begin match Meta.get Meta.Value meta with
+			| (_,[EObjectDecl values,_],_) -> List.fold_left (fun acc ((s,_,_),e) -> PMap.add s e acc) PMap.empty values
+			| _ -> raise Not_found
+		end
+	with Not_found ->
+		PMap.empty
+
+(* Type path related functions *)
+
+let rec string_list_of_expr_path_raise (e,p) =
+	match e with
+	| EConst (Ident i) -> [i]
+	| EField (e,f,_) -> f :: string_list_of_expr_path_raise e
+	| _ -> raise Exit
+
+let rec string_pos_list_of_expr_path_raise (e,p) =
+	match e with
+	| EConst (Ident i) -> [i,p]
+	| EField (e,f,_) -> (f,p) :: string_pos_list_of_expr_path_raise e (* wrong p? *)
+	| _ -> raise Exit
+
+let expr_of_type_path (sl,s) p =
+	match sl with
+	| [] -> (EConst(Ident s),p)
+	| s1 :: sl ->
+		let e1 = (EConst(Ident s1),p) in
+		let e = List.fold_left (fun e s -> (efield(e,s),p)) e1 sl in
+		efield(e,s),p
+
+let match_path recursive sl sl_pattern =
+	let rec loop top sl1 sl2 = match sl1,sl2 with
+		| [],[] ->
+			true
+		(* always recurse into types of package paths *)
+		| (s1 :: s11 :: _),[s2] when is_lower_ident s2 && not (is_lower_ident s11)->
+			s1 = s2
+		| [_],[] when top ->
+			true
+		| _,[] ->
+			recursive
+		| [],_ ->
+			false
+		| (s1 :: sl1),(s2 :: sl2) ->
+			s1 = s2 && loop false sl1 sl2
+	in
+	loop true sl sl_pattern
+
+let full_dot_path2 mpath tpath =
+	if mpath = tpath then
+		(fst tpath) @ [snd tpath]
+	else
+		(fst mpath) @ [snd mpath;snd tpath]
+
+let safe_for_all2 f a b =
+	try List.for_all2 f a b with _ -> false
+
+let rec remove_duplicates f l = matc
