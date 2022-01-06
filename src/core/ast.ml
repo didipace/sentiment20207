@@ -889,4 +889,71 @@ module Printer = struct
 		| ECast (e,None) -> "cast " ^ s_expr_inner tabs e
 		| EIs (e,(t,_)) -> s_expr_inner tabs e ^ " is " ^ s_complex_type tabs t
 		| ETernary (e1,e2,e3) -> s_expr_inner tabs e1 ^ " ? " ^ s_expr_inner tabs e2 ^ " : " ^ s_expr_inner tabs e3
-		| ECheckType (e,(t,_)) -> "(" ^ s_
+		| ECheckType (e,(t,_)) -> "(" ^ s_expr_inner tabs e ^ " : " ^ s_complex_type tabs t ^ ")"
+		| EMeta (m,e) -> s_metadata tabs m ^ " " ^ s_expr_inner tabs e
+		| EDisplay (e1,dk) -> Printf.sprintf "#DISPLAY(%s, %s)" (s_expr_inner tabs e1) (s_display_kind dk)
+	and s_expr_list tabs el sep =
+		(String.concat sep (List.map (s_expr_inner tabs) el))
+	and s_complex_type_path tabs (t,_) =
+		Printf.sprintf "%s%s%s"
+			(s_type_path (t.tpackage,t.tname))
+			(Option.map_default (fun s -> "." ^ s) "" t.tsub)
+			(s_type_param_or_consts tabs t.tparams)
+	and s_type_param_or_consts tabs pl =
+		if List.length pl > 0
+		then "<" ^ (String.concat "," (List.map (s_type_param_or_const tabs) pl)) ^ ">"
+		else ""
+	and s_type_param_or_const tabs p =
+		match p with
+		| TPType (t,_) -> s_complex_type tabs t
+		| TPExpr e -> s_expr_inner tabs e
+	and s_complex_type tabs ct =
+		match ct with
+		| CTPath t -> s_complex_type_path tabs (t,null_pos)
+		| CTFunction (cl,(c,_)) -> if List.length cl > 0 then String.concat " -> " (List.map (fun (t,_) -> s_complex_type tabs t) cl) else "Void" ^ " -> " ^ s_complex_type tabs c
+		| CTAnonymous fl -> "{ " ^ String.concat "; " (List.map (s_class_field tabs) fl) ^ "}";
+		| CTParent(t,_) -> "(" ^ s_complex_type tabs t ^ ")"
+		| CTOptional(t,_) -> "?" ^ s_complex_type tabs t
+		| CTNamed((n,_),(t,_)) -> n ^ ":" ^ s_complex_type tabs t
+		| CTExtend (tl, fl) -> "{> " ^ String.concat " >, " (List.map (s_complex_type_path tabs) tl) ^ ", " ^ String.concat ", " (List.map (s_class_field tabs) fl) ^ " }"
+		| CTIntersection tl -> String.concat "&" (List.map (fun (t,_) -> s_complex_type tabs t) tl)
+	and s_class_field tabs f =
+		let doc = match f.cff_doc with
+			| Some d -> "/**\n\t" ^ tabs ^ (gen_doc_text d) ^ "\n**/\n"
+			| None -> ""
+		in
+		let s_separated f sep list =
+			if list <> [] then ((String.concat sep (List.map f list)) ^ sep) else ""
+		in
+		let s_meta = s_separated (s_metadata tabs) ("\n" ^ tabs) in
+		let s_access = s_separated s_placed_access " " in
+		(match f.cff_kind with
+		| FVar (t,e) ->
+			doc ^
+			let keyword = ref "var " in
+			let question = ref "" in
+			let access = List.filter (fun (a,_) -> if a = AFinal then (keyword := "final "; false) else true) f.cff_access in
+			let meta = List.filter (fun (m,_,_) -> if m = Meta.Optional then (question := "?"; false) else true) f.cff_meta in
+			s_meta meta ^
+			s_access access ^
+			!keyword ^ !question ^ (fst f.cff_name) ^ s_opt_type_hint tabs t " : " ^ s_opt_expr tabs e " = "
+		| FProp ((get,_),(set,_),t,e) ->
+			doc ^
+			s_meta f.cff_meta ^
+			s_access f.cff_access ^
+			"var " ^ (fst f.cff_name) ^ "(" ^ get ^ "," ^ set ^ ")" ^ s_opt_type_hint tabs t " : " ^ s_opt_expr tabs e " = "
+		| FFun func ->
+			doc ^
+			s_meta f.cff_meta ^
+			s_access f.cff_access ^
+			"function " ^ (fst f.cff_name) ^ s_func tabs func)
+	and s_metadata tabs (s,e,_) =
+		"@" ^ Meta.to_string s ^ if List.length e > 0 then "(" ^ s_expr_list tabs e ", " ^ ")" else ""
+	and s_opt_expr tabs e pre =
+		match e with
+		| Some s -> pre ^ s_expr_inner tabs s
+		| None -> ""
+	and s_opt_type_hint tabs t pre =
+		match t with
+		| Some(t,_) -> pre ^ s_complex_type tabs t
+		| None -> ""
