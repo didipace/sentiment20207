@@ -1053,4 +1053,133 @@ let full_dot_path2 mpath tpath =
 let safe_for_all2 f a b =
 	try List.for_all2 f a b with _ -> false
 
-let rec remove_duplicates f l = matc
+let rec remove_duplicates f l = match l with
+	| [] -> []
+	| x :: l -> x :: (remove_duplicates f (List.filter (fun x' -> f x x') l))
+
+module Expr = struct
+	let ensure_block e = match fst e with
+		| EBlock _ -> e
+		| _ -> (EBlock [e],pos e)
+
+	let field_assoc name fl =
+		let rec loop fl = match fl with
+			| ((name',_,_),e) :: fl -> if name' = name then e else loop fl
+			| [] -> raise Not_found
+		in
+		loop fl
+
+	let field_mem_assoc name fl =
+		let rec loop fl = match fl with
+			| ((name',_,_),e) :: fl -> if name' = name then raise Exit else loop fl
+			| [] -> false
+		in
+		try
+			loop fl
+		with Exit ->
+			true
+
+	let dump_with_pos e =
+		let buf = Buffer.create 0 in
+		let add = Buffer.add_string buf in
+		let rec loop' tabs (e,p) =
+			let add s = add (Printf.sprintf "%4i-%4i %s%s\n" p.pmin p.pmax tabs s) in
+			let loop e = loop' (tabs ^ "  ") e in
+			match e with
+			| EConst ct -> add (s_constant ct)
+			| EArray(e1,e2) ->
+				add "EArray";
+				loop e1;
+				loop e2;
+			| EBinop(op,e1,e2) ->
+				add ("EBinop " ^ (s_binop op));
+				loop e1;
+				loop e2;
+			| EField(e1,s,_) ->
+				add ("EField " ^ s);
+				loop e1
+			| EParenthesis e1 ->
+				add "EParenthesis";
+				loop e1
+			| EObjectDecl fl ->
+				add "EObjectDecl";
+				List.iter (fun ((n,p,_),e1) ->
+					Buffer.add_string buf (Printf.sprintf "%4i-%4i %s%s\n" p.pmin p.pmax tabs n);
+					loop e1
+				) fl;
+			| EArrayDecl el ->
+				add "EArrayDecl";
+				List.iter loop el
+			| ECall(e1,el) ->
+				add "ECall";
+				loop e1;
+				List.iter loop el
+			| ENew((tp,_),el) ->
+				add ("ENew " ^ s_type_path(tp.tpackage,tp.tname));
+				List.iter loop el
+			| EUnop(op,_,e1) ->
+				add ("EUnop " ^ (s_unop op));
+				loop e1
+			| EVars vl ->
+				add "EVars";
+				List.iter (fun v ->
+					let t_hint =
+						match v.ev_type with
+						| None -> ""
+						| Some (ct,_) -> ":" ^ Printer.s_complex_type "" ct
+					in
+					add (Printf.sprintf "%s  %s%s" tabs (fst v.ev_name) t_hint);
+					match v.ev_expr with
+					| None -> ()
+					| Some e ->
+						loop' (Printf.sprintf "%s      " tabs) e
+				) vl
+			| EFunction(_,f) ->
+				add "EFunction";
+				Option.may loop f.f_expr;
+			| EBlock el ->
+				add "EBlock";
+				List.iter loop el
+			| EFor(e1,e2) ->
+				add "EFor";
+				loop e1;
+				loop e2;
+			| EIf(e1,e2,eo) ->
+				add "EIf";
+				loop e1;
+				loop e2;
+				Option.may loop eo;
+			| EWhile(e1,e2,_) ->
+				add "EWhile";
+				loop e1;
+				loop e2;
+			| ESwitch(e1,cases,def) ->
+				add "ESwitch";
+				loop e1;
+				List.iter (fun (el,eg,eo,p) ->
+					List.iter (loop' (tabs ^ "    ")) el;
+					Option.may (loop' (tabs ^ "      ")) eo;
+				) cases;
+				Option.may (fun (eo,_) -> Option.may (loop' (tabs ^ "      ")) eo) def
+			| ETry(e1,catches) ->
+				add "ETry";
+				loop e1;
+				List.iter (fun (_,_,e,_) ->
+					loop' (tabs ^ "    ") e
+				) catches
+			| EReturn eo ->
+				add "EReturn";
+				Option.may loop eo;
+			| EBreak ->
+				add "EBreak";
+			| EContinue ->
+				add "EContinue"
+			| EUntyped e1 ->
+				add "EUntyped";
+				loop e1;
+			| EThrow e1 ->
+				add "EThrow";
+				loop e1
+			| ECast(e1,_) ->
+				add "ECast";
+			
