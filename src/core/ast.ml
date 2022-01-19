@@ -1182,4 +1182,80 @@ module Expr = struct
 				loop e1
 			| ECast(e1,_) ->
 				add "ECast";
-			
+				loop e1;
+			| EIs(e1,_) ->
+				add "EIs";
+				loop e1;
+			| EDisplay(e1,dk) ->
+				add ("EDisplay " ^ (s_display_kind dk));
+				loop e1
+			| ETernary(e1,e2,e3) ->
+				add "ETernary";
+				loop e1;
+				loop e2;
+				loop e3;
+			| ECheckType(e1,_) ->
+				add "ECheckType";
+				loop e1;
+			| EMeta((m,_,_),e1) ->
+				add ("EMeta " ^ (Meta.to_string m));
+				loop e1
+		in
+		loop' "" e;
+		Buffer.contents buf
+
+	let find_ident e =
+		let rec loop e = match fst e with
+			| EConst ct ->
+				begin match ct with
+				| Ident s ->
+					Some s
+				| _ ->
+					None
+				end
+			| _ ->
+				None
+		in
+		loop e
+end
+
+let has_meta_option metas meta s =
+	let rec loop ml = match ml with
+		| (meta',el,_) :: ml when meta = meta' ->
+			if List.exists (fun (e,p) ->
+				match e with
+					| EConst(Ident s2) when s = s2 -> true
+					| _ -> false
+			) el then
+				true
+			else
+				loop ml
+		| _ :: ml ->
+			loop ml
+		| [] ->
+			false
+	in
+	loop metas
+
+let get_meta_options metas meta =
+	let rec loop ml = match ml with
+		| (meta',el,_) :: ml when meta = meta' ->
+			ExtList.List.filter_map (fun (e,p) ->
+				match e with
+					| EConst(Ident s2) -> Some s2
+					| _ -> None
+			) el
+		| _ :: ml ->
+			loop ml
+		| [] ->
+			[]
+	in
+	loop metas
+
+let get_meta_string meta key =
+	let rec loop = function
+		| [] -> None
+		| (k,[EConst (String(name,_)),_],_) :: _ when k = key -> Some name
+		| _ :: l -> loop l
+	in
+	loop meta
