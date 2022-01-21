@@ -20,23 +20,23 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\SVGFEMergeElement.webidl. Do not edit!
+// This file is generated from mozilla\WheelEvent.webidl. Do not edit!
 
-package js.html.svg;
+package js.html;
 
 /**
-	The `SVGFEMergeElement` interface corresponds to the `feMerge` element.
+	The `WheelEvent` interface represents events that occur due to the user moving a mouse wheel or similar input device.
 
-	Documentation [SVGFEMergeElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGFEMergeElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGFEMergeElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+	Documentation [WheelEvent](https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGFEMergeElement>
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent>
 **/
-@:native("SVGFEMergeElement")
-extern class FEMergeElement extends Element {
-	var x(default,null) : AnimatedLength;
-	var y(default,null) : AnimatedLength;
-	var width(default,null) : AnimatedLength;
-	var height(default,null) : AnimatedLength;
-	var result(default,null) : AnimatedString;
+@:native("WheelEvent")
+extern class WheelEvent extends MouseEvent {
+	static inline var DOM_DELTA_PIXEL : Int = 0;
+	static inline var DOM_DELTA_LINE : Int = 1;
+	static inline var DOM_DELTA_PAGE : Int = 2;
 	
-}
+	
+	/**
+		
