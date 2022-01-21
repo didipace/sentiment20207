@@ -17,4 +17,16 @@ class Issue2224 extends unit.Test {
 		return( 'opt=$opt' );
 	}
 
-	static func
+	static function getEF2( ?opt : haxe.EnumFlags<MyEnum> ){
+		return( 'opt=$opt' );
+	}
+
+	static function getInt( ?opt : Int ){
+		return( 'opt=$opt' );
+	}
+
+	static function getClass( ?opt : MyClass ){
+		return( 'opt=$opt' );
+	}
+
+}
