@@ -44,4 +44,18 @@ extern class DataTransferItemList implements ArrayAccess<DataTransferItem> {
 		Adds an item (either a `File` object or a `DOMString`) to the drag item list and returns a `DataTransferItem` object for the new item.
 		@throws DOMError
 	**/
-	@:overload( function( data : String, type : String ) : DataTrans
+	@:overload( function( data : String, type : String ) : DataTransferItem {} )
+	function add( data : File ) : DataTransferItem;
+	
+	/**
+		Removes the drag item from the list at the given index.
+		@throws DOMError
+	**/
+	function remove( index : Int ) : Void;
+	
+	/**
+		Removes all of the drag items from the list.
+		@throws DOMError
+	**/
+	function clear() : Void;
+}
