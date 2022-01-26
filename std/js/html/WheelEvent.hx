@@ -39,4 +39,50 @@ extern class WheelEvent extends MouseEvent {
 	
 	
 	/**
-		
+		Returns a `double` representing the horizontal scroll amount.
+	**/
+	var deltaX(default,null) : Float;
+	
+	/**
+		Returns a `double` representing the vertical scroll amount.
+	**/
+	var deltaY(default,null) : Float;
+	
+	/**
+		Returns a `double` representing the scroll amount for the z-axis.
+	**/
+	var deltaZ(default,null) : Float;
+	
+	/**
+		Returns an <code>unsigned long</code> representing the unit of the delta values scroll amount. Permitted values are:
+		 <table class="standard-table">
+		  
+		   <tr>
+		    <td class="header">Constant</td>
+		    <td class="header">Value</td>
+		    <td class="header">Description</td>
+		   </tr>
+		   <tr>
+		    <td><code>DOM_DELTA_PIXEL</code></td>
+		    <td><code>0x00</code></td>
+		    <td>The delta values are specified in pixels.</td>
+		   </tr>
+		   <tr>
+		    <td><code>DOM_DELTA_LINE</code></td>
+		    <td><code>0x01</code></td>
+		    <td>The delta values are specified in lines.</td>
+		   </tr>
+		   <tr>
+		    <td><code>DOM_DELTA_PAGE</code></td>
+		    <td><code>0x02</code></td>
+		    <td>The delta values are specified in pages.</td>
+		   </tr>
+		  
+		 </table>
+		 
+	**/
+	var deltaMode(default,null) : Int;
+	
+	/** @throws DOMError */
+	function new( type : String, ?eventInitDict : WheelEventInit ) : Void;
+}
