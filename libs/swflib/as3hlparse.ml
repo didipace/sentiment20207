@@ -248,4 +248,115 @@ let parse_opcode ctx i = function
 	| A3This -> HThis
 	| A3SetThis -> HSetThis
 	| A3DebugReg (id,r,n) -> HDebugReg (ident ctx id,r,n)
-	| A3Deb
+	| A3DebugLine n -> HDebugLine n
+	| A3DebugFile p -> HDebugFile (ident ctx p)
+	| A3BreakPointLine n -> HBreakPointLine n
+	| A3Timestamp -> HTimestamp
+	| A3Op op -> HOp op
+	| A3Unk n -> HUnk n
+
+let parse_code ctx f trys =
+	let code = f.fun3_code in
+	let old = ctx.pos , ctx.jumps in
+	let indexes = MultiArray.create() in
+	ctx.pos <- 0;
+	ctx.jumps <- [];
+	let codepos pos delta =
+		let id = (try MultiArray.get indexes (pos + delta) with _ -> -1) in
+		if id = -1 then begin
+			(*Printf.eprintf "MISALIGNED JUMP AT %d %c %d IN #%d\n" pos (if delta < 0 then '-' else '+') (if delta < 0 then -delta else delta) (idx (no_nz f.fun3_id));*)
+			MultiArray.get indexes pos; (* jump 0 *)
+		end else
+			id
+	in
+	let hcode = MultiArray.mapi (fun i op ->
+		let len = As3code.length op in
+		MultiArray.add indexes i;
+		for k = 2 to len do MultiArray.add indexes (-1); done;
+		ctx.pos <- ctx.pos + len;
+		parse_opcode ctx i op
+	) code in
+	(* in case we have a dead-jump at the end of code *)
+	MultiArray.add indexes (MultiArray.length code);
+	(* patch jumps *)
+	List.iter (fun (j,pos) ->
+		MultiArray.set hcode j (match MultiArray.get hcode j with
+			| HJump (jc,n) ->
+				HJump (jc,codepos pos n - j)
+			| HSwitch (n,infos) ->
+				HSwitch (codepos pos n - j, List.map (fun n -> codepos pos n - j) infos)
+			| _ -> assert false)
+	) ctx.jumps;
+	(* patch try/catches *)
+	Array.iteri (fun i t ->
+		Array.set trys i {
+			hltc_start = codepos 0 t.hltc_start;
+			hltc_end = codepos 0 t.hltc_end;
+			hltc_handle = codepos 0 t.hltc_handle;
+			hltc_type = t.hltc_type;
+			hltc_name = t.hltc_name;
+		}
+	) trys;
+	ctx.pos <- fst old;
+	ctx.jumps <- snd old;
+	hcode
+
+let parse_metadata ctx m =
+	{
+		hlmeta_name = ident ctx m.meta3_name;
+		hlmeta_data = Array.map (fun (i1,i2) -> opt ident ctx i1, ident ctx i2) m.meta3_data;
+	}
+
+let parse_method ctx m =
+	{
+		hlm_type = method_type ctx m.m3_type;
+		hlm_final = m.m3_final;
+		hlm_override = m.m3_override;
+		hlm_kind = m.m3_kind;
+	}
+
+let parse_value ctx = function
+	| A3VNone -> HVNone
+	| A3VNull -> HVNull
+	| A3VBool b -> HVBool b
+	| A3VString s -> HVString (ident ctx s)
+	| A3VInt i -> HVInt (get ctx.as3.as3_ints i)
+	| A3VUInt i -> HVUInt (get ctx.as3.as3_uints i)
+	| A3VFloat f -> HVFloat (get ctx.as3.as3_floats f)
+	| A3VNamespace (n,ns) -> HVNamespace (n,ctx.namespaces.(idx ns))
+
+let parse_var ctx v =
+	{
+		hlv_type = opt name ctx v.v3_type;
+		hlv_value = parse_value ctx v.v3_value;
+		hlv_const = v.v3_const;
+	}
+
+let parse_field_kind ctx = function
+	| A3FMethod m -> HFMethod (parse_method ctx m)
+	| A3FVar v -> HFVar (parse_var ctx v)
+	| A3FFunction f -> HFFunction (method_type ctx f)
+	| A3FClass c -> HFClass (getclass ctx c)
+
+let parse_field ctx f =
+	{
+		hlf_name = name ctx f.f3_name;
+		hlf_slot = f.f3_slot;
+		hlf_kind = parse_field_kind ctx f.f3_kind;
+		hlf_metas =
+			match f.f3_metas with
+			| None -> None
+			| Some a ->
+				Some (Array.map (fun i ->
+					parse_metadata ctx (get ctx.as3.as3_metadatas (no_nz i))
+				) a);
+	}
+
+let parse_static ctx s =
+	{
+		hls_method = method_type ctx s.st3_method;
+		hls_fields = Array.map (parse_field ctx) s.st3_fields;
+	}
+
+let parse_namespace ctx = function
+	|
