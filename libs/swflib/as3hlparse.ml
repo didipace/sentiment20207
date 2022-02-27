@@ -359,4 +359,86 @@ let parse_static ctx s =
 	}
 
 let parse_namespace ctx = function
-	|
+	| A3NPrivate id -> HNPrivate (opt ident ctx id)
+	| A3NPublic id -> HNPublic (opt ident ctx id)
+	| A3NInternal id -> HNInternal (opt ident ctx id)
+	| A3NProtected id -> HNProtected (ident ctx id)
+	| A3NNamespace id -> HNNamespace (ident ctx id)
+	| A3NExplicit id -> HNExplicit (ident ctx id)
+	| A3NStaticProtected id -> HNStaticProtected (opt ident ctx id)
+
+let parse_nset ctx l = List.map (fun n -> ctx.namespaces.(idx n)) l
+
+let rec parse_name names ctx = function
+	| A3MName (id,ns) ->
+		(match ctx.namespaces.(idx ns) with
+		| HNPublic p ->
+			let pack = (match p with None -> [] | Some i -> ExtString.String.nsplit i ".") in
+			HMPath (pack, ident ctx id)
+		| ns ->
+			HMName (ident ctx id, ns))
+	| A3MNSAny (id) -> HMNSAny(ident ctx id)
+	| A3MAny -> HMAny
+	| A3MMultiName (id,ns) -> HMMultiName (opt ident ctx id,ctx.nsets.(idx ns))
+	| A3MRuntimeName id -> HMRuntimeName (ident ctx id)
+	| A3MRuntimeNameLate -> HMRuntimeNameLate
+	| A3MMultiNameLate ns -> HMMultiNameLate ctx.nsets.(idx ns)
+	| A3MAttrib multi -> HMAttrib (parse_name names ctx multi)
+	| A3MParams (id,pl) -> HMParams (parse_name names ctx names.(idx id),List.map (fun id -> if idx id = -1 then HMAny else parse_name names ctx names.(idx id)) pl)
+
+let parse_try_catch ctx t =
+	{
+		hltc_start = t.tc3_start;
+		hltc_end = t.tc3_end;
+		hltc_handle = t.tc3_handle;
+		hltc_type = opt name ctx t.tc3_type;
+		hltc_name = opt name ctx t.tc3_name;
+	}
+
+let parse_function ctx f =
+	{
+		hlf_stack_size = f.fun3_stack_size;
+		hlf_nregs = f.fun3_nregs;
+		hlf_init_scope = f.fun3_init_scope;
+		hlf_max_scope = f.fun3_max_scope;
+		hlf_code = MultiArray.create(); (* keep for later *)
+		hlf_trys = Array.map (parse_try_catch ctx) f.fun3_trys;
+		hlf_locals = Array.map (fun f ->
+			if f.f3_metas <> None then assert false;
+			match f.f3_kind with
+			| A3FVar v ->
+				(* v3_value can be <> None if it's a fun parameter with a default value
+					- which looks like a bug of the AS3 compiler *)
+				name ctx f.f3_name , opt name ctx v.v3_type , f.f3_slot, v.v3_const
+			| _ -> assert false
+		) f.fun3_locals;
+	}
+
+let parse_method_type ctx idx f =
+	let m = ctx.as3.as3_method_types.(idx) in
+	{
+		hlmt_index = idx + ctx.delta_mt;
+		hlmt_ret = opt name ctx m.mt3_ret;
+		hlmt_args = List.map (opt name ctx) m.mt3_args;
+		hlmt_native = m.mt3_native;
+		hlmt_var_args = m.mt3_var_args;
+		hlmt_arguments_defined = m.mt3_arguments_defined;
+		hlmt_uses_dxns = m.mt3_uses_dxns;
+		hlmt_new_block = m.mt3_new_block;
+		hlmt_unused_flag = m.mt3_unused_flag;
+		hlmt_debug_name = opt ident ctx m.mt3_debug_name;
+		hlmt_dparams = opt (fun ctx -> List.map (parse_value ctx)) ctx m.mt3_dparams;
+		hlmt_pnames = opt (fun ctx -> List.map (opt ident ctx)) ctx m.mt3_pnames;
+		hlmt_function = opt parse_function ctx f;
+	}
+
+let parse_class ctx c s index =
+	{
+		hlc_index = index + ctx.delta_cl;
+		hlc_name = name ctx c.cl3_name;
+		hlc_super = opt name ctx c.cl3_super;
+		hlc_sealed = c.cl3_sealed;
+		hlc_final = c.cl3_final;
+		hlc_interface = c.cl3_interface;
+		hlc_namespace = opt (fun ctx i -> ctx.namespaces.(idx i)) ctx c.cl3_namespace;
+		hlc_implements = Array.
