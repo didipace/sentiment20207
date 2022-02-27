@@ -155,4 +155,97 @@ let parse_opcode ctx i = function
 	| A3BreakPoint -> HBreakPoint
 	| A3Nop -> HNop
 	| A3Throw -> HThrow
-	| A3GetSuper n -> HGetSup
+	| A3GetSuper n -> HGetSuper (name ctx n)
+	| A3SetSuper n -> HSetSuper (name ctx n)
+	| A3DxNs s -> HDxNs (ident ctx s)
+	| A3DxNsLate -> HDxNsLate
+	| A3RegKill r -> HRegKill r
+	| A3Label -> HLabel
+	| A3Jump (j,n) ->
+		ctx.jumps <- (i,ctx.pos) :: ctx.jumps;
+		HJump (j,n)
+	| A3Switch (n,infos) as op ->
+		ctx.jumps <- (i,ctx.pos - As3code.length op) :: ctx.jumps;
+		HSwitch(n,infos)
+	| A3PushWith -> HPushWith
+	| A3PopScope -> HPopScope
+	| A3ForIn -> HForIn
+	| A3HasNext -> HHasNext
+	| A3Null -> HNull
+	| A3Undefined -> HUndefined
+	| A3ForEach -> HForEach
+	| A3SmallInt n -> HSmallInt n
+	| A3Int n -> HInt n
+	| A3True -> HTrue
+	| A3False -> HFalse
+	| A3NaN -> HNaN
+	| A3Pop -> HPop
+	| A3Dup -> HDup
+	| A3Swap -> HSwap
+	| A3String i -> HString (ident ctx i)
+	| A3IntRef i -> HIntRef (get ctx.as3.as3_ints i)
+	| A3UIntRef i -> HUIntRef (get ctx.as3.as3_uints i)
+	| A3Float f -> HFloat (get ctx.as3.as3_floats f)
+	| A3Scope -> HScope
+	| A3Namespace n -> HNamespace ctx.namespaces.(idx n)
+	| A3Next (r1,r2) -> HNext (r1,r2)
+	| A3Function f -> HFunction (method_type ctx f)
+	| A3CallStack n -> HCallStack n
+	| A3Construct n -> HConstruct n
+	| A3CallMethod (s,n) -> HCallMethod (s,n)
+	| A3CallStatic (m,n) -> HCallStatic (ctx.methods.(idx m),n)
+	| A3CallSuper (p,n) -> HCallSuper (name ctx p,n)
+	| A3CallProperty (p,n) -> HCallProperty (name ctx p,n)
+	| A3RetVoid -> HRetVoid
+	| A3Ret -> HRet
+	| A3ConstructSuper n -> HConstructSuper n
+	| A3ConstructProperty (p,n) -> HConstructProperty (name ctx p,n)
+	| A3CallPropLex (p,n) -> HCallPropLex (name ctx p,n)
+	| A3CallSuperVoid (p,n) -> HCallSuperVoid (name ctx p,n)
+	| A3CallPropVoid (p,n) -> HCallPropVoid (name ctx p,n)
+	| A3ApplyType n -> HApplyType n
+	| A3Object n -> HObject n
+	| A3Array n -> HArray n
+	| A3NewBlock -> HNewBlock
+	| A3ClassDef n -> HClassDef (getclass ctx n)
+	| A3GetDescendants p -> HGetDescendants (name ctx p)
+	| A3Catch n -> HCatch n
+	| A3FindPropStrict p -> HFindPropStrict (name ctx p)
+	| A3FindProp p -> HFindProp (name ctx p)
+	| A3FindDefinition p -> HFindDefinition (name ctx p)
+	| A3GetLex p -> HGetLex (name ctx p)
+	| A3SetProp p -> HSetProp (name ctx p)
+	| A3Reg r -> HReg r
+	| A3SetReg r -> HSetReg r
+	| A3GetGlobalScope -> HGetGlobalScope
+	| A3GetScope n -> HGetScope n
+	| A3GetProp p -> HGetProp (name ctx p)
+	| A3InitProp p -> HInitProp (name ctx p)
+	| A3DeleteProp p -> HDeleteProp (name ctx p)
+	| A3GetSlot n -> HGetSlot n
+	| A3SetSlot n -> HSetSlot n
+	| A3ToString -> HToString
+	| A3ToXml -> HToXml
+	| A3ToXmlAttr -> HToXmlAttr
+	| A3ToInt -> HToInt
+	| A3ToUInt -> HToUInt
+	| A3ToNumber -> HToNumber
+	| A3ToBool -> HToBool
+	| A3ToObject -> HToObject
+	| A3CheckIsXml -> HCheckIsXml
+	| A3Cast p -> HCast (name ctx p)
+	| A3AsAny -> HAsAny
+	| A3AsString -> HAsString
+	| A3AsType p -> HAsType (name ctx p)
+	| A3AsObject -> HAsObject
+	| A3IncrReg r -> HIncrReg r
+	| A3DecrReg r -> HDecrReg r
+	| A3Typeof -> HTypeof
+	| A3InstanceOf -> HInstanceOf
+	| A3IsType p -> HIsType (name ctx p)
+	| A3IncrIReg r -> HIncrIReg r
+	| A3DecrIReg r -> HDecrIReg r
+	| A3This -> HThis
+	| A3SetThis -> HSetThis
+	| A3DebugReg (id,r,n) -> HDebugReg (ident ctx id,r,n)
+	| A3Deb
