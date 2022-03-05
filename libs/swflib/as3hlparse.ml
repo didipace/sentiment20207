@@ -441,4 +441,107 @@ let parse_class ctx c s index =
 		hlc_final = c.cl3_final;
 		hlc_interface = c.cl3_interface;
 		hlc_namespace = opt (fun ctx i -> ctx.namespaces.(idx i)) ctx c.cl3_namespace;
-		hlc_implements = Array.
+		hlc_implements = Array.map (name ctx) c.cl3_implements;
+		hlc_construct = method_type ctx c.cl3_construct;
+		hlc_fields = Array.map (parse_field ctx) c.cl3_fields;
+		hlc_static_construct = method_type ctx s.st3_method;
+		hlc_static_fields = Array.map (parse_field ctx) s.st3_fields;
+	}
+
+let parse_static ctx s =
+	{
+		hls_method = method_type ctx s.st3_method;
+		hls_fields = Array.map (parse_field ctx) s.st3_fields;
+	}
+
+let parse ?(delta_mt=0) ?(delta_cl=0) t =
+	let ctx = {
+		as3 = t;
+		namespaces = [||];
+		nsets = [||];
+		names = [||];
+		methods = [||];
+		classes = [||];
+		jumps = [];
+		pos = 0;
+		delta_mt = delta_mt;
+		delta_cl = delta_cl;
+	} in
+	ctx.namespaces <- Array.map (parse_namespace ctx) t.as3_namespaces;
+	ctx.nsets <- Array.map (parse_nset ctx) t.as3_nsets;
+	ctx.names <- Array.map (parse_name t.as3_names ctx) t.as3_names;
+	let hfunctions = Hashtbl.create 0 in
+	Array.iter (fun f -> Hashtbl.add hfunctions (idx (no_nz f.fun3_id)) f) t.as3_functions;
+	ctx.methods <- Array.mapi (fun i m ->
+		parse_method_type ctx i (try Some (Hashtbl.find hfunctions i) with Not_found -> None);
+	) t.as3_method_types;
+	ctx.classes <- Array.mapi (fun i c ->
+		parse_class ctx c t.as3_statics.(i) i
+	) t.as3_classes;
+	let inits = List.map (parse_static ctx) (Array.to_list t.as3_inits) in
+	Array.iter (fun f ->
+		match (method_type ctx f.fun3_id).hlmt_function with
+		| None -> assert false
+		| Some fl -> fl.hlf_code <- parse_code ctx f fl.hlf_trys
+	) t.as3_functions;
+	inits
+
+(* ************************************************************************ *)
+(*			FLATTEN															*)
+(* ************************************************************************ *)
+
+type ('hl,'item) lookup = {
+	h : ('hl,int) Hashtbl.t;
+	a : 'item DynArray.t;
+	f : flatten_ctx -> 'hl -> 'item;
+}
+
+and ('hl,'item) index_lookup = {
+	ordered_list : 'hl list;
+	ordered_array : 'item option DynArray.t;
+	map_f : flatten_ctx -> 'hl -> 'item;
+}
+
+and flatten_ctx = {
+	fints : (hl_int,as3_int) lookup;
+	fuints : (hl_uint,as3_uint) lookup;
+	ffloats : (hl_float,as3_float) lookup;
+	fidents : (hl_ident,as3_ident) lookup;
+	fnamespaces : (hl_namespace,as3_namespace) lookup;
+	fnsets : (hl_ns_set,as3_ns_set) lookup;
+	fnames : (hl_name,as3_multi_name) lookup;
+	fmetas : (hl_metadata,as3_metadata) lookup;
+	fmethods : (hl_method,as3_method_type) index_lookup;
+	fclasses : (hl_class,as3_class * as3_static) index_lookup;
+	mutable ffunctions : as3_function list;
+	mutable fjumps : int list;
+}
+
+let new_lookup f =
+	{
+		h = Hashtbl.create 0;
+		a = DynArray.create();
+		f = f;
+	}
+
+let new_index_lookup l f =
+	{
+		ordered_list = l;
+		ordered_array = DynArray.init (List.length l) (fun _ -> None);
+		map_f = f;
+	}
+
+let lookup_array l = DynArray.to_array l.a
+
+let lookup_index_array l =
+	Array.map (function None -> assert false | Some x -> x) (DynArray.to_array l.ordered_array)
+
+let lookup ctx (l:('a,'b) lookup) item : 'b index =
+	let idx = try
+		Hashtbl.find l.h item
+	with Not_found ->
+		let idx = DynArray.length l.a in
+		(* set dummy value for recursion *)
+		DynArray.add l.a (Obj.magic 0);
+		Hashtbl.add l.h item (idx + 1);
+		DynArray.set l.a idx (l.f ct
