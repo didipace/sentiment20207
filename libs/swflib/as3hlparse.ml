@@ -636,4 +636,92 @@ let flatten_field ctx f =
 					v3_value = flatten_value ctx v.hlv_value;
 					v3_const = v.hlv_const;
 				}
-			| HFFunction
+			| HFFunction f ->
+				A3FFunction (lookup_method ctx f)
+			| HFClass c ->
+				A3FClass (lookup_class ctx c)
+		);
+		f3_metas = opt (fun ctx -> Array.map (fun m -> lookup_nz ctx ctx.fmetas m)) ctx f.hlf_metas;
+	}
+
+let flatten_class ctx c =
+	{
+		cl3_name = lookup_name ctx c.hlc_name;
+		cl3_super = opt lookup_name ctx c.hlc_super;
+		cl3_sealed = c.hlc_sealed;
+		cl3_final = c.hlc_final;
+		cl3_interface = c.hlc_interface;
+		cl3_namespace = opt (fun ctx -> lookup ctx ctx.fnamespaces) ctx c.hlc_namespace;
+		cl3_implements = Array.map (lookup_name ctx) c.hlc_implements;
+		cl3_construct = lookup_method ctx c.hlc_construct;
+		cl3_fields = Array.map (flatten_field ctx) c.hlc_fields;
+	},
+	{
+		st3_method = lookup_method ctx c.hlc_static_construct;
+		st3_fields = Array.map (flatten_field ctx) c.hlc_static_fields;
+	}
+
+let flatten_opcode ctx i = function
+	| HBreakPoint -> A3BreakPoint
+	| HNop -> A3Nop
+	| HThrow -> A3Throw
+	| HGetSuper n -> A3GetSuper (lookup_name ctx n)
+	| HSetSuper n -> A3SetSuper (lookup_name ctx n)
+	| HDxNs s -> A3DxNs (lookup_ident ctx s)
+	| HDxNsLate -> A3DxNsLate
+	| HRegKill r -> A3RegKill r
+	| HLabel -> A3Label
+	| HJump (j,n) ->
+		ctx.fjumps <- i :: ctx.fjumps;
+		A3Jump (j,n)
+	| HSwitch (n,l) ->
+		ctx.fjumps <- i :: ctx.fjumps;
+		A3Switch (n,l)
+	| HPushWith -> A3PushWith
+	| HPopScope -> A3PopScope
+	| HForIn -> A3ForIn
+	| HHasNext -> A3HasNext
+	| HNull -> A3Null
+	| HUndefined -> A3Undefined
+	| HForEach -> A3ForEach
+	| HSmallInt n -> A3SmallInt n
+	| HInt n -> A3Int n
+	| HTrue -> A3True
+	| HFalse -> A3False
+	| HNaN -> A3NaN
+	| HPop -> A3Pop
+	| HDup -> A3Dup
+	| HSwap -> A3Swap
+	| HString s -> A3String (lookup_ident ctx s)
+	| HIntRef i -> A3IntRef (lookup ctx ctx.fints i)
+	| HUIntRef i -> A3UIntRef (lookup ctx ctx.fuints i)
+	| HFloat f -> A3Float (lookup ctx ctx.ffloats f)
+	| HScope -> A3Scope
+	| HNamespace n -> A3Namespace (lookup ctx ctx.fnamespaces n)
+	| HNext (r1,r2) -> A3Next (r1,r2)
+	| HFunction m -> A3Function (lookup_method ctx m)
+	| HCallStack n -> A3CallStack n
+	| HConstruct n -> A3Construct n
+	| HCallMethod (s,n) -> A3CallMethod (s,n)
+	| HCallStatic (m,n) -> A3CallStatic (no_nz (lookup_method ctx m),n)
+	| HCallSuper (i,n) -> A3CallSuper (lookup_name ctx i,n)
+	| HCallProperty (i,n) -> A3CallProperty (lookup_name ctx i,n)
+	| HRetVoid -> A3RetVoid
+	| HRet -> A3Ret
+	| HConstructSuper n -> A3ConstructSuper n
+	| HConstructProperty (i,n) -> A3ConstructProperty (lookup_name ctx i,n)
+	| HCallPropLex (i,n) -> A3CallPropLex (lookup_name ctx i,n)
+	| HCallSuperVoid (i,n) -> A3CallSuperVoid (lookup_name ctx i,n)
+	| HCallPropVoid (i,n)-> A3CallPropVoid (lookup_name ctx i,n)
+	| HApplyType n -> A3ApplyType n
+	| HObject n -> A3Object n
+	| HArray n -> A3Array n
+	| HNewBlock -> A3NewBlock
+	| HClassDef c -> A3ClassDef (As3parse.magic_index_nz (As3parse.index_nz_int (lookup_class ctx c)))
+	| HGetDescendants i -> A3GetDescendants (lookup_name ctx i)
+	| HCatch n -> A3Catch n
+	| HFindPropStrict i -> A3FindPropStrict (lookup_name ctx i)
+	| HFindProp i -> A3FindProp (lookup_name ctx i)
+	| HFindDefinition i -> A3FindDefinition (lookup_name ctx i)
+	| HGetLex i -> A3GetLex (lookup_name ctx i)
+	| HSetProp i 
