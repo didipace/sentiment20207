@@ -544,4 +544,96 @@ let lookup ctx (l:('a,'b) lookup) item : 'b index =
 		(* set dummy value for recursion *)
 		DynArray.add l.a (Obj.magic 0);
 		Hashtbl.add l.h item (idx + 1);
-		DynArray.set l.a idx (l.f ct
+		DynArray.set l.a idx (l.f ctx item);
+		idx + 1
+	in
+	As3parse.magic_index idx
+
+let lookup_index_nz ctx (l:('a,'b) index_lookup) item : 'c index_nz =
+	let rec loop n = function
+		| [] -> assert false
+		| x :: l ->
+			if x == item then n else loop (n + 1) l
+	in
+	let idx = loop 0 l.ordered_list in
+	if DynArray.get l.ordered_array idx = None then begin
+		(* set dummy value for recursion *)
+		DynArray.set l.ordered_array idx (Some (Obj.magic 0));
+		DynArray.set l.ordered_array idx (Some (l.map_f ctx item));
+	end;
+	As3parse.magic_index_nz idx
+
+let lookup_nz ctx l item =
+	As3parse.magic_index_nz (As3parse.index_int (lookup ctx l item) - 1)
+
+let lookup_ident ctx i = lookup ctx ctx.fidents i
+
+let lookup_name ctx n = lookup ctx ctx.fnames n
+
+let lookup_method ctx m : as3_method_type index_nz =
+	lookup_index_nz ctx ctx.fmethods m
+
+let lookup_class ctx c : as3_class index_nz =
+	lookup_index_nz ctx ctx.fclasses c
+
+let flatten_namespace ctx = function
+	| HNPrivate i -> A3NPrivate (opt lookup_ident ctx i)
+	| HNPublic i -> A3NPublic (opt lookup_ident ctx i)
+	| HNInternal i -> A3NInternal (opt lookup_ident ctx i)
+	| HNProtected i -> A3NProtected (lookup_ident ctx i)
+	| HNNamespace i -> A3NNamespace (lookup_ident ctx i)
+	| HNExplicit i -> A3NExplicit (lookup_ident ctx i)
+	| HNStaticProtected i -> A3NStaticProtected (opt lookup_ident ctx i)
+
+let flatten_ns_set ctx n =
+	List.map (lookup ctx ctx.fnamespaces) n
+
+let rec flatten_name ctx = function
+	| HMPath (pack,i) ->
+		let ns = HNPublic (match pack with [] -> None | l -> Some (String.concat "." l)) in
+		A3MName (lookup_ident ctx i,lookup ctx ctx.fnamespaces ns)
+	| HMName (i,n) -> A3MName (lookup_ident ctx i,lookup ctx ctx.fnamespaces n)
+	| HMNSAny (i) ->  A3MNSAny (lookup_ident ctx i)
+	| HMAny -> A3MAny
+	| HMMultiName (i,ns) -> A3MMultiName (opt lookup_ident ctx i,lookup ctx ctx.fnsets ns)
+	| HMRuntimeName i -> A3MRuntimeName (lookup_ident ctx i)
+	| HMRuntimeNameLate -> A3MRuntimeNameLate
+	| HMMultiNameLate ns -> A3MMultiNameLate (lookup ctx ctx.fnsets ns)
+	| HMAttrib n -> A3MAttrib (flatten_name ctx n)
+	| HMParams (i,nl) -> A3MParams (lookup_name ctx i,List.map (lookup_name ctx) nl)
+
+let flatten_meta ctx m =
+	{
+		meta3_name = lookup_ident ctx m.hlmeta_name;
+		meta3_data = Array.map (fun (i,i2) -> opt lookup_ident ctx i, lookup_ident ctx i2) m.hlmeta_data;
+	}
+
+let flatten_value ctx = function
+	| HVNone -> A3VNone
+	| HVNull -> A3VNull
+	| HVBool b -> A3VBool b
+	| HVString s -> A3VString (lookup_ident ctx s)
+	| HVInt i -> A3VInt (lookup ctx ctx.fints i)
+	| HVUInt i -> A3VUInt (lookup ctx ctx.fuints i)
+	| HVFloat f -> A3VFloat (lookup ctx ctx.ffloats f)
+	| HVNamespace (n,ns) -> A3VNamespace (n,lookup ctx ctx.fnamespaces ns)
+
+let flatten_field ctx f =
+	{
+		f3_name = lookup_name ctx f.hlf_name;
+		f3_slot = f.hlf_slot;
+		f3_kind = (match f.hlf_kind with
+			| HFMethod m ->
+				A3FMethod {
+					m3_type = lookup_method ctx m.hlm_type;
+					m3_final = m.hlm_final;
+					m3_override = m.hlm_override;
+					m3_kind = m.hlm_kind;
+				}
+			| HFVar v ->
+				A3FVar {
+					v3_type = opt lookup_name ctx v.hlv_type;
+					v3_value = flatten_value ctx v.hlv_value;
+					v3_const = v.hlv_const;
+				}
+			| HFFunction
