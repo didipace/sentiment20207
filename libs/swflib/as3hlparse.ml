@@ -724,4 +724,105 @@ let flatten_opcode ctx i = function
 	| HFindProp i -> A3FindProp (lookup_name ctx i)
 	| HFindDefinition i -> A3FindDefinition (lookup_name ctx i)
 	| HGetLex i -> A3GetLex (lookup_name ctx i)
-	| HSetProp i 
+	| HSetProp i -> A3SetProp (lookup_name ctx i)
+	| HReg r -> A3Reg r
+	| HSetReg r -> A3SetReg r
+	| HGetGlobalScope -> A3GetGlobalScope
+	| HGetScope n -> A3GetScope n
+	| HGetProp n -> A3GetProp (lookup_name ctx n)
+	| HInitProp n -> A3InitProp (lookup_name ctx n)
+	| HDeleteProp n -> A3DeleteProp (lookup_name ctx n)
+	| HGetSlot s -> A3GetSlot s
+	| HSetSlot s -> A3SetSlot s
+	| HToString -> A3ToString
+	| HToXml -> A3ToXml
+	| HToXmlAttr -> A3ToXmlAttr
+	| HToInt -> A3ToInt
+	| HToUInt -> A3ToUInt
+	| HToNumber -> A3ToNumber
+	| HToBool -> A3ToBool
+	| HToObject -> A3ToObject
+	| HCheckIsXml -> A3CheckIsXml
+	| HCast n -> A3Cast (lookup_name ctx n)
+	| HAsAny -> A3AsAny
+	| HAsString -> A3AsString
+	| HAsType n -> A3AsType (lookup_name ctx n)
+	| HAsObject -> A3AsObject
+	| HIncrReg r -> A3IncrReg r
+	| HDecrReg r -> A3DecrReg r
+	| HTypeof -> A3Typeof
+	| HInstanceOf -> A3InstanceOf
+	| HIsType t -> A3IsType (lookup_name ctx t)
+	| HIncrIReg r -> A3IncrIReg r
+	| HDecrIReg r -> A3DecrIReg r
+	| HThis -> A3This
+	| HSetThis -> A3SetThis
+	| HDebugReg (i,r,l) -> A3DebugReg (lookup_ident ctx i,r,l)
+	| HDebugLine l -> A3DebugLine l
+	| HDebugFile f -> A3DebugFile (lookup_ident ctx f)
+	| HBreakPointLine n -> A3BreakPointLine n
+	| HTimestamp -> A3Timestamp
+	| HOp op -> A3Op op
+	| HUnk c -> A3Unk c
+
+let flatten_code ctx hcode trys =
+	let positions = MultiArray.make (MultiArray.length hcode + 1) 0 in
+	let pos = ref 0 in
+	let old = ctx.fjumps in
+	ctx.fjumps <- [];
+	let code = MultiArray.mapi (fun i op ->
+		let op = flatten_opcode ctx i op in
+		pos := !pos + As3code.length op;
+		MultiArray.set positions (i + 1) !pos;
+		op
+	) hcode in
+	(* patch jumps *)
+	List.iter (fun j ->
+		MultiArray.set code j (match MultiArray.get code j with
+			| A3Jump (jc,n) ->
+				A3Jump (jc,MultiArray.get positions (j+n) - MultiArray.get positions (j+1))
+			| A3Switch (n,infos) ->
+				A3Switch (MultiArray.get positions (j+n) - MultiArray.get positions (j),List.map (fun n -> MultiArray.get positions (j+n) - MultiArray.get positions (j)) infos)
+			| _ -> assert false);
+	) ctx.fjumps;
+	(* patch trys *)
+	let trys = Array.mapi (fun i t ->
+		{
+			tc3_start = MultiArray.get positions t.hltc_start;
+			tc3_end = MultiArray.get positions t.hltc_end;
+			tc3_handle = MultiArray.get positions t.hltc_handle;
+			tc3_type = opt lookup_name ctx t.hltc_type;
+			tc3_name = opt lookup_name ctx t.hltc_name;
+		}
+	) trys in
+	ctx.fjumps <- old;
+	code, trys
+
+let flatten_function ctx f mid =
+	let code, trys = flatten_code ctx f.hlf_code f.hlf_trys in
+	{
+		fun3_id = mid;
+		fun3_stack_size = f.hlf_stack_size;
+		fun3_nregs = f.hlf_nregs;
+		fun3_init_scope = f.hlf_init_scope;
+		fun3_max_scope = f.hlf_max_scope;
+		fun3_code = code;
+		fun3_trys = trys;
+		fun3_locals = Array.map (fun (n,t,s,c) ->
+			{
+				f3_name = lookup_name ctx n;
+				f3_slot = s;
+				f3_kind = A3FVar { v3_type = opt lookup_name ctx t; v3_value = A3VNone; v3_const = c };
+				f3_metas = None;
+			}
+		) f.hlf_locals;
+	}
+
+let flatten_method ctx m =
+	let mid = lookup_method ctx m in
+	(match m.hlmt_function with
+	| None -> ()
+	| Some f ->
+		let x = flatten_function ctx f mid in
+		ctx.ffunctions <- x :: ctx.ffunctions);
+	
