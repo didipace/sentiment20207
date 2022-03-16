@@ -825,4 +825,97 @@ let flatten_method ctx m =
 	| Some f ->
 		let x = flatten_function ctx f mid in
 		ctx.ffunctions <- x :: ctx.ffunctions);
-	
+	{
+		mt3_ret = opt lookup_name ctx m.hlmt_ret;
+		mt3_args = List.map (opt lookup_name ctx) m.hlmt_args;
+		mt3_native = m.hlmt_native;
+		mt3_var_args = m.hlmt_var_args;
+		mt3_arguments_defined = m.hlmt_arguments_defined;
+		mt3_uses_dxns = m.hlmt_uses_dxns;
+		mt3_new_block = m.hlmt_new_block;
+		mt3_unused_flag = m.hlmt_unused_flag;
+		mt3_debug_name = opt lookup_ident ctx m.hlmt_debug_name;
+		mt3_dparams = opt (fun ctx -> List.map (flatten_value ctx)) ctx m.hlmt_dparams;
+		mt3_pnames = opt (fun ctx -> List.map (opt lookup_ident ctx)) ctx m.hlmt_pnames;
+	}
+
+let flatten_static ctx s =
+	{
+		st3_method = lookup_method ctx s.hls_method;
+		st3_fields = Array.map (flatten_field ctx) s.hls_fields;
+	}
+
+let rec browse_method ctx m =
+	let ml, _ = ctx in
+	if not (List.memq m !ml) then begin
+		ml := m :: !ml;
+		match m.hlmt_function with
+		| None -> ()
+		| Some f ->
+			MultiArray.iter (function
+				| HFunction f | HCallStatic (f,_) -> browse_method ctx f
+				| HClassDef _ -> () (* ignore, should be in fields list anyway *)
+				| _ -> ()
+			) f.hlf_code
+	end
+
+and browse_class ctx c =
+	let _, cl = ctx in
+	if not (List.memq c !cl) then begin
+		cl := c :: !cl;
+		browse_method ctx c.hlc_construct;
+		browse_method ctx c.hlc_static_construct;
+		Array.iter (browse_field ctx) c.hlc_fields;
+		Array.iter (browse_field ctx) c.hlc_static_fields;
+	end
+
+and browse_field ctx f =
+	match f.hlf_kind with
+	| HFMethod m -> browse_method ctx m.hlm_type
+	| HFVar _ -> ()
+	| HFFunction m -> browse_method ctx m
+	| HFClass c -> browse_class ctx c
+
+let flatten t =
+	let id _ x = x in
+	(* collect methods and classes, sort by index and force evaluation in order to keep order *)
+	let methods = ref [] in
+	let classes = ref [] in
+	let ctx = (methods,classes) in
+	List.iter (fun s ->
+		Array.iter (browse_field ctx) s.hls_fields;
+		browse_method ctx s.hls_method;
+	) t;
+	let classes = List.sort (fun c1 c2 -> c1.hlc_index - c2.hlc_index) (List.rev !classes) in
+	let methods = List.sort (fun m1 m2 -> m1.hlmt_index - m2.hlmt_index) (List.rev !methods) in
+	(* done *)
+	let rec ctx = {
+		fints = new_lookup id;
+		fuints = new_lookup id;
+		ffloats = new_lookup id;
+		fidents = new_lookup id;
+		fnamespaces = new_lookup flatten_namespace;
+		fnsets = new_lookup flatten_ns_set;
+		fnames = new_lookup flatten_name;
+		fmetas = new_lookup flatten_meta;
+		fmethods = new_index_lookup methods flatten_method;
+		fclasses = new_index_lookup classes flatten_class;
+		fjumps = [];
+		ffunctions = [];
+	} in
+	ignore(lookup_ident ctx "");
+	let inits = List.map (flatten_static ctx) t in
+	let classes = lookup_index_array ctx.fclasses in
+	{
+		as3_ints = lookup_array ctx.fints;
+		as3_uints = lookup_array ctx.fuints;
+		as3_floats = lookup_array ctx.ffloats;
+		as3_idents = lookup_array ctx.fidents;
+		as3_namespaces = lookup_array ctx.fnamespaces;
+		as3_nsets = lookup_array ctx.fnsets;
+		as3_names = lookup_array ctx.fnames;
+		as3_metadatas = lookup_array ctx.fmetas;
+		as3_method_types = lookup_index_array ctx.fmethods;
+		as3_classes = Array.map fst classes;
+		as3_statics = Array.map snd classes;
+		as3_functions =
