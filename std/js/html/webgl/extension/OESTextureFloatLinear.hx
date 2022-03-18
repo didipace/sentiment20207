@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,10 +21,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package lua;
+// This file is generated from mozilla\WebGLRenderingContext.webidl. Do not edit!
 
-/**
-	The sole purpose of this extern is to provide a concrete type for
-	basic reflection purposes.
-**/
-class Thread {}
+package js.html.webgl.extension;
+
+typedef OESTextureFloatLinear = {
+}
