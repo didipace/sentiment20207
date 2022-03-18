@@ -55,4 +55,6 @@ extern class DeviceOrientationEvent extends Event {
 	var absolute(default,null) : Bool;
 	
 	/** @throws DOMError */
-	function new( type : String, ?eventInitDict : DeviceOrientationEventInit ) : 
+	function new( type : String, ?eventInitDict : DeviceOrientationEventInit ) : Void;
+	function initDeviceOrientationEvent( type : String, canBubble : Bool = false, cancelable : Bool = false, ?alpha : Float, ?beta : Float, ?gamma : Float, absolute : Bool = false ) : Void;
+}
