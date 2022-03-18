@@ -918,4 +918,7 @@ let flatten t =
 		as3_method_types = lookup_index_array ctx.fmethods;
 		as3_classes = Array.map fst classes;
 		as3_statics = Array.map snd classes;
-		as3_functions =
+		as3_functions = Array.of_list (List.rev ctx.ffunctions);
+		as3_inits = Array.of_list inits;
+		as3_unknown = "";
+	}
