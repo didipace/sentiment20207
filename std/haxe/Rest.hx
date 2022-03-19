@@ -43,4 +43,49 @@ abstract Rest<T>(NativeRest<T>) {
 		Use `Rest.of(array.copy())` to avoid that.
 	**/
 	@:from static public inline function of<T>(array:Array<T>):Rest<T>
-		return ne
+		return new Rest(array);
+
+	inline function new(array:Array<T>):Void
+		this = array;
+
+	@:arrayAccess inline function get(index:Int):T
+		return this[index];
+
+	/**
+		Creates an array containing all the values of rest arguments.
+	**/
+	@:to public #if !cppia inline #end function toArray():Array<T>
+		return this.copy();
+
+	public inline function iterator():RestIterator<T>
+		return new RestIterator<T>(this);
+
+	public inline function keyValueIterator():RestKeyValueIterator<T>
+		return new RestKeyValueIterator<T>(this);
+
+	/**
+		Create a new rest arguments collection by appending `item` to this one.
+	**/
+	public function append(item:T):Rest<T> {
+		var result = this.copy();
+		result.push(item);
+		return new Rest(result);
+	}
+
+	/**
+		Create a new rest arguments collection by prepending this one with `item`.
+	**/
+	public function prepend(item:T):Rest<T> {
+		var result = this.copy();
+		result.unshift(item);
+		return new Rest(result);
+	}
+
+	public inline function toString():String {
+		#if (flash || js)
+			return '[${this.toString()}]';
+		#else
+			return this.toString();
+		#end
+	}
+}
