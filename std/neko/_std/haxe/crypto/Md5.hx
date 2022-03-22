@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,32 +21,17 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package jvm;
+package haxe.crypto;
 
-import java.NativeArray;
-
-@:keep
-@:native('haxe.jvm.Enum')
-class Enum<T:EnumValue> extends java.lang.Enum<T> {
-	@:nativeGen public function new(index:Int, name:String) {
-		super(name, index);
+class Md5 {
+	public static function encode(s:String):String {
+		return untyped new String(base_encode(make_md5(s.__s), "0123456789abcdef".__s));
 	}
 
-	@:overload public function equals<T:EnumValue>(other:Enum<T>) {
-		return super.equals(other);
+	public static function make(b:haxe.io.Bytes):haxe.io.Bytes {
+		return haxe.io.Bytes.ofData(make_md5(b.getData()));
 	}
 
-	@:jvm.synthetic public function _hx_getParameters() {
-		return new java.NativeArray(0);
-	}
-
-	@:overload
-	override public function toString() {
-		var baseName = Type.getEnumConstructs(Type.getEnum(cast this))[ordinal()];
-		var parameters = Type.enumParameters(cast this);
-		if (parameters.length == 0) {
-			return baseName;
-		}
-		return '$baseName(${@:privateAccess parameters.join(",")})';
-	}
+	static var base_encode = neko.Lib.load("std", "base_encode", 2);
+	static var make_md5 = neko.Lib.load("std", "make_md5", 1);
 }

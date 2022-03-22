@@ -20,32 +20,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package jvm;
+import hl.Boot;
 
-import java.NativeArray;
+private typedef Rand = hl.Abstract<"hl_random">;
 
-@:keep
-@:native('haxe.jvm.Enum')
-class Enum<T:EnumValue> extends java.lang.Enum<T> {
-	@:nativeGen public function new(index:Int, name:String) {
-		super(name, index);
-	}
+@:coreApi
+class Std {
+	static var rnd:Rand;
+	static var toStringDepth:Int = 0;
 
-	@:overload public function equals<T:EnumValue>(other:Enum<T>) {
-		return super.equals(other);
-	}
-
-	@:jvm.synthetic public function _hx_getParameters() {
-		return new java.NativeArray(0);
-	}
-
-	@:overload
-	override public function toString() {
-		var baseName = Type.getEnumConstructs(Type.getEnum(cast this))[ordinal()];
-		var parameters = Type.enumParameters(cast this);
-		if (parameters.length == 0) {
-			return baseName;
-		}
-		return '$baseName(${@:privateAccess parameters.join(",")})';
-	}
-}
+	static function __init__():Void {
+		rnd = rnd_

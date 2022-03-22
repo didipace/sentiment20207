@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,32 +21,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package jvm;
+// This file is generated from mozilla\Request.webidl. Do not edit!
 
-import java.NativeArray;
+package js.html;
 
-@:keep
-@:native('haxe.jvm.Enum')
-class Enum<T:EnumValue> extends java.lang.Enum<T> {
-	@:nativeGen public function new(index:Int, name:String) {
-		super(name, index);
-	}
-
-	@:overload public function equals<T:EnumValue>(other:Enum<T>) {
-		return super.equals(other);
-	}
-
-	@:jvm.synthetic public function _hx_getParameters() {
-		return new java.NativeArray(0);
-	}
-
-	@:overload
-	override public function toString() {
-		var baseName = Type.getEnumConstructs(Type.getEnum(cast this))[ordinal()];
-		var parameters = Type.enumParameters(cast this);
-		if (parameters.length == 0) {
-			return baseName;
-		}
-		return '$baseName(${@:privateAccess parameters.join(",")})';
-	}
+enum abstract RequestCredentials(String) {
+	var OMIT = "omit";
+	var SAME_ORIGIN = "same-origin";
+	var INCLUDE = "include";
 }
