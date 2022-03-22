@@ -20,11 +20,26 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\SVGPathSeg.webidl. Do not edit!
+package jvm;
 
-package js.html.svg;
+import java.NativeArray;
 
-typedef PathSegLinetoHorizontalRel = {
-	var x : Float;
-	
-}
+@:keep
+@:native('haxe.jvm.Enum')
+class Enum<T:EnumValue> extends java.lang.Enum<T> {
+	@:nativeGen public function new(index:Int, name:String) {
+		super(name, index);
+	}
+
+	@:overload public function equals<T:EnumValue>(other:Enum<T>) {
+		return super.equals(other);
+	}
+
+	@:jvm.synthetic public function _hx_getParameters() {
+		return new java.NativeArray(0);
+	}
+
+	@:overload
+	override public function toString() {
+		var baseName = Type.getEnumConstructs(Type.getEnum(cast this))[ordinal()];
+		var parameters 
