@@ -204,3 +204,94 @@ class Socket extends sys.net.Socket {
 			return "";
 		return haxe.io.Bytes.ofData(b).toString();
 	}
+
+	public override function write(content:String):Void {
+		handshake();
+		NativeSsl.ssl_write(ssl, haxe.io.Bytes.ofString(content).getData());
+	}
+
+	public override function close():Void {
+		if (ssl != null)
+			NativeSsl.ssl_close(ssl);
+		if (conf != null)
+			NativeSsl.conf_close(conf);
+		if (altSNIContexts != null)
+			sniCallback = null;
+		NativeSocket.socket_close(__s);
+		var input:SocketInput = cast input;
+		var output:SocketOutput = cast output;
+		@:privateAccess input.__s = output.__s = null;
+		input.close();
+		output.close();
+	}
+
+	public function addSNICertificate(cbServernameMatch:String->Bool, cert:Certificate, key:Key):Void {
+		if (altSNIContexts == null)
+			altSNIContexts = [];
+		altSNIContexts.push({match: cbServernameMatch, cert: cert, key: key});
+	}
+
+	public override function bind(host:sys.net.Host, port:Int):Void {
+		conf = buildSSLConfig(true);
+
+		NativeSocket.socket_bind(__s, host.ip, port);
+	}
+
+	public override function accept():Socket {
+		var c = NativeSocket.socket_accept(__s);
+		var ssl = NativeSsl.ssl_new(conf);
+		NativeSsl.ssl_set_socket(ssl, c);
+
+		var s = Type.createEmptyInstance(sys.ssl.Socket);
+		s.__s = c;
+		s.ssl = ssl;
+		s.input = new SocketInput(s);
+		s.output = new SocketOutput(s);
+		s.handshakeDone = false;
+
+		return s;
+	}
+
+	public function peerCertificate():sys.ssl.Certificate {
+		var x = NativeSsl.ssl_get_peer_certificate(ssl);
+		return x == null ? null : new sys.ssl.Certificate(x);
+	}
+
+	private function buildSSLConfig(server:Bool):CONF {
+		var conf:CONF = NativeSsl.conf_new(server);
+
+		if (ownCert != null && ownKey != null)
+			NativeSsl.conf_set_cert(conf, @:privateAccess ownCert.__x, @:privateAccess ownKey.__k);
+
+		if (altSNIContexts != null) {
+			sniCallback = function(servername) {
+				var servername = new String(cast servername);
+				for (c in altSNIContexts) {
+					if (c.match(servername))
+						return @:privateAccess {
+							key:c.key.__k, cert:c.cert.__x
+						};
+				}
+				if (ownKey != null && ownCert != null)
+					return @:privateAccess {
+						key:ownKey.__k, cert:ownCert.__x
+					};
+				return null;
+			}
+			NativeSsl.conf_set_servername_callback(conf, sniCallback);
+		}
+
+		if (caCert != null)
+			NativeSsl.conf_set_ca(conf, caCert == null ? null : @:privateAccess caCert.__x);
+		if (verifyCert == null)
+			NativeSsl.conf_set_verify(conf, 2);
+		else
+			NativeSsl.conf_set_verify(conf, verifyCert ? 1 : 0);
+
+		return conf;
+	}
+
+	static function __init__():Void {
+		NativeSsl.init();
+	}
+}
