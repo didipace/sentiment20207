@@ -88,4 +88,34 @@ enum abstract RecvFlag(Int) {
 	/**
 		Like `eval.luv.UDP.send`, but only attempts to send the datagram immediately.
 	**/
-	public function trySend(dat
+	public function trySend(data:Array<Buffer>, addr:SockAddr):Result<Result.NoData>;
+
+	/**
+		Calls `callback` whenever a datagram is received on the UDP socket.
+
+		@see https://aantron.github.io/luv/luv/Luv/UDP/index.html#val-recv_start
+	**/
+	public function recvStart(callback:(result:Result<{data:Buffer, addr:Option<SockAddr>, flags:Array<RecvFlag>}>, ?allocate:(size:Int)->Buffer)->Void):Void;
+
+	/**
+		Stops the callback provided to `eval.luv.UDP.recvStart`.
+	**/
+	public function recvStop():Result<Result.NoData>;
+
+	/**
+		Evaluates to true if and only if the UDP was created with `recvmmsg = true`
+		and the platform supports recvmmsg(2).
+	**/
+	public function usingRecvmmsg():Bool;
+
+	/**
+		Number of bytes queued for sending. This field strictly shows how much
+		information is currently queued.
+	**/
+	public function getSendQueueSize():Int;
+
+	/**
+		Number of send requests currently in the queue awaiting to be processed.
+	**/
+	public function getSendQueueCount():Int;
+}
