@@ -132,4 +132,6 @@ let find_implementations tctx com name pos kind =
 	DisplayException.raise_positions usages
 
 let find_implementations tctx com =
-	let name,pos,kind = Display.ReferencePosition.
+	let name,pos,kind = Display.ReferencePosition.get () in
+	if pos <> null_pos then find_implementations tctx com name pos kind
+	else DisplayException.raise_positions []
