@@ -53,4 +53,9 @@ package flash.events;
 	static final TOUCH_BEGIN : String;
 	static final TOUCH_END : String;
 	static final TOUCH_MOVE : String;
-	sta
+	static final TOUCH_OUT : String;
+	static final TOUCH_OVER : String;
+	static final TOUCH_ROLL_OUT : String;
+	static final TOUCH_ROLL_OVER : String;
+	static final TOUCH_TAP : String;
+}
