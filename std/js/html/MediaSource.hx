@@ -84,4 +84,18 @@ extern class MediaSource extends EventTarget {
 	/**
 		Signals the end of the stream.
 		@throws DOMError
-	**
+	**/
+	function endOfStream( ?error : MediaSourceEndOfStreamError ) : Void;
+	
+	/**
+		Sets the range that the user can seek to in the media element.
+		@throws DOMError
+	**/
+	function setLiveSeekableRange( start : Float, end : Float ) : Void;
+	
+	/**
+		Clears a seekable range privious set with a call to `setLiveSeekableRange()`.
+		@throws DOMError
+	**/
+	function clearLiveSeekableRange() : Void;
+}
