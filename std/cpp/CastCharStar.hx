@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,28 +21,17 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\SVGFETileElement.webidl. Do not edit!
+package cpp;
 
-package js.html.svg;
+abstract CastCharStar(RawPointer<Char>) to(RawPointer<Char>) {
+	inline function new(s:String)
+		this = cast untyped s.__s;
 
-/**
-	The `SVGFETileElement` interface corresponds to the `feTile` element.
+	@:from
+	static public inline function fromString(s:String)
+		return new CastCharStar(s);
 
-	Documentation [SVGFETileElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGFETileElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGFETileElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGFETileElement>
-**/
-@:native("SVGFETileElement")
-extern class FETileElement extends Element {
-	
-	/**
-		An `SVGAnimatedString` corresponding to the `in` attribute of the given element.
-	**/
-	var in1(default,null) : AnimatedString;
-	var x(default,null) : AnimatedLength;
-	var y(default,null) : AnimatedLength;
-	var width(default,null) : AnimatedLength;
-	var height(default,null) : AnimatedLength;
-	var result(default,null) : AnimatedString;
-	
+	@:to
+	public inline function toPointer()
+		return this;
 }
