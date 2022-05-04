@@ -130,4 +130,57 @@ extern class Uint8ClampedArray implements ArrayBufferView implements ArrayAccess
 	 */
 	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Int {})
 	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Int {})
-	function fin
+	function findIndex(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:Any):Int;
+
+	/**
+		Calls a function for each element in the array.
+		See also [Array.prototype.forEach()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach).
+	 */
+	@:overload(function(callback:(element:Int) -> Void, ?thisArg:Any):Void {})
+	@:overload(function(callback:(element:Int, index:Int) -> Void, ?thisArg:Any):Void {})
+	function forEach(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Void, ?thisArg:Any):Void;
+
+	/**
+		Determines whether a typed array includes a certain element, returning true or false as appropriate.
+		See also [Array.prototype.includes()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes).
+	 */
+	@:pure function includes(searchElement:Int, ?fromIndex:Int):Bool;
+
+	/**
+		Returns the first (least) index of an element within the array equal to the specified value, or -1 if none is found.
+		See also [Array.prototype.indexOf()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf).
+	 */
+	@:pure function indexOf(searchElement:Int, ?fromIndex:Int):Int;
+
+	/**
+		Joins all elements of an array into a string.
+		See also [Array.prototype.join()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/join).
+	 */
+	@:pure function join(?separator:String):String;
+
+	/**
+		Returns a new Array Iterator that contains the keys for each index in the array.
+		See also [Array.prototype.keys()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/keys).
+	 */
+	@:pure function keys():js.lib.Iterator<Int>;
+
+	/**
+		Returns the last (greatest) index of an element within the array equal to the specified value, or -1 if none is found.
+		See also [Array.prototype.lastIndexOf()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/lastIndexOf).
+	 */
+	@:pure function lastIndexOf(searchElement:Int, ?fromIndex:Int):Int;
+
+	/**
+		Creates a new array with the results of calling a provided function on every element in this array.
+		See also [Array.prototype.map()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map).
+	 */
+	@:overload(function(callback:(element:Int) -> Int, ?thisArg:Any):Uint8ClampedArray {})
+	@:overload(function(callback:(element:Int, index:Int) -> Int, ?thisArg:Any):Uint8ClampedArray {})
+	function map(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Int, ?thisArg:Any):Uint8ClampedArray;
+
+	/**
+		Apply a function against an accumulator and each value of the array (from left-to-right) as to reduce it to a single value.
+		See also [Array.prototype.reduce()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce).
+	 */
+	@:overload(function<T>(callback:(previousValue:T, currentValue:Int) -> T, initialValue:T):T {})
+	@:overload(function<T>(callback:(previousValue:T, currentValue:
