@@ -183,4 +183,53 @@ extern class Uint8ClampedArray implements ArrayBufferView implements ArrayAccess
 		See also [Array.prototype.reduce()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce).
 	 */
 	@:overload(function<T>(callback:(previousValue:T, currentValue:Int) -> T, initialValue:T):T {})
-	@:overload(function<T>(callback:(previousValue:T, currentValue:
+	@:overload(function<T>(callback:(previousValue:T, currentValue:Int, index:Int) -> T, initialValue:T):T {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int) -> Int):Int {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int, index:Int) -> Int):Int {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int, index:Int, array:Uint8ClampedArray) -> Int):Int {})
+	function reduce<T>(callback:(previousValue:T, currentValue:Int, index:Int, array:Uint8ClampedArray) -> T, initialValue:T):T;
+
+	/**
+		Apply a function against an accumulator and each value of the array (from right-to-left) as to reduce it to a single value.
+		See also [Array.prototype.reduceRight()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduceRight).
+	 */
+	@:overload(function<T>(callback:(previousValue:T, currentValue:Int) -> T, initialValue:T):T {})
+	@:overload(function<T>(callback:(previousValue:T, currentValue:Int, index:Int) -> T, initialValue:T):T {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int) -> Int):Int {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int, index:Int) -> Int):Int {})
+	@:overload(function(callbackfn:(previousValue:Int, currentValue:Int, index:Int, array:Uint8ClampedArray) -> Int):Int {})
+	function reduceRight<T>(callback:(previousValue:T, currentValue:Int, index:Int, array:Uint8ClampedArray) -> T, initialValue:T):T;
+
+	/**
+		Reverses the order of the elements of an array — the first becomes the last, and the last becomes the first.
+		See also [Array.prototype.reverse()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reverse).
+	 */
+	function reverse():Uint8ClampedArray;
+
+	/**
+		Stores multiple values in the typed array, reading input values from a specified array.
+	 */
+	@:overload(function(array:Int8Array, ?offset:Int):Void {})
+	@:overload(function(array:Uint8Array, ?offset:Int):Void {})
+	@:overload(function(array:Uint8ClampedArray, ?offset:Int):Void {})
+	@:overload(function(array:Int16Array, ?offset:Int):Void {})
+	@:overload(function(array:Uint16Array, ?offset:Int):Void {})
+	@:overload(function(array:Int32Array, ?offset:Int):Void {})
+	@:overload(function(array:Uint32Array, ?offset:Int):Void {})
+	@:overload(function(array:Float32Array, ?offset:Int):Void {})
+	@:overload(function(array:Float64Array, ?offset:Int):Void {})
+	function set(array:Array<Int>, ?offset:Int):Void;
+
+	/**
+		Extracts a section of an array and returns a new array.
+		See also [Array.prototype.slice()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice).
+	 */
+	@:pure function slice(?start:Int, ?end:Int):Uint8ClampedArray;
+
+	/**
+		Returns true if at least one element in this array satisfies the provided testing function.
+		See also [Array.prototype.some()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/some).
+	 */
+	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Bool {})
+	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Bool {})
+	function some(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:
