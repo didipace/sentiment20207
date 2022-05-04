@@ -232,4 +232,34 @@ extern class Uint8ClampedArray implements ArrayBufferView implements ArrayAccess
 	 */
 	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Bool {})
 	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Bool {})
-	function some(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:
+	function some(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:Any):Bool;
+
+	/**
+		Sorts the elements of an array in place and returns the array.
+		See also [Array.prototype.sort()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort).
+	 */
+	function sort(?compareFn:(x:Int, y:Int) -> Int):Uint8ClampedArray;
+
+	/**
+		Returns a new TypedArray from the given start and end element index.
+	 */
+	@:pure function subarray(?begin:Int, ?end:Int):Uint8ClampedArray;
+
+	/**
+		Returns a new Array Iterator object that contains the values for each index in the array.
+		See also [Array.prototype.values()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/values).
+	 */
+	@:pure function values():js.lib.Iterator<Int>;
+
+	/**
+		Returns a string representing the array and its elements.
+		See also [Array.prototype.toString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toString).
+	 */
+	@:pure function toLocaleString(?locales:String, ?options:NumberFormatOptions):String;
+
+	/**
+		Returns a string representing the array and its elements.
+		See also [Array.prototype.toString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toString).
+	 */
+	@:pure function toString():String;
+}
