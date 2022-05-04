@@ -79,4 +79,55 @@ extern class Uint8ClampedArray implements ArrayBufferView implements ArrayAccess
 
 	/** @throws DOMError */
 	@:overload(function(length:Int):Void {})
-	@:overload(function(object:{}):Void {
+	@:overload(function(object:{}):Void {})
+	@:pure function new(buffer:ArrayBuffer, ?byteOffset:Int, ?length:Int):Void;
+
+	/**
+		Copies a sequence of array elements within the array.
+		See also [Array.prototype.copyWithin()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/copyWithin).
+	 */
+	function copyWithin(target:Int, start:Int, ?end:Int):Uint8ClampedArray;
+
+	/**
+		Returns a new Array Iterator object that contains the key/value pairs for each index in the array.
+		See also [Array.prototype.entries()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/entries).
+	 */
+	@:pure function entries():js.lib.Iterator<KeyValue<Int, Int>>;
+
+	/**
+		Tests whether all elements in the array pass the test provided by a function.
+		See also [Array.prototype.every()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/every).
+	 */
+	@:overload(function(callback:(currentValue:Int) -> Bool, ?thisArg:Any):Bool {})
+	@:overload(function(callback:(currentValue:Int, index:Int) -> Bool, ?thisArg:Any):Bool {})
+	function every(callback:(currentValue:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:Any):Bool;
+
+	/**
+		Fills all the elements of an array from a start index to an end index with a static value.
+		See also [Array.prototype.fill()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/fill).
+	 */
+	function fill(value:Int, ?start:Int, ?end:Int):Uint8ClampedArray;
+
+	/**
+		Creates a new array with all of the elements of this array for which the provided filtering function returns true.
+		See also [Array.prototype.filter()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter).
+	 */
+	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Uint8ClampedArray {})
+	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Uint8ClampedArray {})
+	function filter(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:Any):Uint8ClampedArray;
+
+	/**
+		Returns the found value in the array, if an element in the array satisfies the provided testing function or undefined if not found.
+		See also [Array.prototype.find()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find).
+	 */
+	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Null<Int> {})
+	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Null<Int> {})
+	function find(callback:(element:Int, index:Int, array:Uint8ClampedArray) -> Bool, ?thisArg:Any):Null<Int>;
+
+	/**
+		Returns the found index in the array, if an element in the array satisfies the provided testing function or -1 if not found.
+		See also [Array.prototype.findIndex()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex).
+	 */
+	@:overload(function(callback:(element:Int) -> Bool, ?thisArg:Any):Int {})
+	@:overload(function(callback:(element:Int, index:Int) -> Bool, ?thisArg:Any):Int {})
+	function fin
