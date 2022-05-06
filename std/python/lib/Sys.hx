@@ -20,10 +20,39 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\PushEvent.webidl. Do not edit!
+package python.lib;
 
-package js.html.push;
+import python.Exceptions.BaseException;
+import python.lib.io.FileIO;
+import python.lib.io.RawIOBase;
+import python.lib.io.TextIOBase;
+import python.Tuple;
 
-typedef PushEventInit = ExtendableEventInit & {
-	var ?data : haxe.extern.EitherType<haxe.extern.EitherType<js.lib.ArrayBufferView,js.lib.ArrayBuffer>,String>;
+extern class TB {}
+extern class Frame {}
+
+@:pythonImport("sys")
+extern class Sys {
+	static var argv(default, never):Array<String>;
+
+	static var executable(default, never):String;
+
+	static function exit(x:Int):Void;
+
+	static function getfilesystemencoding():String;
+
+	static var version:String;
+	static var platform:String;
+
+	static var stdout(default, never):TextIOBase;
+	static var stdin(default, never):TextIOBase;
+	static var stderr(default, never):TextIOBase;
+
+	static function getsizeof(t:Dynamic):Int;
+
+	static var maxsize:Int;
+
+	static function exc_info<T:BaseException>():Tuple3<Class<T>, T, TB>;
+
+	static var version_info:Tuple5<Int, Int, Int, String, Int>;
 }
