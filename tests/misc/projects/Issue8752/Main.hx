@@ -5,4 +5,7 @@ class Main {
 		#end
 	}
 
-	macro static public function define
+	macro static public function define() {
+		return macro $i{""};
+	}
+}
