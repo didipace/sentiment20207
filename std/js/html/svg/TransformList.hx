@@ -42,4 +42,15 @@ extern class TransformList implements ArrayAccess<Transform> {
 	function initialize( newItem : Transform ) : Transform;
 	/** @throws DOMError */
 	function getItem( index : Int ) : Transform;
-	/** @thro
+	/** @throws DOMError */
+	function insertItemBefore( newItem : Transform, index : Int ) : Transform;
+	/** @throws DOMError */
+	function replaceItem( newItem : Transform, index : Int ) : Transform;
+	/** @throws DOMError */
+	function removeItem( index : Int ) : Transform;
+	/** @throws DOMError */
+	function appendItem( newItem : Transform ) : Transform;
+	function createSVGTransformFromMatrix( matrix : Matrix ) : Transform;
+	/** @throws DOMError */
+	function consolidate() : Transform;
+}
