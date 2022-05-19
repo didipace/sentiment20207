@@ -135,4 +135,29 @@ enum abstract RelativeTimeFormatStyle(String) {
 	var Narrow = "narrow";
 }
 
-enum abstract RelativeTimeUnit(String) from String to String 
+enum abstract RelativeTimeUnit(String) from String to String {
+	var Year = "year";
+	var Quarter = "quarter";
+	var Month = "month";
+	var Week = "week";
+	var Day = "day";
+	var Hour = "hour";
+	var Minute = "minute";
+	var Second = "second";
+}
+
+typedef RelativeTimeFormatPart = {
+	final type:RelativeTimeFormatPartType;
+	final value:String;
+	final ?unit:RelativeTimeUnit;
+}
+
+typedef RelativeTimeFormatPartType = NumberFormat.NumberFormatPartType;
+
+typedef RelativeTimeFormatSupportedLocalesOfOptions = {
+	/**
+		The locale matching algorithm to use.
+		The default is `BestFit`.
+	 */
+	var ?localeMatcher:LocaleMatcher;
+}
