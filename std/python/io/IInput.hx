@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -22,28 +23,43 @@
 
 package python.io;
 
-import haxe.io.Output;
-import python.io.IoTools;
-import python.lib.io.IOBase;
-import python.lib.io.RawIOBase;
-import python.lib.io.TextIOBase;
+import haxe.io.Bytes;
+import haxe.io.Encoding;
 
-class NativeTextOutput extends NativeOutput<TextIOBase> {
-	public function new(stream:TextIOBase) {
-		super(stream);
-		if (!stream.writable())
-			throw "Read only stream";
-	}
+interface IInput {
+	public var bigEndian(default, set):Bool;
 
-	public function seek(p:Int, pos:sys.io.FileSeek):Void {
-		IoTools.seekInTextMode(stream, tell, p, pos);
-	}
+	public function readByte():Int;
 
-	override public function writeBytes(s:haxe.io.Bytes, pos:Int, len:Int):Int {
-		return stream.buffer.write(python.Syntax.arrayAccess(@:privateAccess s.b, pos, pos + len));
-	}
+	public function readBytes(s:Bytes, pos:Int, len:Int):Int;
 
-	override public function writeByte(c:Int):Void {
-		stream.write(String.fromCharCode(c));
-	}
+	public function close():Void;
+
+	public function readAll(?bufsize:Int):Bytes;
+
+	public function readFullBytes(s:Bytes, pos:Int, len:Int):Void;
+
+	public function read(nbytes:Int):Bytes;
+
+	public function readUntil(end:Int):String;
+
+	public function readLine():String;
+
+	public function readFloat():Float;
+
+	public function readDouble():Float;
+
+	public function readInt8():Int;
+
+	public function readInt16():Int;
+
+	public function readUInt16():Int;
+
+	public function readInt24():Int;
+
+	public function readUInt24():Int;
+
+	public function readInt32():Int;
+
+	public function readString(len:Int, ?encoding:Encoding):String;
 }

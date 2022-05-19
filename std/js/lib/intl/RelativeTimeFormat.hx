@@ -20,30 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package python.io;
+package js.lib.intl;
 
-import haxe.io.Output;
-import python.io.IoTools;
-import python.lib.io.IOBase;
-import python.lib.io.RawIOBase;
-import python.lib.io.TextIOBase;
+/**
+	The `RelativeTimeFormat` object is a constructor for objects that enable language-sensitive
+	relative time formatting.
 
-class NativeTextOutput extends NativeOutput<TextIOBase> {
-	public function new(stream:TextIOBase) {
-		super(stream);
-		if (!stream.writable())
-			throw "Read only stream";
-	}
-
-	public function seek(p:Int, pos:sys.io.FileSeek):Void {
-		IoTools.seekInTextMode(stream, tell, p, pos);
-	}
-
-	override public function writeBytes(s:haxe.io.Bytes, pos:Int, len:Int):Int {
-		return stream.buffer.write(python.Syntax.arrayAccess(@:privateAccess s.b, pos, pos + len));
-	}
-
-	override public function writeByte(c:Int):Void {
-		stream.write(String.fromCharCode(c));
-	}
-}
+	Documentation [RelativeTimeFormat](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RelativeTimeFormat) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RelativeTimeFormat$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licen
