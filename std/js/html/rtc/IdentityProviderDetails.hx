@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,15 +21,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package java.vm;
+// This file is generated from mozilla\RTCIdentityProvider.webidl. Do not edit!
 
-@:native('haxe.java.vm.Gc') class Gc {
-	public static function run(major:Bool) {
-		java.lang.System.gc();
-	}
+package js.html.rtc;
 
-	public static function stats():{heap:Int, free:Int} {
-		var r = java.lang.Runtime.getRuntime();
-		return {heap: cast r.totalMemory(), free: cast r.freeMemory()};
-	}
+typedef IdentityProviderDetails = {
+	var domain : String;
+	var ?protocol : String;
 }
