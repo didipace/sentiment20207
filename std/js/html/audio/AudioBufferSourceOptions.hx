@@ -22,3 +22,14 @@
  */
 
 // This file is generated from mozilla\AudioBufferSourceNode.webidl. Do not edit!
+
+package js.html.audio;
+
+typedef AudioBufferSourceOptions = {
+	var ?buffer : AudioBuffer;
+	var ?detune : Float;
+	var ?loop : Bool;
+	var ?loopEnd : Float;
+	var ?loopStart : Float;
+	var ?playbackRate : Float;
+}
