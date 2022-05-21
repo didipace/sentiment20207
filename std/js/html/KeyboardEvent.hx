@@ -201,4 +201,78 @@ extern class KeyboardEvent extends UIEvent {
 	static inline var DOM_VK_WIN_ICO_HELP : Int = 227;
 	static inline var DOM_VK_WIN_ICO_00 : Int = 228;
 	static inline var DOM_VK_PROCESSKEY : Int = 229;
-	static inline var DOM_VK_WIN_ICO_CLE
+	static inline var DOM_VK_WIN_ICO_CLEAR : Int = 230;
+	static inline var DOM_VK_WIN_OEM_RESET : Int = 233;
+	static inline var DOM_VK_WIN_OEM_JUMP : Int = 234;
+	static inline var DOM_VK_WIN_OEM_PA1 : Int = 235;
+	static inline var DOM_VK_WIN_OEM_PA2 : Int = 236;
+	static inline var DOM_VK_WIN_OEM_PA3 : Int = 237;
+	static inline var DOM_VK_WIN_OEM_WSCTRL : Int = 238;
+	static inline var DOM_VK_WIN_OEM_CUSEL : Int = 239;
+	static inline var DOM_VK_WIN_OEM_ATTN : Int = 240;
+	static inline var DOM_VK_WIN_OEM_FINISH : Int = 241;
+	static inline var DOM_VK_WIN_OEM_COPY : Int = 242;
+	static inline var DOM_VK_WIN_OEM_AUTO : Int = 243;
+	static inline var DOM_VK_WIN_OEM_ENLW : Int = 244;
+	static inline var DOM_VK_WIN_OEM_BACKTAB : Int = 245;
+	static inline var DOM_VK_ATTN : Int = 246;
+	static inline var DOM_VK_CRSEL : Int = 247;
+	static inline var DOM_VK_EXSEL : Int = 248;
+	static inline var DOM_VK_EREOF : Int = 249;
+	static inline var DOM_VK_PLAY : Int = 250;
+	static inline var DOM_VK_ZOOM : Int = 251;
+	static inline var DOM_VK_PA1 : Int = 253;
+	static inline var DOM_VK_WIN_OEM_CLEAR : Int = 254;
+	
+	
+	/**
+		Returns a `Number` representing the Unicode reference number of the key; this attribute is used only by the `keypress` event. For keys whose `char` attribute contains multiple characters, this is the Unicode value of the first character in that attribute. In Firefox 26 this returns codes for printable characters.
+		 Warning: This attribute is deprecated; you should use `KeyboardEvent.key` instead, if available.
+		 
+	**/
+	var charCode(default,null) : Int;
+	
+	/**
+		Returns a `Number` representing a system and implementation dependent numerical code identifying the unmodified value of the pressed key.
+		 Warning: This attribute is deprecated; you should use `KeyboardEvent.key` instead, if available.
+		 
+	**/
+	var keyCode(default,null) : Int;
+	
+	/**
+		Returns a `Boolean` that is `true` if the Alt ( Option or ⌥ on OS X) key was active when the key event was generated.
+	**/
+	var altKey(default,null) : Bool;
+	
+	/**
+		Returns a `Boolean` that is `true` if the Ctrl key was active when the key event was generated.
+	**/
+	var ctrlKey(default,null) : Bool;
+	
+	/**
+		Returns a `Boolean` that is `true` if the Shift key was active when the key event was generated.
+	**/
+	var shiftKey(default,null) : Bool;
+	
+	/**
+		Returns a `Boolean` that is `true` if the Meta key (on Mac keyboards, the ⌘ Command key; on Windows keyboards, the Windows key (⊞)) was active when the key event was generated.
+	**/
+	var metaKey(default,null) : Bool;
+	
+	/**
+		Returns a `Number` representing the location of the key on the keyboard or other input device.
+	**/
+	var location(default,null) : Int;
+	
+	/**
+		Returns a `Boolean` that is `true` if the key is being held down such that it is automatically repeating.
+	**/
+	var repeat(default,null) : Bool;
+	
+	/**
+		Returns a `Boolean` that is `true` if the event is fired between after `compositionstart` and before `compositionend`.
+	**/
+	var isComposing(default,null) : Bool;
+	
+	/**
+		Returns a `DOMString` representing the key value of the key represent
