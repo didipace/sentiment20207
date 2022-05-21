@@ -275,4 +275,31 @@ extern class KeyboardEvent extends UIEvent {
 	var isComposing(default,null) : Bool;
 	
 	/**
-		Returns a `DOMString` representing the key value of the key represent
+		Returns a `DOMString` representing the key value of the key represented by the event.
+	**/
+	var key(default,null) : String;
+	
+	/**
+		Returns a `DOMString` with the code value of the key represented by the event.
+	**/
+	var code(default,null) : String;
+	
+	/** @throws DOMError */
+	function new( typeArg : String, ?keyboardEventInitDict : KeyboardEventInit ) : Void;
+	
+	/**
+		Returns a `Boolean` indicating if a modifier key such as Alt, Shift, Ctrl, or Meta, was pressed when the event was created.
+	**/
+	function getModifierState( key : String ) : Bool;
+	
+	/**
+		Initializes a `KeyboardEvent` object. This is now deprecated. You should instead use the `KeyboardEvent.KeyboardEvent` constructor.
+		@throws DOMError
+	**/
+	function initKeyboardEvent( typeArg : String, bubblesArg : Bool = false, cancelableArg : Bool = false, ?viewArg : Window, keyArg : String = "", locationArg : Int = 0, ctrlKey : Bool = false, altKey : Bool = false, shiftKey : Bool = false, metaKey : Bool = false ) : Void;
+	
+	/**
+		Initializes a `KeyboardEvent` object. This was implemented only by Firefox, and is no longer supported even there; instead, you should use the `KeyboardEvent.KeyboardEvent` constructor.
+	**/
+	function initKeyEvent( type : String, canBubble : Bool = false, cancelable : Bool = false, ?view : Window, ctrlKey : Bool = false, altKey : Bool = false, shiftKey : Bool = false, metaKey : Bool = false, keyCode : Int = 0, charCode : Int = 0 ) : Void;
+}
