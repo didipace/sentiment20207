@@ -81,4 +81,82 @@ class ArraySort {
 			len22 = second_cut - pivot;
 		} else {
 			len22 = len2 >> 1;
-			second_cut = piv
+			second_cut = pivot + len22;
+			first_cut = upper(a, cmp, from, pivot, second_cut);
+			len11 = first_cut - from;
+		}
+		rotate(a, cmp, first_cut, pivot, second_cut);
+		new_mid = first_cut + len22;
+		doMerge(a, cmp, from, first_cut, new_mid, len11, len22);
+		doMerge(a, cmp, new_mid, second_cut, to, len1 - len11, len2 - len22);
+	}
+
+	static function rotate<T>(a:Array<T>, cmp:T->T->Int, from, mid, to) {
+		var n;
+		if (from == mid || mid == to)
+			return;
+		n = gcd(to - from, mid - from);
+		while (n-- != 0) {
+			var val = a[from + n];
+			var shift = mid - from;
+			var p1 = from + n, p2 = from + n + shift;
+			while (p2 != from + n) {
+				a[p1] = a[p2];
+				p1 = p2;
+				if (to - p2 > shift)
+					p2 += shift;
+				else
+					p2 = from + (shift - (to - p2));
+			}
+			a[p1] = val;
+		}
+	}
+
+	static function gcd(m, n) {
+		while (n != 0) {
+			var t = m % n;
+			m = n;
+			n = t;
+		}
+		return m;
+	}
+
+	static function upper<T>(a:Array<T>, cmp, from, to, val) {
+		var len = to - from, half, mid;
+		while (len > 0) {
+			half = len >> 1;
+			mid = from + half;
+			if (compare(a, cmp, val, mid) < 0)
+				len = half;
+			else {
+				from = mid + 1;
+				len = len - half - 1;
+			}
+		}
+		return from;
+	}
+
+	static function lower<T>(a:Array<T>, cmp, from, to, val) {
+		var len = to - from, half, mid;
+		while (len > 0) {
+			half = len >> 1;
+			mid = from + half;
+			if (compare(a, cmp, mid, val) < 0) {
+				from = mid + 1;
+				len = len - half - 1;
+			} else
+				len = half;
+		}
+		return from;
+	}
+
+	static function swap<T>(a:Array<T>, i, j) {
+		var tmp = a[i];
+		a[i] = a[j];
+		a[j] = tmp;
+	}
+
+	static inline function compare<T>(a:Array<T>, cmp:T->T->Int, i, j) {
+		return cmp(a[i], a[j]);
+	}
+}
