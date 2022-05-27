@@ -66,4 +66,5 @@ extern class TextAreaElement extends Element {
 	@:overload( function( replacement : String ) : Void {} )
 	function setRangeText( replacement : String, start : Int, end : Int, selectionMode : SelectionMode = PRESERVE ) : Void;
 	/** @throws DOMError */
-	function setSelectionRange( start : Int, end : Int, ?direction : String ) : 
+	function setSelectionRange( start : Int, end : Int, ?direction : String ) : Void;
+}
