@@ -75,4 +75,26 @@ class FileInput extends haxe.io.Input {
 			case SeekEnd:
 				w = SEEK_END;
 		}
-		var r = fseek(__f, p, w)
+		var r = fseek(__f, p, w);
+		if (r == -1)
+			throw Custom('An error occurred');
+	}
+
+	public function tell():Int {
+		var r = ftell(__f);
+		if (r == false)
+			throw Custom('An error occurred');
+		return cast r;
+	}
+
+	public function eof():Bool {
+		return feof(__f);
+	}
+
+	override function readLine():String {
+		var r = fgets(__f);
+		if (false == r)
+			throw new Eof();
+		return rtrim(r, "\r\n");
+	}
+}
