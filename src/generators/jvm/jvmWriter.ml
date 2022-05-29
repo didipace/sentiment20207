@@ -276,4 +276,66 @@ let write_opcode ch code =
         | CmpLe -> w 0x9e
       end;
       bp !i
-    | OpIfnonnull i -> w
+    | OpIfnonnull i -> w 0xc7; bp !i
+    | OpIfnull i -> w 0xc6; bp !i
+    | OpGoto i -> w 0xa7; bp !i
+    | OpGoto_w i -> w 0xc8; b4 !i
+    | OpJsr i -> w 0xa8; bp !i
+    | OpJsr_w i -> w 0xc9; b4 !i
+    (* stack *)
+    | OpAconst_null -> w 0x1
+    | OpDup -> w 0x59
+    | OpDup_x1 -> w 0x5a
+    | OpDup_x2 -> w 0x5b
+    | OpDup2 -> w 0x5c
+    | OpDup2_x1 -> w 0x5d
+    | OpDup2_x2 -> w 0x5e
+    | OpLdc i -> w 0x12; w i
+    | OpLdc_w i -> w 0x13; bp i
+    | OpLdc2_w i -> w 0x14; bp i
+    | OpNop -> w 0x0
+    | OpPop -> w 0x57
+    | OpPop2 -> w 0x58
+    | OpSwap -> w 0x5f
+    (* other *)
+    | OpAthrow -> w 0xbf
+    | OpIinc(i,c) -> w 0x84; w i; w c (* TODO: signed? *)
+    | OpLookupswitch(pad,def,pairs) ->
+		w 0xab;
+		if pad > 0 then for i = 0 to pad -1 do w 0 done;
+		b4 !def;
+		b4 (Array.length pairs);
+		Array.iter (fun (i,offset) ->
+			b4r i;
+			b4 !offset
+		) pairs;
+    | OpTableswitch(pad,def,low,high,offsets) ->
+		w 0xaa;
+		if pad > 0 then for i = 0 to pad -1 do w 0 done;
+		b4 !def;
+		b4r low;
+		b4r high;
+		Array.iter (fun offset ->
+			b4 !offset
+		) offsets;
+    | OpMonitorenter -> w 0xc2
+    | OpMonitorexit -> w 0xc3
+    | OpRet i -> w 0xa9; w i
+    | OpReturn -> w 0xb1
+	| OpWide op ->
+		w 0xc4;
+		begin match op with
+			| OpWIinc(i1,i2) -> w 0x84; bp i1; bp i2;
+			| OpWIload i -> w 0x15; bp i
+			| OpWFload i -> w 0x17; bp i
+			| OpWAload i -> w 0x19; bp i
+			| OpWLload i -> w 0x16; bp i
+			| OpWDload i -> w 0x18; bp i
+			| OpWIstore i -> w 0x36; bp i
+			| OpWFstore i -> w 0x38; bp i
+			| OpWAstore i -> w 0x3a; bp i
+			| OpWLstore i -> w 0x37; bp i
+			| OpWDstore i -> w 0x39; bp i
+		end
+  in
+  loop code
