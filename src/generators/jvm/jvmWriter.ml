@@ -167,4 +167,113 @@ let write_opcode ch code =
     | OpIload i -> w 0x15; w i
     | OpImul -> w 0x68
     | OpIneg -> w 0x74
-    | Op
+    | OpIor -> w 0x80
+    | OpIrem -> w 0x70
+    | OpIreturn -> w 0xac
+    | OpIshl -> w 0x78
+    | OpIshr -> w 0x7a
+    | OpIstore_0 -> w 0x3b
+    | OpIstore_1 -> w 0x3c
+    | OpIstore_2 -> w 0x3d
+    | OpIstore_3 -> w 0x3e
+    | OpIstore i -> w 0x36; w i
+    | OpIsub -> w 0x64
+    | OpIushr -> w 0x7c
+    | OpIxor -> w 0x82
+    (* long *)
+    | OpL2d -> w 0x8a
+    | OpL2f -> w 0x89
+    | OpL2i -> w 0x88
+    | OpLadd -> w 0x61
+    | OpLaload -> w 0x2f
+    | OpLand -> w 0x7f
+    | OpLastore -> w 0x50
+	| OpLconst_0 -> w 0x9
+	| OpLconst_1 -> w 0xa
+    | OpLcmp -> w 0x94
+    | OpLdiv -> w 0x6d
+    | OpLload_0 -> w 0x1e
+    | OpLload_1 -> w 0x1f
+    | OpLload_2 -> w 0x20
+    | OpLload_3 -> w 0x21
+    | OpLload i ->  w 0x16; w i
+    | OpLmul -> w 0x69
+    | OpLneg -> w 0x75
+    | OpLor -> w 0x81
+    | OpLrem -> w 0x71
+    | OpLreturn -> w 0xad
+    | OpLshl -> w 0x79
+    | OpLshr -> w 0x7b
+    | OpLstore_0 -> w 0x3f
+    | OpLstore_1 -> w 0x40
+    | OpLstore_2 -> w 0x41
+    | OpLstore_3 -> w 0x42
+    | OpLstore i -> w 0x37; w i
+    | OpLsub -> w 0x65
+    | OpLushr -> w 0x7d
+    | OpLxor -> w 0x83
+    (* short *)
+    | OpSaload -> w 0x35
+    | OpSastore -> w 0x56
+    | OpSipush i -> w 0x11; bp i
+    (* array *)
+    | OpAaload -> w 0x32
+    | OpAastore -> w 0x53
+    | OpAnewarray offset -> w 0xbd; bp offset
+    | OpArraylength -> w 0xbe
+    | OpBaload -> w 0x33
+    | OpBastore -> w 0x54
+    | OpBipush i -> w 0x10; w i
+    | OpCaload -> w 0x34
+    | OpCastore -> w 0x55
+    | OpMultianewarray(offset,d) -> w 0xc5; bp offset; w d
+    | OpNewarray t -> w 0xbc; w t
+    (* reference *)
+    | OpAload_0 -> w 0x2a
+    | OpAload_1 -> w 0x2b
+    | OpAload_2 -> w 0x2c
+    | OpAload_3 -> w 0x2d
+    | OpAload i -> w 0x19; w i
+    | OpAreturn -> w 0xb0
+    | OpAstore_0 -> w 0x4b
+    | OpAstore_1 -> w 0x4c
+    | OpAstore_2 -> w 0x4d
+    | OpAstore_3 -> w 0x4e
+    | OpAstore i -> w 0x3a; w i
+    (* object *)
+    | OpNew offset -> w 0xbb; bp offset
+    | OpInstanceof offset -> w 0xc1; bp offset
+    | OpCheckcast offset -> w 0xc0; bp offset
+    | OpInvokedynamic offset -> w 0xba; bp offset; w 0; w 0 (* ??? *)
+    | OpInvokeinterface(offset,c) -> w 0xb9; bp offset; w c; w 0
+    | OpInvokespecial offset -> w 0xb7; bp offset
+    | OpInvokestatic offset -> w 0xb8; bp offset
+    | OpInvokevirtual offset -> w 0xb6; bp offset
+    | OpGetfield offset -> w 0xb4; bp offset
+    | OpGetstatic offset -> w 0xb2; bp offset
+    | OpPutfield offset -> w 0xb5; bp offset
+    | OpPutstatic offset -> w 0xb3; bp offset
+    (* branching *)
+    | OpIf_acmpeq i -> w 0xa5; bp !i
+    | OpIf_acmpne i -> w 0xa6; bp !i
+    | OpIf_icmp(cmp,i) ->
+      begin match cmp with
+        | CmpEq -> w 0x9f
+        | CmpNe -> w 0xa0
+        | CmpLt -> w 0xa1
+        | CmpGe -> w 0xa2
+        | CmpGt -> w 0xa3
+        | CmpLe -> w 0xa4
+      end;
+      bp !i
+    | OpIf(cmp,i) ->
+      begin match cmp with
+        | CmpEq -> w 0x99
+        | CmpNe -> w 0x9a
+        | CmpLt -> w 0x9b
+        | CmpGe -> w 0x9c
+        | CmpGt -> w 0x9d
+        | CmpLe -> w 0x9e
+      end;
+      bp !i
+    | OpIfnonnull i -> w
