@@ -19,20 +19,19 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-
-// This file is generated from mozilla\MediaStreamAudioSourceNode.webidl. Do not edit!
-
-package js.html.audio;
-
-/**
-	A `MediaStreamAudioSourceNode` has no inputs and exactly one output, and is created using the `AudioContext.createMediaStreamSource` method. The number of channels in the output equals the number of channels in `AudioMediaStreamTrack`. If there is no valid media stream, then the number of output channels will be one silent channel.
-
-	Documentation [MediaStreamAudioSourceNode](https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamAudioSourceNode) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamAudioSourceNode$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamAudioSourceNode>
-**/
-@:native("MediaStreamAudioSourceNode")
-extern class MediaStreamAudioSourceNode extends AudioNode {
-	/** @throws DOMError */
-	function new( context : AudioContext, options : MediaStreamAudioSourceOptions ) : Void;
+// We need this class so that calls to the empty standard implementations
+// don't get optimized away.
+@:coreApi
+extern class EReg {
+	function new(r:String, opt:String):Void;
+	function match(s:String):Bool;
+	function matched(n:Int):String;
+	function matchedLeft():String;
+	function matchedRight():String;
+	function matchedPos():{pos:Int, len:Int};
+	function matchSub(s:String, pos:Int, len:Int = -1):Bool;
+	function split(s:String):Array<String>;
+	function replace(s:String, by:String):String;
+	function map(s:String, f:EReg->String):String;
+	static function escape(s:String):String;
 }
