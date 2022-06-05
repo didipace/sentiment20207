@@ -65,4 +65,28 @@ extern class CSSCounterStyleRule extends CSSRule {
 	var prefix : String;
 	
 	/**
-		Is a `DOMString` object that contains the serialization of the `@counter-style/suffix` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns a
+		Is a `DOMString` object that contains the serialization of the `@counter-style/suffix` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns an empty string.
+	**/
+	var suffix : String;
+	
+	/**
+		Is a `DOMString` object that contains the serialization of the `@counter-style/range` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns an empty string.
+	**/
+	var range : String;
+	
+	/**
+		Is a `DOMString` object that contains the serialization of the `@counter-style/pad` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns an empty string.
+	**/
+	var pad : String;
+	
+	/**
+		Is a `DOMString` object that contains the serialization of the `@counter-style/speak-as` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns an empty string.
+	**/
+	var speakAs : String;
+	
+	/**
+		Is a `DOMString` object that contains the serialization of the `@counter-style/fallback` descriptor defined for the associated rule. If the descriptor was not specified in the associated rule, the attribute returns an empty string.
+	**/
+	var fallback : String;
+	
+}
