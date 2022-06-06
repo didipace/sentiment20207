@@ -9,4 +9,20 @@ class Issue9039 extends DisplayTestCase {
 		runHaxe(["--no-output", "-main", "Main", "--interp"]);
 
 		var content = "class Main { static function main() { var i:I = null; i.{-1-} } }";
-		var transfor
+		var transform = Marker.extractMarkers(content);
+
+		vfs.putContent("Main.hx", transform.source);
+		runHaxeJson([], DisplayMethods.Completion, {
+			file: file,
+			offset: transform.markers[1],
+			wasAutoTriggered: true
+		});
+
+		assertHasNoCompletion(parseCompletion(), function(item) {
+			return switch item.kind {
+				case ClassField: item.args.field.name == "get_prop";
+				case _: false;
+			}
+		});
+	}
+}
