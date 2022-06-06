@@ -124,3 +124,78 @@ class Process {
 	var pid:Int = -1;
 	var running:Bool = true;
 	var _exitCode:Int = -1;
+
+	public function new(cmd:String, ?args:Array<String>, ?detached:Bool):Void {
+		if (detached)
+			throw "Detached process is not supported on this platform";
+		var descriptors = Syntax.arrayDecl(Syntax.arrayDecl('pipe', 'r'), Syntax.arrayDecl('pipe', 'w'), Syntax.arrayDecl('pipe', 'w'));
+		var result = buildCmd(cmd, args).proc_open(descriptors, pipes);
+		if (result == false)
+			throw Error.Custom('Failed to start process: $cmd');
+		process = result;
+
+		updateStatus();
+
+		stdin = new WritablePipe(pipes.stdin);
+		stdout = new ReadablePipe(pipes.stdout);
+		stderr = new ReadablePipe(pipes.stderr);
+	}
+
+	public function getPid():Int {
+		return pid;
+	}
+
+	public function exitCode(block:Bool = true):Null<Int> {
+		if (!block) {
+			updateStatus();
+			return (running ? null : _exitCode);
+		}
+		while (running) {
+			var arr = Syntax.arrayDecl(process);
+			try {
+				Syntax.suppress(Global.stream_select(arr, arr, arr, null));
+			} catch(_) {}
+			updateStatus();
+		}
+		return _exitCode;
+	}
+
+	public function close():Void {
+		if (!running)
+			return;
+
+		for (pipe in pipes)
+			Global.fclose(pipe);
+		process.proc_close();
+	}
+
+	public function kill():Void {
+		process.proc_terminate();
+	}
+
+	function buildCmd(cmd:String, ?args:Array<String>):String {
+		if (args == null)
+			return cmd;
+
+		return switch (Sys.systemName()) {
+			case "Windows":
+				[cmd.replace("/", "\\")].concat(args).map(SysTools.quoteWinArg.bind(_, true)).join(" ");
+			case _:
+				[cmd].concat(args).map(SysTools.quoteUnixArg).join(" ");
+		}
+	}
+
+	function updateStatus():Void {
+		if (!running)
+			return;
+
+		var status = process.proc_get_status();
+		if (status == false)
+			throw Error.Custom('Failed to obtain process status');
+		var status:NativeAssocArray<Scalar> = status;
+
+		pid = status['pid'];
+		running = status['running'];
+		_exitCode = status['exitcode'];
+	}
+}
