@@ -177,3 +177,211 @@ import haxe.iterators.ArrayKeyValueIterator;
 			i += len;
 			if (i < 0)
 				i = 0;
+		}
+		while (i < len) {
+			if (a[i] == x)
+				return i;
+			i++;
+		}
+		return -1;
+	}
+
+	public function lastIndexOf(x:T, ?fromIndex:Int):Int {
+		var len = length;
+		var i:Int = (fromIndex != null) ? fromIndex : len - 1;
+		var a = __a;
+		if (i >= len)
+			i = len - 1;
+		else if (i < 0)
+			i += len;
+		while (i >= 0) {
+			if (a[i] == x)
+				return i;
+			i--;
+		}
+		return -1;
+	}
+
+	public function reverse():Void {
+		var i = 0;
+		var l = this.length;
+		var a = this.__a;
+		var half = l >> 1;
+		l -= 1;
+		while (i < half) {
+			var tmp = a[i];
+			a[i] = a[l - i];
+			a[l - i] = tmp;
+			i += 1;
+		}
+	}
+
+	public function shift():Null<T> {
+		var l = this.length;
+		if (l == 0)
+			return null;
+		var a = this.__a;
+		var x = a[0];
+		l -= 1;
+		neko.NativeArray.blit(a, 0, a, 1, l);
+		a[l] = null;
+		this.length = l;
+		return x;
+	}
+
+	public function slice(pos:Int, ?end:Int):Array<T> {
+		if (pos < 0) {
+			pos = this.length + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (end == null)
+			end = this.length;
+		else if (end < 0)
+			end = this.length + end;
+		if (end > this.length)
+			end = this.length;
+		var len = end - pos;
+		if (len < 0)
+			return new Array();
+		return new1(neko.NativeArray.sub(this.__a, pos, len), len);
+	}
+
+	public function sort(f:T->T->Int):Void {
+		var a = this.__a;
+		var i = 0;
+		var l = this.length;
+		while (i < l) {
+			var swap = false;
+			var j = 0;
+			var max = l - i - 1;
+			while (j < max) {
+				if (f(a[j], a[j + 1]) > 0) {
+					var tmp = a[j + 1];
+					a[j + 1] = a[j];
+					a[j] = tmp;
+					swap = true;
+				}
+				j += 1;
+			}
+			if (!swap)
+				break;
+			i += 1;
+		}
+	}
+
+	public function splice(pos:Int, len:Int):Array<T> {
+		if (len < 0)
+			return new Array();
+		if (pos < 0) {
+			pos = this.length + pos;
+			if (pos < 0)
+				pos = 0;
+		}
+		if (pos > this.length) {
+			pos = 0;
+			len = 0;
+		} else if (pos + len > this.length) {
+			len = this.length - pos;
+			if (len < 0)
+				len = 0;
+		}
+		var a = this.__a;
+		var ret = new1(neko.NativeArray.sub(a, pos, len), len);
+		var end = pos + len;
+		neko.NativeArray.blit(a, pos, a, end, this.length - end);
+		this.length -= len;
+		while (--len >= 0)
+			a[this.length + len] = null;
+		return ret;
+	}
+
+	public inline function map<S>(f:T->S):Array<S> {
+		var l = length;
+		var ret = new1(neko.NativeArray.alloc(l), l);
+		for (i in 0...l) {
+			ret[i] = f(this[i]);
+		}
+		return ret;
+	}
+
+	public inline function filter(f:T->Bool):Array<T> {
+		var ret = [];
+		for (elt in this)
+			if (f(elt))
+				ret.push(elt);
+		return ret;
+	}
+
+	public function resize(len:Int):Void {
+		if (length < len) {
+			__set(len - 1, null);
+		} else if (length > len) {
+			for (i in len...length) {
+				__a[i] = null;
+			}
+			this.length = len;
+		}
+	}
+
+	/* NEKO INTERNAL */
+	private function __get(pos:Int):T {
+		return this.__a[pos];
+	}
+
+	private function __set(pos:Int, v:T):T {
+		var a = this.__a;
+		if (this.length <= pos) {
+			var l = pos + 1;
+			var dlen = l - neko.NativeArray.length(a);
+			if (dlen > 0) {
+				if (dlen == 1) {
+					this.__grow(l);
+					a = this.__a;
+				} else {
+					a = neko.NativeArray.alloc(l);
+					neko.NativeArray.blit(a, 0, this.__a, 0, this.length);
+					this.__a = a;
+				}
+			}
+			this.length = l;
+		}
+		a[pos] = v;
+		return v;
+	}
+
+	private function __grow(l:Int):Void {
+		var a = this.__a;
+		var sz = neko.NativeArray.length(a);
+		if (sz >= l) {
+			this.length = l;
+			return;
+		}
+		var big = (sz * 3) >> 1;
+		if (big < l)
+			big = l;
+		var a2 = neko.NativeArray.alloc(big);
+		neko.NativeArray.blit(a2, 0, a, 0, this.length);
+		this.__a = a2;
+		this.length = l;
+	}
+
+	private function __neko():neko.NativeArray<T> {
+		var a = this.__a;
+		var sz = neko.NativeArray.length(a);
+		if (sz != this.length) {
+			a = neko.NativeArray.sub(a, 0, this.length);
+			this.__a = a;
+		}
+		return a;
+	}
+
+	#if !(macro || interp)
+	static function __init__():Void {
+		try {
+			var msort:Dynamic = neko.Lib.load("std", "merge_sort", 3);
+			untyped Array.prototype.sort = function(cmp) msort(__this__.__a, __this__.length, cmp);
+		} catch (e:Dynamic) {}
+	}
+	#end
+}
