@@ -11,4 +11,9 @@ package flash.display;
 	var FLOAT4;
 	var INT;
 	var INT2;
-	var INT
+	var INT3;
+	var INT4;
+	var MATRIX2X2;
+	var MATRIX3X3;
+	var MATRIX4X4;
+}
