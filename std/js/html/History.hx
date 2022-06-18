@@ -73,4 +73,14 @@ extern class History {
 	function forward() : Void;
 	
 	/**
-		Pushes the given data onto the session history stack with the specified title and, if provided, URL. The data is treated as opaque by the DOM; you may specify any JavaScript object that can be serialized.  Note that Firefox currently ignores the title paramete
+		Pushes the given data onto the session history stack with the specified title and, if provided, URL. The data is treated as opaque by the DOM; you may specify any JavaScript object that can be serialized.  Note that Firefox currently ignores the title parameter; for more information, see manipulating the browser history.
+		@throws DOMError
+	**/
+	function pushState( data : Dynamic, title : String, ?url : String ) : Void;
+	
+	/**
+		Updates the most recent entry on the history stack to have the specified data, title, and, if provided, URL. The data is treated as opaque by the DOM; you may specify any JavaScript object that can be serialized.  Note that Firefox currently ignores the title parameter; for more information, see manipulating the browser history.
+		@throws DOMError
+	**/
+	function replaceState( data : Dynamic, title : String, ?url : String ) : Void;
+}
