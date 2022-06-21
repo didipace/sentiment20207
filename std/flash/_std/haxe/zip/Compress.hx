@@ -20,34 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HTMLStyleElement.webidl. Do not edit!
+package haxe.zip;
 
-package js.html;
+@:coreApi
+class Compress {
+	public function new(level:Int):Void {
+		throw new haxe.exceptions.NotImplementedException("Not implemented for this platform");
+	}
 
-/**
-	The `HTMLStyleElement` interface represents a `style` element. It inherits properties and methods from its parent, `HTMLElement`, and from `LinkStyle`.
-
-	Documentation [HTMLStyleElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLStyleElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLStyleElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLStyleElement>
-**/
-@:native("HTMLStyleElement")
-extern class StyleElement extends Element {
-	
-	/**
-		Is a `Boolean` value representing whether or not the stylesheet is disabled (true) or not (false).
-	**/
-	var disabled : Bool;
-	
-	/**
-		Is a `DOMString` representing the intended destination medium for style information.
-	**/
-	var media : String;
-	
-	/**
-		Is a `DOMString` representing the type of style being applied by this statement.
-	**/
-	var type : String;
-	var sheet(default,null) : StyleSheet;
-	
-}
+	public function execute(src:haxe.io.Bytes, srcPos:Int, dst:haxe.io.Bytes, dstPos:Int):{
