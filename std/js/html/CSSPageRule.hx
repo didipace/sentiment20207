@@ -20,35 +20,23 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.zip;
+// This file is generated from mozilla\CSSPageRule.webidl. Do not edit!
 
-@:coreApi
-class Compress {
-	public function new(level:Int):Void {
-		throw new haxe.exceptions.NotImplementedException("Not implemented for this platform");
-	}
+package js.html;
 
-	public function execute(src:haxe.io.Bytes, srcPos:Int, dst:haxe.io.Bytes, dstPos:Int):{done:Bool, read:Int, write:Int} {
-		return null;
-	}
+/**
+	`CSSPageRule` is an interface representing a single CSS `@page` rule. It implements the `CSSRule` interface with a type value of `6` (`CSSRule.PAGE_RULE`).
 
-	public function setFlushMode(f:FlushMode):Void {}
+	Documentation [CSSPageRule](https://developer.mozilla.org/en-US/docs/Web/API/CSSPageRule) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/CSSPageRule$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
 
-	public function close():Void {}
-
-	public static function run(s:haxe.io.Bytes, level:Int):haxe.io.Bytes {
-		if (s.length == 0) {
-			// Flash returns 0 bytes for 0 length compress (which can't be decoded on other platforms...)
-			var b = haxe.io.Bytes.alloc(8);
-			b.set(0, 0x78);
-			b.set(1, 0xDA);
-			b.set(2, 0x03);
-			b.set(7, 0x01);
-			return b;
-		}
-		var tmp = new flash.utils.ByteArray();
-		tmp.writeBytes(s.getData(), 0, s.length);
-		tmp.compress();
-		return haxe.io.Bytes.ofData(tmp);
-	}
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/CSSPageRule>
+**/
+@:native("CSSPageRule")
+extern class CSSPageRule extends CSSRule {
+	
+	/**
+		Returns the declaration block associated with the at-rule.
+	**/
+	var style(default,null) : CSSStyleDeclaration;
+	
 }
