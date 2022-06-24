@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,53 +21,44 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package hl.types;
+package sys.io;
 
-typedef BytesMapData = Abstract<"hl_bytes_map">;
+import sys.io.FileSeek;
+import cpp.NativeFile;
 
-abstract BytesMap(BytesMapData) {
-	extern public inline function new() {
-		this = alloc();
+@:coreApi
+class FileOutput extends haxe.io.Output {
+	private var __f:Dynamic;
+
+	function new(f:Dynamic):Void {
+		__f = f;
 	}
 
-	@:hlNative("std", "hballoc") static function alloc():BytesMapData {
-		return null;
+	public override function writeByte(c:Int):Void {
+		try
+			NativeFile.file_write_char(__f, c)
+		catch (e:Dynamic)
+			throw haxe.io.Error.Custom(e);
 	}
 
-	@:hlNative("std", "hbset")
-	public function set(key:Bytes, value:Dynamic) {}
-
-	@:hlNative("std", "hbexists")
-	public function exists(key:Bytes):Bool {
-		return false;
+	public override function writeBytes(s:haxe.io.Bytes, p:Int, l:Int):Int {
+		return try NativeFile.file_write(__f, s.getData(), p, l) catch (e:Dynamic) throw haxe.io.Error.Custom(e);
 	}
 
-	@:hlNative("std", "hbget")
-	public function get(key:Bytes):Dynamic {
-		return null;
+	public override function flush():Void {
+		NativeFile.file_flush(__f);
 	}
 
-	@:hlNative("std", "hbremove")
-	public function remove(key:Bytes):Bool {
-		return false;
+	public override function close():Void {
+		super.close();
+		NativeFile.file_close(__f);
 	}
 
-	@:hlNative("std", "hbkeys")
-	public function keysArray():NativeArray<Bytes> {
-		return null;
+	public function seek(p:Int, pos:FileSeek):Void {
+		NativeFile.file_seek(__f, p, pos == SeekBegin ? 0 : pos == SeekCur ? 1 : 2);
 	}
 
-	@:hlNative("std", "hbvalues")
-	public function valuesArray():NativeArray<Dynamic> {
-		return null;
-	}
-
-	#if (hl_ver >= version("1.11.0"))
-	@:hlNative("std", "hbclear")
-	public function clear():Void {}
-	#end
-
-	extern public inline function iterator() {
-		return new NativeArray.NativeArrayIterator<Dynamic>(valuesArray());
+	public function tell():Int {
+		return NativeFile.file_tell(__f);
 	}
 }
