@@ -84,3 +84,46 @@ class Sys {
 	@:deprecated("Use programPath instead") public static function executablePath():String {
 		return Misc.exepath();
 	}
+
+	public inline static function programPath():String {
+		return haxe.io.Path.join([getCwd(), Lua.arg[0]]);
+	}
+
+	public inline static function getCwd():String
+		return haxe.io.Path.addTrailingSlash(Misc.cwd());
+
+	public inline static function setCwd(s:String):Void
+		Misc.chdir(s);
+
+	public inline static function getEnv(s:String):String {
+		return Os.getenv(s);
+	}
+
+	public inline static function putEnv(s:String, v:Null<String>):Void {
+		if (v == null)
+			return Os.unsetenv(s);
+		Os.setenv(s, v);
+	}
+
+	public inline static function setTimeLocale(loc:String):Bool {
+		// TODO Verify
+		return lua.Os.setlocale(loc) != null;
+	}
+
+	public static function sleep(seconds:Float):Void
+		lua.lib.luv.Thread.sleep(Math.floor(seconds * 1000));
+
+	public inline static function stderr():haxe.io.Output
+		return @:privateAccess new FileOutput(Io.stderr);
+
+	public inline static function stdin():haxe.io.Input
+		return @:privateAccess new FileInput(Io.stdin);
+
+	public inline static function stdout():haxe.io.Output
+		return @:privateAccess new FileOutput(Io.stdout);
+
+	public static function time():Float {
+		var stamp = lua.lib.luv.Misc.gettimeofday();
+		return stamp.seconds + (stamp.microseconds / 1000000);
+	}
+}
