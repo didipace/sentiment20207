@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,11 +21,22 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\PushSubscription.webidl. Do not edit!
+// This file is generated from mozilla\HTMLMetaElement.webidl. Do not edit!
 
-package js.html.push;
+package js.html;
 
-typedef PushSubscriptionKeys = {
-	var ?auth : String;
-	var ?p256dh : String;
+/**
+	The `HTMLMetaElement` interface contains descriptive metadata about a document. It inherits all of the properties and methods described in the `HTMLElement` interface.
+
+	Documentation [HTMLMetaElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMetaElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMetaElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLMetaElement>
+**/
+@:native("HTMLMetaElement")
+extern class MetaElement extends Element {
+	var name : String;
+	var httpEquiv : String;
+	var content : String;
+	var scheme : String;
+	
 }
