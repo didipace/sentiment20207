@@ -20,18 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package cpp;
+// This file is generated from mozilla\Gamepad.webidl. Do not edit!
 
-using cpp.NativeString;
+package js.html;
 
-@:native("::hx::StdString const &")
-@:include("hx/StdString.h")
-@:structAccess
-extern class StdStringRef {
-	function c_str():ConstPointer<Char>;
-	function size():Int;
-	function find(s:String):Int;
-	function substr(pos:Int, len:Int):StdString;
-	function toString():String;
-	function toStdString():StdString;
+enum abstract GamepadMappingType(String) {
+	var NONE = "";
+	var STANDARD = "standard";
 }
