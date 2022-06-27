@@ -73,4 +73,22 @@ class FileOutput extends Output {
 				case SeekBegin:
 					f.seek(cast p);
 				case SeekCur:
-					f.seek(ha
+					f.seek(haxe.Int64.add(f.getFilePointer(), cast(p, haxe.Int64)));
+				case SeekEnd:
+					f.seek(haxe.Int64.add(f.length(), cast p));
+			}
+		} catch (e:EOFException) {
+			throw new Eof();
+		} catch (e:IOException) {
+			throw haxe.io.Error.Custom(e);
+		}
+	}
+
+	public function tell():Int {
+		try {
+			return cast f.getFilePointer();
+		} catch (e:IOException) {
+			throw haxe.io.Error.Custom(e);
+		}
+	}
+}
