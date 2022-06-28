@@ -153,4 +153,32 @@ and s_value ?(indent_level=0) depth v =
 		let len = String.length s in
 		create_ascii (if String.unsafe_get s (len - 1) = '.' then String.sub s 0 (len - 1) else s)
 	| VFunction (f,_) -> rfun
-	| VFie
+	| VFieldClosure _ -> rclosure
+	| VHandle _ -> rhandle
+	| VEnumValue ve -> s_enum_value depth indent_level ve
+	| VString s -> s
+	| VNativeString s -> create_unknown_vstring s
+	| VArray va -> s_array (depth + 1) indent_level va
+	| VVector vv -> s_vector (depth + 1) indent_level vv
+	| VInstance {ikind=IDate d} -> s_date d
+	| VInstance {ikind=IPos p} -> create_ascii ("#pos(" ^ Lexer.get_error_pos (Printf.sprintf "%s:%d:") p ^ ")") (* STODO: not ascii? *)
+	| VInstance {ikind=IRegex r} -> r.r_rex_string
+	| VInstance i -> (try call_to_string () with Not_found -> s_hash i.iproto.ppath)
+	| VObject o -> (try call_to_string () with Not_found -> s_object (depth + 1) indent_level o)
+	| VLazy f -> s_value ~indent_level depth (!f())
+	| VPrototype proto ->
+		try
+			call_to_string()
+		with Not_found ->
+			s_proto_kind proto
+
+and call_value_on vthis v vl =
+	match v with
+	| VFunction(f,b) ->
+		let vl = if not b then vthis :: vl else vl in
+		call_function f vl
+	| VFieldClosure(v1,f) -> call_function f (v1 :: vl)
+	| _ -> exc_string ("Cannot call " ^ (value_string v))
+
+and value_string v =
+	(s_value 0 v).sstring
