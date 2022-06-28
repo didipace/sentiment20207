@@ -41,3 +41,116 @@ let rfalse = create_ascii "false"
 let rfun = create_ascii "#fun"
 let rclosure = create_ascii "#closure"
 let rhandle = create_ascii "#handle"
+
+let s_date d =
+	let open Unix in
+	let t = localtime d in
+	create_ascii (Printf.sprintf "%.4d-%.2d-%.2d %.2d:%.2d:%.2d" (t.tm_year + 1900) (t.tm_mon + 1) t.tm_mday t.tm_hour t.tm_min t.tm_sec)
+
+let s_hash key = create_ascii (EvalHash.rev_hash key)
+
+let rec indent buf s n =
+	match n with
+	| 0 -> ()
+	| _ -> begin
+		Buffer.add_string buf s;
+		indent buf s (n - 1)
+	end
+
+let rec s_object depth indent_level o =
+	let fields = object_fields o in
+	let buf = Buffer.create 0 in
+	let inner_indent_level = indent_level + 1 in
+
+	Buffer.add_string buf "{";
+	(match (get_ctx()).print_indentation with
+		| None -> ()
+		| Some s -> begin
+			Buffer.add_string buf "\n";
+			indent buf s inner_indent_level
+		end);
+
+	List.iteri (fun i (k,v) ->
+		if i > 0 then begin
+			match (get_ctx()).print_indentation with
+				| None -> Buffer.add_string buf ", "
+				| Some s -> begin
+					Buffer.add_string buf ",\n";
+					indent buf s inner_indent_level
+				end;
+		end;
+
+		Buffer.add_string buf (rev_hash k);
+		Buffer.add_string buf ": ";
+		Buffer.add_string buf (s_value ~indent_level:inner_indent_level depth v).sstring;
+	) fields;
+
+	(match (get_ctx()).print_indentation with
+		| None -> ()
+		| Some s -> begin
+			Buffer.add_string buf "\n";
+			indent buf s indent_level
+		end);
+
+	Buffer.add_string buf "}";
+	let s = Buffer.contents buf in
+	create_with_length s (try UTF8.length s with _ -> String.length s)
+
+and s_array depth indent_level va =
+	join empty_string [
+		rbkopen;
+		EvalArray.join va (s_value ~indent_level depth) rcomma;
+		rbkclose;
+	]
+
+and s_vector depth indent_level vv =
+	join empty_string [
+		rbkopen;
+		EvalArray.join (EvalArray.create vv) (s_value ~indent_level depth) rcomma;
+		rbkclose;
+	]
+
+and s_enum_ctor_name ve =
+	try
+		begin match (get_static_prototype_raise (get_ctx()) ve.epath).pkind with
+			| PEnum names -> (try fst (List.nth names ve.eindex) with _ -> "#unknown")
+			| _ -> raise Not_found
+		end
+	with Not_found -> "#unknown"
+
+and s_enum_value depth indent_level ve =
+	let name = s_enum_ctor_name ve in
+	match ve.eargs with
+	| [||] -> create_ascii name
+	| vl ->
+		join empty_string [
+			create_ascii name;
+			rpopen;
+			join rcomma (Array.to_list (Array.map (s_value ~indent_level (depth + 1)) vl));
+			rpclose;
+		]
+
+and s_proto_kind proto = match proto.pkind with
+	| PClass _ -> join empty_string [create_ascii "Class<"; s_hash proto.ppath; rgt]
+	| PEnum _ -> join empty_string [create_ascii "Enum<"; s_hash proto.ppath; rgt]
+	| PInstance | PObject -> die "" __LOC__
+
+and s_value ?(indent_level=0) depth v =
+	let call_to_string () =
+		let vf = field_raise v EvalHash.key_toString in
+		s_value ~indent_level (depth + 1) (call_value_on v vf [])
+	in
+	if depth > (get_ctx()).max_print_depth then rstop
+	else match v with
+	| VNull -> rnull
+	| VInt32 i32 -> create_ascii(Int32.to_string i32)
+	| VInt64 i -> create_ascii(Signed.Int64.to_string i)
+	| VUInt64 u -> create_ascii(Unsigned.UInt64.to_string u)
+	| VTrue -> rtrue
+	| VFalse -> rfalse
+	| VFloat f ->
+		let s = Numeric.float_repres f in
+		let len = String.length s in
+		create_ascii (if String.unsafe_get s (len - 1) = '.' then String.sub s 0 (len - 1) else s)
+	| VFunction (f,_) -> rfun
+	| VFie
