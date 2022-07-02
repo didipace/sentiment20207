@@ -35,4 +35,33 @@ class Issue3826 extends Test {
 		#end
 	}
 
-	#if !((java && !jvm) || cs || flas
+	#if !((java && !jvm) || cs || flash)
+	public function testReflect() {
+		eq( Reflect.callMethod(this, get, []), "2/4.25" );
+		eq( Reflect.callMethod(this, get, [5]), "5/4.25" );
+		eq( Reflect.callMethod(this, get, [5,8.5]), "5/8.5" );
+		eq( Reflect.callMethod(this, get, [null,8.5]), "2/8.5" );
+
+		eq( Reflect.callMethod(this, get, [null]), "2/4.25" );
+		eq( Reflect.callMethod(this, get, [null,null]), "2/4.25" );
+		eq( Reflect.callMethod(this, get, [ival,fval]), "5/8.5" );
+		eq( Reflect.callMethod(this, get, [dval,dval]), "6/6" );
+	}
+	#end
+
+	function getOpt( ?a = 2, ?b = 4.25 ) {
+		return ""+a+"/"+b;
+	}
+
+	public function testOpt() {
+		eq( getOpt(), "2/4.25" );
+		eq( getOpt(5), "5/4.25" );
+		eq( getOpt(5,8.5), "5/8.5" );
+		eq( getOpt(8.5), "2/8.5" );
+
+		eq( getOpt(inull), "2/4.25");
+		eq( getOpt(inull,fnull), "2/4.25");
+		eq( getOpt(fnull), "2/4.25");
+	}
+
+}
