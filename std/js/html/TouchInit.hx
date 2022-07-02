@@ -20,9 +20,21 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package python.lib.datetime;
+// This file is generated from mozilla\Touch.webidl. Do not edit!
 
-@:pythonImport("datetime", "timezone")
-extern class Timezone extends Tzinfo {
-	static var utc(default, never):Tzinfo;
+package js.html;
+
+typedef TouchInit = {
+	var ?clientX : Int;
+	var ?clientY : Int;
+	var ?force : Float;
+	var identifier : Int;
+	var ?pageX : Int;
+	var ?pageY : Int;
+	var ?radiusX : Float;
+	var ?radiusY : Float;
+	var ?rotationAngle : Float;
+	var ?screenX : Int;
+	var ?screenY : Int;
+	var target : EventTarget;
 }
