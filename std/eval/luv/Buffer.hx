@@ -92,4 +92,29 @@ import haxe.io.Bytes;
 	public function toString():String;
 
 	/**
-		Creates a native string with t
+		Creates a native string with the same contents as the buffer.
+	**/
+	public function toNativeString():NativeString;
+
+	/**
+		Creates a `haxe.io.Bytes` instance with the same contents as this buffer.
+	**/
+	public function toBytes():Bytes;
+
+	/**
+		Copies data from a buffer to bytes buffer.
+	**/
+	public function blitToBytes(destination:Bytes, destinationOffset:Int):Void;
+
+	/**
+		Copies data from bytes to a buffer.
+	**/
+	public function blitFromBytes(source:Bytes, sourceOffset:Int):Void;
+
+	/**
+		Copies data from bytes to a buffer.
+
+		Note: `sourceOffset` is not a character offset but a byte offset.
+	**/
+	public function blitFromString(source:NativeString, sourceOffset:Int):Void;
+}
