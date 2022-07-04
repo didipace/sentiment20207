@@ -14,30 +14,4 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
-
-package cpp;
-
-class Random {
-	var r:Dynamic;
-
-	public function new() {
-		r = cpp.NativeRandom.random_new();
-	}
-
-	public function setSeed(s:Int) {
-		cpp.NativeRandom.random_set_seed(r, s);
-	}
-
-	public function int(max:Int):Int {
-		return cpp.NativeRandom.random_int(r, max);
-	}
-
-	public function float():Float {
-		return cpp.NativeRandom.random_float(r);
-	}
-}
+ * AUTHORS OR COPYRIGHT HOLDERS
