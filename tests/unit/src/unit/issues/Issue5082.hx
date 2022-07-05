@@ -27,3 +27,11 @@ private class Content {
 
 class Issue5082 extends unit.Test {
 	function test() {
+		var l = {data: Tiles([]), props:{color:""}, idToIndex: null};
+		var content = new Content();
+		var x = (untyped content.find("[name=color]")).spectrum("set", toColor(l.props.color)).closest(".item").css( { display : l.idToIndex == null && !l.data.match(Tiles(_) | TileInstances(_)) ? "" : "none" } );
+		eq("foo", x);
+	}
+
+	static function toColor(d:Dynamic) return d;
+}
