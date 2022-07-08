@@ -41,4 +41,38 @@ class Issue10412 extends DisplayTestCase {
 		}
 	**/
 	function testOriginal() {
-		var fiel
+		var fields = fields(pos(1));
+		eq(true, hasField(fields, "foo", "{ bar : String }"));
+	}
+
+	/**
+		class Base {
+		final x:String;
+		}
+
+		class Child extends Base {
+		final x:String;
+		function test() {
+			"".{-1-};
+		}
+		}
+	**/
+	function testActualIssue() {
+		var fields = fields(pos(1));
+		eq(true, hasField(fields, "length", "Int"));
+	}
+
+	/**
+		class Test {
+		var a:Int;
+		function test() {
+			this.{-1-}.resume;
+
+		final x:String;
+		}
+	**/
+	function testFinalResume() {
+		var fields = fields(pos(1));
+		eq(true, hasField(fields, "x", "String"));
+	}
+}
