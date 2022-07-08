@@ -69,4 +69,42 @@ class TestKeyValueIterator extends Test {
 			buf.add(value);
 			buf.add(";");
 		}
-		eq("1foo;2
+		eq("1foo;2bar;", buf.toString());
+	}
+
+	function testIterator() {
+		var it = new MyWeirdIterator();
+		var buf = new StringBuf();
+		for (key => value in it) {
+			buf.add(key);
+			buf.add(value);
+			buf.add(";");
+		}
+		eq("1foo;", buf.toString());
+	}
+
+	function testStaticExtension() {
+		var buf = new StringBuf();
+		for (key => value in true) {
+			buf.add(key);
+			buf.add(value);
+			buf.add(";");
+		}
+		eq("truetrue;", buf.toString());
+	}
+
+	function testError1() {
+		var s = HelperMacros.typeErrorText(
+			for (key => value in 1) { }
+		);
+		eq("Int has no field keyValueIterator", s);
+	}
+
+	function testError2() {
+		t(HelperMacros.typeError(for (key => value in new MyNotIterator()) { }));
+	}
+
+	function testError3() {
+		t(HelperMacros.typeError(for (key => value in new MyNotIterable()) { }));
+	}
+}
