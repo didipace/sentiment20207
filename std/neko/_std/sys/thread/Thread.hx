@@ -122,4 +122,67 @@ private class HaxeThread {
 
 	public static function create(callb:()->Void, withEventLoop:Bool):Thread {
 		var item = {handle:null, thread:new HaxeThread(null)};
-		threadsMut
+		threadsMutex.acquire();
+		threads.push(item);
+		threadsMutex.release();
+		if(withEventLoop)
+			item.thread.events = new EventLoop();
+		item.handle = thread_create(_ -> {
+			if(item.thread.handle == null) {
+				item.handle = thread_current();
+				item.thread.handle = item.handle;
+			}
+			try {
+				callb();
+				if(withEventLoop)
+					item.thread.events.loop();
+			} catch(e) {
+				dropThread(item);
+				throw e;
+			}
+			dropThread(item);
+		}, null);
+		item.thread.handle = item.handle;
+		return item.thread;
+	}
+
+	public static function runWithEventLoop(job:()->Void):Void {
+		var thread = current();
+		if(thread.events == null) {
+			thread.events = new EventLoop();
+			try {
+				job();
+				thread.events.loop();
+				thread.events = null;
+			} catch(e) {
+				thread.events = null;
+				throw e;
+			}
+		} else {
+			job();
+		}
+	}
+
+	static function dropThread(deleteItem) {
+		threadsMutex.acquire();
+		for(i => item in threads) {
+			if(item == deleteItem) {
+				threads.splice(i, 1);
+				break;
+			}
+		}
+		threadsMutex.release();
+	}
+
+	public static inline function readMessage(block:Bool):Dynamic {
+		return thread_read_message(block);
+	}
+
+	public function new(handle:ThreadHandle) {
+		this.handle = handle;
+	}
+
+	public function sendMessage(msg:Dynamic) {
+		thread_send(handle, msg);
+	}
+}
