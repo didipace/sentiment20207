@@ -127,4 +127,29 @@ import python.Syntax;
 			// No way in vanilla Python <=3.5 to get the local timezone
 			// Additionally dates close to the epoch <86400 will throw on astimezone
 			var tzinfo = Datetime.now(Timezone.utc).astimezone().tzinfo;
-			return
+			return date.replace({tzinfo: tzinfo});
+		}
+	}
+
+	static function UTC(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Float {
+		return new Datetime(year, month + 1, day, hour, min, sec, 0, python.lib.datetime.Timezone.utc).timestamp() * 1000;
+	}
+
+	static public function fromString(s:String):Date {
+		switch (s.length) {
+			case 8: // hh:mm:ss
+				var k = s.split(":");
+				return Date.fromTime(Std.parseInt(k[0]) * 3600000. + Std.parseInt(k[1]) * 60000. + Std.parseInt(k[2]) * 1000.);
+			case 10: // YYYY-MM-DD
+				var k = s.split("-");
+				return new Date(Std.parseInt(k[0]), Std.parseInt(k[1]) - 1, Std.parseInt(k[2]), 0, 0, 0);
+			case 19: // YYYY-MM-DD hh:mm:ss
+				var k = s.split(" ");
+				var y = k[0].split("-");
+				var t = k[1].split(":");
+				return new Date(Std.parseInt(y[0]), Std.parseInt(y[1]) - 1, Std.parseInt(y[2]), Std.parseInt(t[0]), Std.parseInt(t[1]), Std.parseInt(t[2]));
+			default:
+				throw "Invalid date format : " + s;
+		}
+	}
+}
