@@ -314,4 +314,88 @@ class Parser {
 					else if (c == ']'.code)
 						nbrackets--;
 					else if (c == '>'.code && nbrackets == 0) {
-						addChild(Xml.createDocType(str.substr(start, p 
+						addChild(Xml.createDocType(str.substr(start, p - start)));
+						state = S.BEGIN;
+					}
+				case S.HEADER:
+					if (c == '?'.code && str.fastCodeAt(p + 1) == '>'.code) {
+						p++;
+						var str = str.substr(start + 1, p - start - 2);
+						addChild(Xml.createProcessingInstruction(str));
+						state = S.BEGIN;
+					}
+				case S.ESCAPE:
+					if (c == ';'.code) {
+						var s = str.substr(start, p - start);
+						if (s.fastCodeAt(0) == '#'.code) {
+							var c = s.fastCodeAt(1) == 'x'.code ? Std.parseInt("0" + s.substr(1,
+								Global.strlen(s) - 1)) : Std.parseInt(s.substr(1, Global.strlen(s) - 1));
+							buf = Syntax.concat(buf, Global.mb_chr(c));
+						} else if (!escapes.exists(s)) {
+							if (strict)
+								throw new XmlParserException("Undefined entity: " + s, str, p);
+							buf = Syntax.concat(buf, '&$s;');
+						} else {
+							buf = Syntax.concat(buf, escapes.get(s));
+						}
+						start = p + 1;
+						state = escapeNext;
+					} else if (!isValidChar(c) && c != "#".code) {
+						if (strict)
+							throw new XmlParserException("Invalid character in entity: " + String.fromCharCode(c), str, p);
+						buf = Syntax.concat(buf, "&");
+						buf = buf.addSub(str, start, p - start);
+						p--;
+						start = p + 1;
+						state = escapeNext;
+					}
+			}
+			c = str.fastCodeAt(++p);
+		}
+
+		if (state == S.BEGIN) {
+			start = p;
+			state = S.PCDATA;
+		}
+
+		if (state == S.PCDATA) {
+			if (parent.nodeType == Element) {
+				throw new XmlParserException("Unclosed node <" + parent.nodeName + ">", str, p);
+			}
+			if (p != start || nsubs == 0) {
+				buf = buf.addSub(str, start, p - start);
+				addChild(Xml.createPCData(buf));
+			}
+			return p;
+		}
+
+		if (!strict && state == S.ESCAPE && escapeNext == S.PCDATA) {
+			buf = Syntax.concat(buf, "&");
+			buf = buf.addSub(str, start, p - start);
+			addChild(Xml.createPCData(buf));
+			return p;
+		}
+
+		throw new XmlParserException("Unexpected end", str, p);
+	}
+
+	static inline function isValidChar(c) {
+		return (c >= 'a'.code && c <= 'z'.code) || (c >= 'A'.code && c <= 'Z'.code) || (c >= '0'.code && c <= '9'.code) || c == ':'.code || c == '.'.code
+			|| c == '_'.code || c == '-'.code;
+	}
+
+	// TODO: rewrite the parser using a buffer instead of a string as the data source
+
+	@:allow(haxe.xml.XmlParserException)
+	static inline function fastCodeAt(s:NativeString, pos:Int):Int {
+		return pos >= Global.strlen(s) ? 0 : Global.ord(s[pos]);
+	}
+
+	static inline function substr(s:NativeString, pos:Int, ?length:Int):NativeString {
+		return Global.substr(s, pos, length);
+	}
+
+	static inline function addSub(buf:NativeString, s:NativeString, pos:Int, length:Int):NativeString {
+		return Syntax.concat(buf, Global.substr(s, pos, length));
+	}
+}
