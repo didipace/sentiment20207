@@ -210,4 +210,108 @@ class Parser {
 					switch (c) {
 						case '/'.code:
 							state = S.WAIT_END;
-						case 
+						case '>'.code:
+							state = S.CHILDS;
+						default:
+							state = S.ATTRIB_NAME;
+							start = p;
+							continue;
+					}
+				case S.ATTRIB_NAME:
+					if (!isValidChar(c)) {
+						var tmp;
+						if (start == p)
+							throw new XmlParserException("Expected attribute name", str, p);
+						tmp = str.substr(start, p - start);
+						aname = tmp;
+						if (xml.exists(aname))
+							throw new XmlParserException("Duplicate attribute [" + aname + "]", str, p);
+						state = S.IGNORE_SPACES;
+						next = S.EQUALS;
+						continue;
+					}
+				case S.EQUALS:
+					switch (c) {
+						case '='.code:
+							state = S.IGNORE_SPACES;
+							next = S.ATTVAL_BEGIN;
+						default:
+							throw new XmlParserException("Expected =", str, p);
+					}
+				case S.ATTVAL_BEGIN:
+					switch (c) {
+						case '"'.code | '\''.code:
+							buf = '';
+							state = S.ATTRIB_VAL;
+							start = p + 1;
+							attrValQuote = c;
+						default:
+							throw new XmlParserException("Expected \"", str, p);
+					}
+				case S.ATTRIB_VAL:
+					switch (c) {
+						case '&'.code:
+							buf = buf.addSub(str, start, p - start);
+							state = S.ESCAPE;
+							escapeNext = S.ATTRIB_VAL;
+							start = p + 1;
+						case '>'.code | '<'.code if (strict):
+							// HTML allows these in attributes values
+							throw new XmlParserException("Invalid unescaped " + String.fromCharCode(c) + " in attribute value", str, p);
+						case _ if (c == attrValQuote):
+							buf = buf.addSub(str, start, p - start);
+							var val = buf;
+							buf = '';
+							xml.set(aname, val);
+							state = S.IGNORE_SPACES;
+							next = S.BODY;
+					}
+				case S.CHILDS:
+					p = doParse(str, strict, p, xml);
+					start = p;
+					state = S.BEGIN;
+				case S.WAIT_END:
+					switch (c) {
+						case '>'.code:
+							state = S.BEGIN;
+						default:
+							throw new XmlParserException("Expected >", str, p);
+					}
+				case S.WAIT_END_RET:
+					switch (c) {
+						case '>'.code:
+							if (nsubs == 0)
+								parent.addChild(Xml.createPCData(""));
+							return p;
+						default:
+							throw new XmlParserException("Expected >", str, p);
+					}
+				case S.CLOSE:
+					if (!isValidChar(c)) {
+						if (start == p)
+							throw new XmlParserException("Expected node name", str, p);
+
+						var v = str.substr(start, p - start);
+						if (parent == null || parent.nodeType != Element) {
+							throw new XmlParserException('Unexpected </$v>, tag is not open', str, p);
+						}
+						if (v != parent.nodeName)
+							throw new XmlParserException("Expected </" + parent.nodeName + ">", str, p);
+
+						state = S.IGNORE_SPACES;
+						next = S.WAIT_END_RET;
+						continue;
+					}
+				case S.COMMENT:
+					if (c == '-'.code && str.fastCodeAt(p + 1) == '-'.code && str.fastCodeAt(p + 2) == '>'.code) {
+						addChild(Xml.createComment(str.substr(start, p - start)));
+						p += 2;
+						state = S.BEGIN;
+					}
+				case S.DOCTYPE:
+					if (c == '['.code)
+						nbrackets++;
+					else if (c == ']'.code)
+						nbrackets--;
+					else if (c == '>'.code && nbrackets == 0) {
+						addChild(Xml.createDocType(str.substr(start, p 
