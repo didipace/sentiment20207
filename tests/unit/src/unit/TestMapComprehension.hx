@@ -26,4 +26,11 @@ class TestMapComprehension extends unit.Test {
 	// }
 
 	function mapEq<K, V>(m1:Map<K, V>, m2:Map<K, V>, ?p:haxe.PosInfos) {
-		for (k1 in 
+		for (k1 in m1.keys()) {
+			eq(m1[k1], m2[k1], p);
+		}
+		for (k2 in m2.keys()) {
+			eq(m1[k2], m2[k2], p);
+		}
+	}
+}
