@@ -12,4 +12,17 @@ private enum MyOtherEnum {
 
 class Issue3054 extends Test {
 	function test() {
-		var myVal
+		var myValue:Null<MyEnum> = A;
+		switch(myValue) {
+			case A:
+			case B:
+		}
+
+		var myOtherValue:Null<MyOtherEnum> = B;
+		t(unit.HelperMacros.typeError(switch(myOtherValue) {
+			case A(A):
+			case A(B):
+			case B:
+		}));
+	}
+}
