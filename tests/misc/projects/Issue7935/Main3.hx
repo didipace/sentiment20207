@@ -1,2 +1,5 @@
 class Main {
-	public static 
+	public static function main() {
+		trace(0,
+	}
+}
