@@ -16,23 +16,4 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
-
-// This file is generated from mozilla\DocumentTimeline.webidl. Do not edit!
-
-package js.html;
-
-/**
-	The `DocumentTimeline` interface of the the Web Animations API represents animation timelines, including the default document timeline (accessed via `Document.timeline`).
-
-	Documentation [DocumentTimeline](https://developer.mozilla.org/en-US/docs/Web/API/DocumentTimeline) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/DocumentTimeline$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/DocumentTimeline>
-**/
-@:native("DocumentTimeline")
-extern class DocumentTimeline extends AnimationTimeline {
-	/** @throws DOMError */
-	function new( ?options : DocumentTimelineOptions ) : Void;
-}
+ * FROM, OUT OF OR I
