@@ -222,4 +222,110 @@ class Input {
 	}
 
 	/**
-		Re
+		Read a 16-bit signed integer.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readInt16():Int {
+		var ch1 = readByte();
+		var ch2 = readByte();
+		var n = bigEndian ? ch2 | (ch1 << 8) : ch1 | (ch2 << 8);
+		if (n & 0x8000 != 0)
+			return n - 0x10000;
+		return n;
+	}
+
+	/**
+		Read a 16-bit unsigned integer.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readUInt16():Int {
+		var ch1 = readByte();
+		var ch2 = readByte();
+		return bigEndian ? ch2 | (ch1 << 8) : ch1 | (ch2 << 8);
+	}
+
+	/**
+		Read a 24-bit signed integer.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readInt24():Int {
+		var ch1 = readByte();
+		var ch2 = readByte();
+		var ch3 = readByte();
+		var n = bigEndian ? ch3 | (ch2 << 8) | (ch1 << 16) : ch1 | (ch2 << 8) | (ch3 << 16);
+		if (n & 0x800000 != 0)
+			return n - 0x1000000;
+		return n;
+	}
+
+	/**
+		Read a 24-bit unsigned integer.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readUInt24():Int {
+		var ch1 = readByte();
+		var ch2 = readByte();
+		var ch3 = readByte();
+		return bigEndian ? ch3 | (ch2 << 8) | (ch1 << 16) : ch1 | (ch2 << 8) | (ch3 << 16);
+	}
+
+	/**
+		Read a 32-bit signed integer.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readInt32():Int {
+		var ch1 = readByte();
+		var ch2 = readByte();
+		var ch3 = readByte();
+		var ch4 = readByte();
+		#if (php || python)
+		// php will overflow integers.  Convert them back to signed 32-bit ints.
+		var n = bigEndian ? ch4 | (ch3 << 8) | (ch2 << 16) | (ch1 << 24) : ch1 | (ch2 << 8) | (ch3 << 16) | (ch4 << 24);
+		if (n & 0x80000000 != 0)
+			return (n | 0x80000000);
+		else
+			return n;
+		#elseif lua
+		var n = bigEndian ? ch4 | (ch3 << 8) | (ch2 << 16) | (ch1 << 24) : ch1 | (ch2 << 8) | (ch3 << 16) | (ch4 << 24);
+		return lua.Boot.clampInt32(n);
+		#else
+		return bigEndian ? ch4 | (ch3 << 8) | (ch2 << 16) | (ch1 << 24) : ch1 | (ch2 << 8) | (ch3 << 16) | (ch4 << 24);
+		#end
+	}
+
+	/**
+		Read and `len` bytes as a string.
+	**/
+	public function readString(len:Int, ?encoding:Encoding):String {
+		var b = Bytes.alloc(len);
+		readFullBytes(b, 0, len);
+		#if neko
+		return neko.Lib.stringReference(b);
+		#else
+		return b.getString(0, len, encoding);
+		#end
+	}
+
+	#if neko
+	static var _float_of_bytes = neko.Lib.load("std", "float_of_bytes", 2);
+	static var _double_of_bytes = neko.Lib.load("std", "double_of_bytes", 2);
+
+	static function __init__()
+		untyped {
+			Input.prototype.bigEndian = false;
+		}
+	#end
+
+	#if (flash || js || python)
+	function getDoubleSig(bytes:Array<Int>) {
+		return (((bytes[1] & 0xF) << 16) | (bytes[2] << 8) | bytes[3]) * 4294967296.
+			+ (bytes[4] >> 7) * 2147483648
+			+ (((bytes[4] & 0x7F) << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7]);
+	}
+	#end
+}
