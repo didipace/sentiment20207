@@ -81,4 +81,145 @@ class Input {
 				k--;
 			}
 		} catch (eof:haxe.io.Eof) {}
-		return l
+		return len - k;
+	}
+
+	/**
+		Close the input source.
+
+		Behaviour while reading after calling this method is unspecified.
+	**/
+	public function close():Void {}
+
+	function set_bigEndian(b:Bool):Bool {
+		bigEndian = b;
+		return b;
+	}
+
+	/* ------------------ API ------------------ */
+	/**
+		Read and return all available data.
+
+		The `bufsize` optional argument specifies the size of chunks by
+		which data is read. Its default value is target-specific.
+	**/
+	public function readAll(?bufsize:Int):Bytes {
+		if (bufsize == null)
+			#if php
+			bufsize = 8192; // default value for PHP and max under certain circumstances
+			#else
+			bufsize = (1 << 14); // 16 Ko
+			#end
+
+		var buf = Bytes.alloc(bufsize);
+		var total = new haxe.io.BytesBuffer();
+		try {
+			while (true) {
+				var len = readBytes(buf, 0, bufsize);
+				if (len == 0)
+					throw Error.Blocked;
+				total.addBytes(buf, 0, len);
+			}
+		} catch (e:Eof) {}
+		return total.getBytes();
+	}
+
+	/**
+		Read `len` bytes and write them into `s` to the position specified by `pos`.
+
+		Unlike `readBytes`, this method tries to read the exact `len` amount of bytes.
+	**/
+	public function readFullBytes(s:Bytes, pos:Int, len:Int):Void {
+		while (len > 0) {
+			var k = readBytes(s, pos, len);
+			if (k == 0)
+				throw Error.Blocked;
+			pos += k;
+			len -= k;
+		}
+	}
+
+	/**
+		Read and return `nbytes` bytes.
+	**/
+	public function read(nbytes:Int):Bytes {
+		var s = Bytes.alloc(nbytes);
+		var p = 0;
+		while (nbytes > 0) {
+			var k = readBytes(s, p, nbytes);
+			if (k == 0)
+				throw Error.Blocked;
+			p += k;
+			nbytes -= k;
+		}
+		return s;
+	}
+
+	/**
+		Read a string until a character code specified by `end` is occurred.
+
+		The final character is not included in the resulting string.
+	**/
+	public function readUntil(end:Int):String {
+		var buf = new BytesBuffer();
+		var last:Int;
+		while ((last = readByte()) != end)
+			buf.addByte(last);
+		return buf.getBytes().toString();
+	}
+
+	/**
+		Read a line of text separated by CR and/or LF bytes.
+
+		The CR/LF characters are not included in the resulting string.
+	**/
+	public function readLine():String {
+		var buf = new BytesBuffer();
+		var last:Int;
+		var s;
+		try {
+			while ((last = readByte()) != 10)
+				buf.addByte(last);
+			s = buf.getBytes().toString();
+			if (s.charCodeAt(s.length - 1) == 13)
+				s = s.substr(0, -1);
+		} catch (e:Eof) {
+			s = buf.getBytes().toString();
+			if (s.length == 0)
+				#if neko neko.Lib.rethrow #else throw #end (e);
+		}
+		return s;
+	}
+
+	/**
+		Read a 32-bit floating point number.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readFloat():Float {
+		return FPHelper.i32ToFloat(readInt32());
+	}
+
+	/**
+		Read a 64-bit double-precision floating point number.
+
+		Endianness is specified by the `bigEndian` property.
+	**/
+	public function readDouble():Float {
+		var i1 = readInt32();
+		var i2 = readInt32();
+		return bigEndian ? FPHelper.i64ToDouble(i2, i1) : FPHelper.i64ToDouble(i1, i2);
+	}
+
+	/**
+		Read a 8-bit signed integer.
+	**/
+	public function readInt8():Int {
+		var n = readByte();
+		if (n >= 128)
+			return n - 256;
+		return n;
+	}
+
+	/**
+		Re
