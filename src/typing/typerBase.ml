@@ -191,4 +191,94 @@ let s_field_access tabs fa =
 		| FHAbstract(a,tl,c) -> Printf.sprintf "FHAbstract(%s, %s, %s)" (s_type_path a.a_path) (s_types tl) (s_type_path c.cl_path)
 		| FHAnon -> Printf.sprintf "FHAnon"
 	in
-	
+	Printer.s_record_fields tabs [
+		"fa_on",se fa.fa_on;
+		"fa_field",fa.fa_field.cf_name;
+		"fa_host",sfa fa.fa_host;
+		"fa_inline",string_of_bool fa.fa_inline;
+		"fa_pos",(Printf.sprintf "%s(%i-%i)" fa.fa_pos.pfile fa.fa_pos.pmin fa.fa_pos.pmax);
+	]
+
+let s_static_extension_access sea =
+	Printer.s_record_fields "" [
+		"se_this",s_expr_pretty true "" false (s_type (print_context())) sea.se_this;
+		"se_access",s_field_access "\t" sea.se_access
+	]
+
+let rec s_access_kind acc =
+	let st = s_type (print_context()) in
+	let se = s_expr_pretty true "" false st in
+	match acc with
+	| AKNo(acc,_) -> "AKNo " ^ (s_access_kind acc)
+	| AKExpr e -> "AKExpr " ^ (se e)
+	| AKSafeNav sn -> Printf.sprintf  "AKSafeNav(%s)" (s_safe_nav_access sn)
+	| AKField fa -> Printf.sprintf "AKField(%s)" (s_field_access "" fa)
+	| AKAccessor fa -> Printf.sprintf "AKAccessor(%s)" (s_field_access "" fa)
+	| AKUsingField sea -> Printf.sprintf "AKUsingField(%s)" (s_static_extension_access sea)
+	| AKUsingAccessor sea -> Printf.sprintf "AKUsingAccessor(%s)" (s_static_extension_access sea)
+	| AKAccess(a,tl,c,e1,e2) -> Printf.sprintf "AKAccess(%s, [%s], %s, %s, %s)" (s_type_path a.a_path) (String.concat ", " (List.map st tl)) (s_type_path c.cl_path) (se e1) (se e2)
+	| AKResolve(_) -> ""
+
+and s_safe_nav_access sn =
+	let st = s_type (print_context()) in
+	let se = s_expr_pretty true "" false st in
+	Printer.s_record_fields "" [
+		"sn_base",se sn.sn_base;
+		"sn_temp_var",Option.map_default (fun e -> "Some " ^ (se e)) "None" sn.sn_temp_var;
+		"sn_access",s_access_kind sn.sn_access
+	]
+
+let s_dot_path_part part =
+	Printer.s_record_fields "" [
+		"name",part.name;
+		"case",(match part.case with PUppercase -> "PUppercase" | PLowercase -> "PLowercase");
+		"pos",(Printf.sprintf "%s(%i-%i)" part.pos.pfile part.pos.pmin part.pos.pmax);
+	]
+
+let get_constructible_constraint ctx tl p =
+	let extract_function t = match follow t with
+		| TFun(tl,tr) -> tl,tr
+		| _ -> typing_error "Constructible type parameter should be function" p
+	in
+	let rec loop tl = match tl with
+		| [] -> None
+		| t :: tl ->
+			begin match follow t with
+			| TAnon a ->
+				begin try
+					Some (extract_function (PMap.find "new" a.a_fields).cf_type);
+				with Not_found ->
+					loop tl
+				end;
+			| TAbstract({a_path = ["haxe"],"Constructible"},[t1]) ->
+				Some (extract_function t1)
+			| TInst({cl_kind = KTypeParameter tl1},_) ->
+				begin match loop tl1 with
+				| None -> loop tl
+				| Some _ as t -> t
+				end
+			| _ ->
+				loop tl
+			end
+	in
+	loop tl
+
+let unify_static_extension ctx e t p =
+	let multitype_involed t1 t2 =
+		let check t = match follow t with
+			| TAbstract(a,_) when Meta.has Meta.MultiType a.a_meta -> true
+			| _ -> false
+		in
+		check t1 || check t2
+	in
+	if multitype_involed e.etype t then
+		AbstractCast.cast_or_unify_raise ctx t e p
+	else begin
+		Type.unify_custom {default_unification_context with allow_dynamic_to_cast = false} e.etype t;
+		e
+	end
+
+let get_abstract_froms ctx a pl =
+	let l = List.map (apply_params a.a_params pl) a.a_from in
+	List.fold_left (fun acc (t,f) ->
+		(* We never want to
