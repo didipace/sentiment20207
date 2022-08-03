@@ -121,4 +121,49 @@ class Bytes {
 			throw Error.OutsideBounds;
 		} else {
 			// no need to handle encoding, because PHP strings are binary safe.
-			return b.getS
+			return b.getString(pos, len);
+		}
+	}
+
+	@:deprecated("readString is deprecated, use getString instead")
+	@:noCompletion
+	public inline function readString(pos:Int, len:Int):String {
+		return getString(pos, len);
+	}
+
+	public function toString():String {
+		return b;
+	}
+
+	public inline function toHex():String {
+		return php.Global.bin2hex(b.toString());
+	}
+
+	public inline function getData():BytesData {
+		return b;
+	}
+
+	public static function alloc(length:Int):Bytes {
+		return new Bytes(length, BytesData.alloc(length));
+	}
+
+	public static inline function ofString(s:String, ?encoding:Encoding):Bytes {
+		return new Bytes(php.Global.strlen(s), s);
+	}
+
+	public static inline function ofData(b:BytesData):Bytes {
+		return new Bytes(b.length, b);
+	}
+
+	public static function ofHex(s:String):Bytes {
+		var len = Global.strlen(s);
+		if ((len & 1) != 0)
+			throw "Not a hex string (odd number of digits)";
+		var b:String = php.Global.hex2bin(s);
+		return new Bytes(Global.strlen(b), b);
+	}
+
+	public inline static function fastGet(b:BytesData, pos:Int):Int {
+		return b.get(pos);
+	}
+}
