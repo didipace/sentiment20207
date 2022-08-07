@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,11 +21,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\FileMode.webidl. Do not edit!
+// This file is generated from mozilla\Document.webidl. Do not edit!
 
 package js.html;
 
-enum abstract FileMode(String) {
-	var READONLY = "readonly";
-	var READWRITE = "readwrite";
+typedef ElementCreationOptions = {
+	var ?is : String;
 }

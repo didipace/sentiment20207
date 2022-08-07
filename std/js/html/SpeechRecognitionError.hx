@@ -20,11 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\FileMode.webidl. Do not edit!
+// This file is generated from mozilla\SpeechRecognitionError.webidl. Do not edit!
 
 package js.html;
 
-enum abstract FileMode(String) {
-	var READONLY = "readonly";
-	var READWRITE = "readwrite";
-}
+/**
+	The `SpeechRecognitionError` interface of the Web Speech API represents error messages from the recognition service.
+
+	Documentation [SpeechRecognitionError](https://developer.mozilla.org/en-
