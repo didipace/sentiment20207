@@ -83,4 +83,9 @@ class IntMap<T> implements haxe.Constraints.IMap<Int, T> {
 
 	public function clear():Void {
 		#if (hl_ver >= version("1.11.0"))
-		@:privateAccess h.cle
+		@:privateAccess h.clear();
+		#else
+		h = new hl.types.IntMap();
+		#end
+	}
+}
