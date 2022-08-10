@@ -21,11 +21,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package php.db;
+// This file is generated from mozilla\VTTCue.webidl. Do not edit!
 
-import php.RuntimeException;
+package js.html;
 
-@:native('PDOException')
-extern class PDOException extends RuntimeException {
-	var errorInfo:NativeArray;
+enum abstract AlignSetting(String) {
+	var START = "start";
+	var CENTER = "center";
+	var END = "end";
+	var LEFT = "left";
+	var RIGHT = "right";
 }
