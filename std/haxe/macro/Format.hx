@@ -103,3 +103,17 @@ class Format {
 				start = i++;
 				continue;
 			} else {
+				start = i - 1;
+				continue;
+			}
+			start = i;
+		}
+		var len = i - start;
+		if (len > 0)
+			add({expr: EConst(CString(str.substr(start, len))), pos: make(len)});
+		if (expr == null)
+			expr = {expr: EConst(CString("")), pos: make(0)};
+		return {expr: ECheckType(expr, TPath({pack: [], name: "String", params: []})), pos: expr.pos};
+	}
+	#end
+}
