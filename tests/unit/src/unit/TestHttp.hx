@@ -66,4 +66,23 @@ class TestHttp extends Test {
 			if(srcData.length != echoData.length) {
 				assert('Binary data from Http request is corrupted. Wrong amount of bytes.');
 			}
-			for(i in 0...echo
+			for(i in 0...echoData.length) {
+				switch [srcData.get(i), echoData.get(i)] {
+					case [a, b] if(a != b):
+						assert('Binary data from Http request is corrupted. Invalid byte value at index #$i: (src) $a != $b (echo)');
+						break;
+					case _:
+				}
+			}
+			noAssert();
+			async.done();
+		}
+		d.onError = e -> {
+			assert('Failed Http request with binary data: $e');
+			async.done();
+		}
+		d.setPostBytes(srcData);
+		d.request();
+	});
+#end
+}
