@@ -51,4 +51,55 @@ class Main extends utest.Test {
 	}
 
 	function testUnimportedModuleStaticBeforeMainClassStatic() {
-		Assert.equals("
+		Assert.equals("ModWithStaticAndClassStatic.lowerCaseMod", ModWithStaticAndClassStatic.lowerCaseMod());
+		Assert.equals("ModWithStaticAndClassStatic.UpperCaseMod", ModWithStaticAndClassStatic.UpperCaseMod());
+	}
+
+	function testImportedClassStaticBeforeModuleStatic() {
+		Assert.equals("ModWithStaticAndClassStatic2.ModWithStaticAndClassStatic2.lowerCaseMod", ModWithStaticAndClassStatic2.lowerCaseMod());
+		Assert.equals("ModWithStaticAndClassStatic2.ModWithStaticAndClassStatic2.UpperCaseMod", ModWithStaticAndClassStatic2.UpperCaseMod());
+	}
+
+	function testModuleWithStaticsResolvesToMainType() {
+		Assert.equals("ModWithStaticAndClassStatic", Type.getClassName(ModWithStaticAndClassStatic));
+		Assert.equals("ModWithStaticAndClassStatic2", Type.getClassName(ModWithStaticAndClassStatic2));
+		Assert.equals("pack.Mod2", Type.getClassName(pack.Mod2));
+	}
+
+	function testMacro() {
+		Assert.same([
+			"lowerCase",
+			"UpperCase",
+			"Macro.lowerCase",
+			"Macro.UpperCase",
+		], Macro.getCalls());
+
+		// force build
+		(null : C1);
+		(null : C2);
+		(null : C3);
+		(null : C4);
+		var builds = Macro.getBuilds();
+		builds.sort(Reflect.compare);
+		trace(builds);
+		Assert.same([
+			"Build",
+			"Macro.Build",
+			"Macro.build",
+			"build",
+		], builds);
+	}
+
+	static function main() {
+		utest.UTest.run([
+			new Main(),
+			new Wildcard(),
+			new pack.inner.Test(),
+		]);
+	}
+}
+
+@:build(Macro.build()) private class C1 {}
+@:build(Macro.Build()) private class C2 {}
+@:build(Macro.Macro.build()) private class C3 {}
+@:build(Macro.Macro.Build()) private class C4 {}
