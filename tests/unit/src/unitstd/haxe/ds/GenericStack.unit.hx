@@ -24,4 +24,7 @@ gs.add(null);
 gs.isEmpty() == false;
 gs.first() == null;
 gs.pop() == null;
-gs.remove(null) == tru
+gs.remove(null) == true;
+gs.isEmpty() == true;
+gs.first() == null;
+gs.pop() == null;
