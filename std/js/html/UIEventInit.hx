@@ -20,46 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package java.io;
+// This file is generated from mozilla\UIEvent.webidl. Do not edit!
 
-import haxe.Int64;
-import haxe.io.Bytes;
-import haxe.io.Eof;
-import haxe.io.Output;
-import java.io.IOException;
-import java.io.EOFException;
+package js.html;
 
-@:native('haxe.java.io.NativeOutput') class NativeOutput extends Output {
-	var stream:java.io.OutputStream;
-
-	public function new(stream) {
-		this.stream = stream;
-	}
-
-	override public function writeByte(c:Int):Void {
-		try {
-			stream.write(c);
-		} catch (e:EOFException) {
-
-			throw new Eof();
-		} catch (e:IOException) {
-			throw haxe.io.Error.Custom(e);
-		}
-	}
-
-	override public function close():Void {
-		try {
-			stream.close();
-		} catch (e:IOException) {
-			throw haxe.io.Error.Custom(e);
-		}
-	}
-
-	override public function flush():Void {
-		try {
-			stream.flush();
-		} catch (e:IOException) {
-			throw haxe.io.Error.Custom(e);
-		}
-	}
+typedef UIEventInit = EventInit & {
+	var ?detail : Int;
+	var ?view : Window;
 }
