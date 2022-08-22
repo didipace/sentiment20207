@@ -16,25 +16,4 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
-
-// This file is generated from mozilla\Directory.webidl. Do not edit!
-
-package js.html;
-
-import js.lib.Promise;
-
-@:native("Directory")
-extern class Directory {
-	var name(default,null) : String;
-	var path(default,null) : String;
-
-	/** @throws DOMError */
-	function new( path : String ) : Void;
-	/** @throws DOMError */
-	function getFilesAndDirectories() : Promise<Array<haxe.extern.EitherType<File,Directory>>>;
-	/** @throws DOMError */
-	function getFiles( recursiveFlag : Bool = false ) : Promise<Array<File>>;
-}
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR

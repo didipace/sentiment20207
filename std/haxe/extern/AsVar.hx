@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,21 +21,13 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\Directory.webidl. Do not edit!
+package haxe.extern;
 
-package js.html;
-
-import js.lib.Promise;
-
-@:native("Directory")
-extern class Directory {
-	var name(default,null) : String;
-	var path(default,null) : String;
-
-	/** @throws DOMError */
-	function new( path : String ) : Void;
-	/** @throws DOMError */
-	function getFilesAndDirectories() : Promise<Array<haxe.extern.EitherType<File,Directory>>>;
-	/** @throws DOMError */
-	function getFiles( recursiveFlag : Bool = false ) : Promise<Array<File>>;
-}
+/**
+	If this type is used as an argument type, the compiler ensures that
+	argument expressions are bound to a local variable.
+**/
+@:forward
+@:transitive
+@:semantics(variable)
+abstract AsVar<T>(T) from T to T {}
