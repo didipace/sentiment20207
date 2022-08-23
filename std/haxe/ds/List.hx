@@ -48,4 +48,160 @@ class List<T> {
 	/**
 		Adds element `item` at the end of `this` List.
 
-		`this.length` increases 
+		`this.length` increases by 1.
+	**/
+	public function add(item:T) {
+		var x = ListNode.create(item, null);
+		if (h == null)
+			h = x;
+		else
+			q.next = x;
+		q = x;
+		length++;
+	}
+
+	/**
+		Adds element `item` at the beginning of `this` List.
+
+		`this.length` increases by 1.
+	**/
+	public function push(item:T) {
+		var x = ListNode.create(item, h);
+		h = x;
+		if (q == null)
+			q = x;
+		length++;
+	}
+
+	/**
+		Returns the first element of `this` List, or null if no elements exist.
+
+		This function does not modify `this` List.
+	**/
+	public function first():Null<T> {
+		return if (h == null) null else h.item;
+	}
+
+	/**
+		Returns the last element of `this` List, or null if no elements exist.
+
+		This function does not modify `this` List.
+	**/
+	public function last():Null<T> {
+		return if (q == null) null else q.item;
+	}
+
+	/**
+		Returns the first element of `this` List, or null if no elements exist.
+
+		The element is removed from `this` List.
+	**/
+	public function pop():Null<T> {
+		if (h == null)
+			return null;
+		var x = h.item;
+		h = h.next;
+		if (h == null)
+			q = null;
+		length--;
+		return x;
+	}
+
+	/**
+		Tells if `this` List is empty.
+	**/
+	public function isEmpty():Bool {
+		return (h == null);
+	}
+
+	/**
+		Empties `this` List.
+
+		This function does not traverse the elements, but simply sets the
+		internal references to null and `this.length` to 0.
+	**/
+	public function clear():Void {
+		h = null;
+		q = null;
+		length = 0;
+	}
+
+	/**
+		Removes the first occurrence of `v` in `this` List.
+
+		If `v` is found by checking standard equality, it is removed from `this`
+		List and the function returns true.
+
+		Otherwise, false is returned.
+	**/
+	public function remove(v:T):Bool {
+		var prev:ListNode<T> = null;
+		var l = h;
+		while (l != null) {
+			if (l.item == v) {
+				if (prev == null)
+					h = l.next;
+				else
+					prev.next = l.next;
+				if (q == l)
+					q = prev;
+				length--;
+				return true;
+			}
+			prev = l;
+			l = l.next;
+		}
+		return false;
+	}
+
+	/**
+		Returns an iterator on the elements of the list.
+	**/
+	public inline function iterator():ListIterator<T> {
+		return new ListIterator<T>(h);
+	}
+
+	/**
+		Returns an iterator of the List indices and values.
+	**/
+	@:pure @:runtime public inline function keyValueIterator():ListKeyValueIterator<T> {
+		return new ListKeyValueIterator(h);
+	}
+
+	/**
+		Returns a string representation of `this` List.
+
+		The result is enclosed in { } with the individual elements being
+		separated by a comma.
+	**/
+	public function toString() {
+		var s = new StringBuf();
+		var first = true;
+		var l = h;
+		s.add("{");
+		while (l != null) {
+			if (first)
+				first = false;
+			else
+				s.add(", ");
+			s.add(Std.string(l.item));
+			l = l.next;
+		}
+		s.add("}");
+		return s.toString();
+	}
+
+	/**
+		Returns a string representation of `this` List, with `sep` separating
+		each element.
+	**/
+	public function join(sep:String) {
+		var s = new StringBuf();
+		var first = true;
+		var l = h;
+		while (l != null) {
+			if (first)
+				first = false;
+			else
+				s.add(sep);
+			s.ad
