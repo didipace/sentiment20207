@@ -16,4 +16,32 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+// This file is generated from mozilla\FileSystem.webidl. Do not edit!
+
+package js.html;
+
+/**
+	The File and Directory Entries API interface `FileSystem` is used to represent a file system. These objects can be obtained from the `filesystem` property on any file system entry. Some browsers offer additional APIs to create and manage file systems, such as Chrome's `requestFileSystem()` method.
+
+	Documentation [FileSystem](https://developer.mozilla.org/en-US/docs/Web/API/FileSystem) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/FileSystem$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/FileSystem>
+**/
+@:native("FileSystem")
+extern class FileSystem {
+	
+	/**
+		A `USVString` representing the file system's name. This name is unique among the entire list of exposed file systems.
+	**/
+	var name(default,null) : String;
+	
+	/**
+		A `FileSystemDirectoryEntry` object which represents the file system's root directory. Through this object, you can gain access to all files and directories in the file system.
+	**/
+	var root(default,null) : FileSystemDirectoryEntry;
+	
+}
