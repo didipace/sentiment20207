@@ -204,4 +204,110 @@ class List<T> {
 				first = false;
 			else
 				s.add(sep);
-			s.ad
+			s.add(l.item);
+			l = l.next;
+		}
+		return s.toString();
+	}
+
+	/**
+		Returns a list filtered with `f`. The returned list will contain all
+		elements for which `f(x) == true`.
+	**/
+	public function filter(f:T->Bool) {
+		var l2 = new List();
+		var l = h;
+		while (l != null) {
+			var v = l.item;
+			l = l.next;
+			if (f(v))
+				l2.add(v);
+		}
+		return l2;
+	}
+
+	/**
+		Returns a new list where all elements have been converted by the
+		function `f`.
+	**/
+	public function map<X>(f:T->X):List<X> {
+		var b = new List();
+		var l = h;
+		while (l != null) {
+			var v = l.item;
+			l = l.next;
+			b.add(f(v));
+		}
+		return b;
+	}
+}
+
+#if neko
+private extern class ListNode<T> extends neko.NativeArray<Dynamic> {
+	var item(get, set):T;
+	var next(get, set):ListNode<T>;
+	private inline function get_item():T
+		return this[0];
+	private inline function set_item(v:T):T
+		return this[0] = v;
+	private inline function get_next():ListNode<T>
+		return this[1];
+	private inline function set_next(v:ListNode<T>):ListNode<T>
+		return this[1] = v;
+	inline static function create<T>(item:T, next:ListNode<T>):ListNode<T> {
+		return untyped __dollar__array(item, next);
+	}
+}
+#else
+private class ListNode<T> {
+	public var item:T;
+	public var next:ListNode<T>;
+
+	public function new(item:T, next:ListNode<T>) {
+		this.item = item;
+		this.next = next;
+	}
+
+	extern public inline static function create<T>(item:T, next:ListNode<T>):ListNode<T> {
+		return new ListNode(item, next);
+	}
+}
+#end
+
+private class ListIterator<T> {
+	var head:ListNode<T>;
+
+	public inline function new(head:ListNode<T>) {
+		this.head = head;
+	}
+
+	public inline function hasNext():Bool {
+		return head != null;
+	}
+
+	public inline function next():T {
+		var val = head.item;
+		head = head.next;
+		return val;
+	}
+}
+
+private class ListKeyValueIterator<T> {
+	var idx:Int;
+	var head:ListNode<T>;
+
+	public inline function new(head:ListNode<T>) {
+		this.head = head;
+		this.idx = 0;
+	}
+
+	public inline function hasNext():Bool {
+		return head != null;
+	}
+
+	public inline function next():{key:Int, value:T} {
+		var val = head.item;
+		head = head.next;
+		return {value: val, key: idx++};
+	}
+}
