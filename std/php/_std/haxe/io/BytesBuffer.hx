@@ -20,21 +20,53 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\AudioProcessingEvent.webidl. Do not edit!
+package haxe.io;
 
-package js.html.audio;
+import php.*;
+import haxe.io.Error;
 
-/**
-	The Web Audio API `AudioProcessingEvent` represents events that occur when a `ScriptProcessorNode` input buffer is ready to be processed.
+class BytesBuffer {
+	var b:NativeString;
 
-	Documentation [AudioProcessingEvent](https://developer.mozilla.org/en-US/docs/Web/API/AudioProcessingEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/AudioProcessingEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+	public var length(get, never):Int;
 
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/AudioProcessingEvent>
-**/
-@:native("AudioProcessingEvent")
-extern class AudioProcessingEvent extends js.html.Event {
-	var playbackTime(default,null) : Float;
-	var inputBuffer(default,null) : AudioBuffer;
-	var outputBuffer(default,null) : AudioBuffer;
+	public function new() {
+		b = "";
+	}
+
+	public inline function addByte(byte:Int) {
+		b = Syntax.concat(b, Global.chr(byte));
+	}
+
+	public inline function add(src:Bytes) {
+		b = Syntax.concat(b, src.getData().toNativeString());
+	}
+
+	public inline function addString(v:String, ?encoding:Encoding) {
+		b = Syntax.concat(b, v);
+	}
+
+	public function addInt32(v:Int) {
+		addByte(v & 0xFF);
+		addByte((v >> 8) & 0xFF);
+		addByte((v >> 16) & 0xFF);
+		addByte(v >>> 24);
+	}
+
+	public function addInt64(v:haxe.Int64) {
+		addInt32(v.low);
+		addInt32(v.high);
+	}
+
+	public inline function addFloat(v:Float) {
+		addInt32(FPHelper.floatToI32(v));
+	}
+
+	public inline function addDouble(v:Float) {
+		addInt64(FPHelper.doubleToI64(v));
+	}
+
+	public inline function addBytes(src:Bytes, pos:Int, len:Int) {
+		if (pos < 0 || len < 0 || pos + len > src.length) {
+			throw Error.OutsideBounds;
 	
-}
