@@ -251,4 +251,136 @@ class TestBasetypes extends Test {
 		f( h.exists(456) );
 		h.remove(-4815);
 		t( h.exists(0) );
-		
+		f( h.exists(-4815) );
+		f( h.exists(456) );
+		eq( h.get( -4815), null);
+
+		h.set(65, null);
+		t( h.exists(65) );
+		t( h.remove(65) );
+		f( h.remove(65) );
+
+		var h = new haxe.ds.IntMap();
+		h.set(1, ['a', 'b']);
+		t( h.exists(1) );
+		t( h.remove(1) );
+		f( h.remove(1) );
+	}
+
+	function testMap() {
+		var i = new Map();
+		i[1] = 0;
+		var x = 1;
+		i[x++] += 4;
+		eq(x, 2);
+		eq(i[1], 4);
+	}
+
+	function testObjectKeyword() {
+		// new is a keyword in Haxe
+		var l = { "new": "test" };
+		eq(Reflect.field(l, "new"), "test");
+		// const is a keyword on some platforms but not in Haxe
+		// check that with can still access it normally
+		var o = { const : 6 }
+		eq(o.const, 6);
+		eq(Reflect.field(o, "const"), 6);
+	}
+
+	function testFormat() {
+		eq('', "");
+		eq('$', "$");
+		eq('$$', "$");
+		eq('x$*', "x$*");
+
+		var x = 5, y = [];
+		eq('$x', "5");
+		eq('a$x$', "a5$");
+
+		eq('${5}', "5");
+		eq('${5}${2}', "52");
+		eq('a${x}b', "a5b");
+		eq('${x}${y}', "5[]");
+	}
+
+	function testAbstract() {
+		var a = new MyAbstract(33);
+		t( Std.isOfType(a, Int) );
+		eq( a.toInt(), 33 );
+		var b = a;
+		a.incr();
+		eq( a.toInt(), 34 );
+		eq( b.toInt(), 33 );
+	}
+
+	function testAbstractCast() {
+		var s = "Abstract casting ::t::";
+		// var from
+		var tpl:unit.MyAbstract.TemplateWrap = s;
+		t(Std.isOfType(tpl, haxe.Template));
+		t(Std.isOfType(tpl.get(), haxe.Template));
+		eq(tpl.get().execute( { t:"works!" } ), "Abstract casting works!");
+
+		//var to
+		var str:String = tpl;
+		t(Std.isOfType(str, String));
+		eq(str, "Abstract casting really works!");
+
+		// assign from
+		var tpl:unit.MyAbstract.TemplateWrap;
+		tpl = s;
+		t(Std.isOfType(tpl, haxe.Template));
+		t(Std.isOfType(tpl.get(), haxe.Template));
+		eq(tpl.get().execute( { t:"works!" } ), "Abstract casting works!");
+
+		//assign to
+		var str:String;
+		str = tpl;
+		t(Std.isOfType(str, String));
+		eq(str, "Abstract casting really works!");
+
+		// call arg from
+		function from(tpl:unit.MyAbstract.TemplateWrap) {
+			eq(tpl.get().execute( { t:"works!" } ), "Abstract casting works!");
+		}
+		from(s);
+
+		// call arg to
+		function from(s:String) {
+			eq(s, "Abstract casting really works!");
+		}
+		from(tpl);
+
+		// object decl from variant
+		var obj: { tpl:unit.MyAbstract.TemplateWrap } = { tpl:s };
+		eq(obj.tpl.get().execute( { t:"works!" } ), "Abstract casting works!");
+
+		// object decl from
+		var obj: { tpl:unit.MyAbstract.TemplateWrap };
+		obj = { tpl:s };
+		eq(obj.tpl.get().execute( { t:"works!" } ), "Abstract casting works!");
+
+		// object decl to variant
+		var obj: { s:String } = { s:tpl };
+		eq(obj.s, "Abstract casting really works!");
+
+		// object decl to
+		var obj: { s:String };
+		obj = { s:tpl };
+		eq(obj.s, "Abstract casting really works!");
+
+		// array from
+		var arr:Array<unit.MyAbstract.TemplateWrap> = [s, "foo"];
+		eq(arr[0].get().execute( { t:"works!" } ), "Abstract casting works!");
+		eq(arr[1].get().execute( { } ), "foo");
+
+		// array to
+		var arr:Array<String> = [tpl];
+		eq(arr[0], "Abstract casting really works!");
+
+		// cast to return
+		function returnAbstractCast():String {
+			return new unit.MyAbstract.Meter(12.2);
+		}
+
+		eq(returnAbstract
