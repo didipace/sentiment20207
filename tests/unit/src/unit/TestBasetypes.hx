@@ -133,4 +133,122 @@ class TestBasetypes extends Test {
 		var tester:String = "show me the (show me!) index of show me";
 		eq(tester.lastIndexOf("show me"), 32);
 		eq(tester.lastIndexOf("show me", 1), 0);
-		eq(tester.lastIndexOf("show m
+		eq(tester.lastIndexOf("show me",28), 13);
+	}
+
+	function testMath() {
+		eq( Math.floor(-1.7), -2 );
+		eq( Math.floor(-1.5), -2 );
+		eq( Math.floor(-1.2), -2 );
+		eq( Math.floor(1.7), 1 );
+		eq( Math.floor(1.5), 1 );
+		eq( Math.floor(1.2), 1 );
+		eq( Math.ceil(-1.7), -1 );
+		eq( Math.ceil(-1.5), -1 );
+		eq( Math.ceil(-1.2), -1 );
+		eq( Math.ceil(1.7), 2 );
+		eq( Math.ceil(1.5), 2 );
+		eq( Math.ceil(1.2), 2 );
+		eq( Math.round(-1.7), -2 );
+		eq( Math.round(-1.5), -1 );
+		eq( Math.round(-1.2), -1 );
+		eq( Math.round(1.7), 2 );
+		eq( Math.round(1.5), 2 );
+		eq( Math.round(1.2), 1 );
+
+
+		// we don't specify Std.int and other to-int conversions when outside the Int range
+
+		#if (js || flash)
+		eq( Std.int( -10000000000.7), 0xABF41C00 );
+		eq( Std.int( 10000000000.7), 0x540BE400 );
+
+		eq( Std.int( -4294967296.7), 0 );
+		eq( Std.int( -4294967296.001), 0 );
+		eq( Std.int( 4294967296.7), 0 );
+		eq( Std.int( 4294967296.001), 0 );
+		eq( Std.int( -4294967295.7), 1 );
+		eq( Std.int( -4294967295.001), 1 );
+		eq( Std.int( 4294967295.7), -1 );
+		eq( Std.int( 4294967295.001), -1 );
+
+		eq( Std.int( -2147483648.7), 0x80000000 );
+		eq( Std.int( -2147483648.001), 0x80000000 );
+		eq( Std.int( 2147483648.7), 0x80000000 );
+		eq( Std.int( 2147483648.001), 0x80000000 );
+		eq( Std.int( -2147483647.7), 0x80000001 );
+		eq( Std.int( -2147483647.001), 0x80000001 );
+		eq( Std.int( 2147483647.7), 0x7FFFFFFF );
+		eq( Std.int( 2147483647.001), 0x7FFFFFFF );
+
+
+		#if flash
+		eq( Math.floor( -10000000000.7), 0xABF41BFF);
+		eq( Math.ceil( -10000000000.7), 0xABF41C00);
+		eq( Math.round( -10000000000.7), 0xABF41BFF);
+		#else
+		eq( Math.floor( -10000000000.7)*1.0, -10000000001. );
+		eq( Math.ceil( -10000000000.7)*1.0, -10000000000. );
+		eq( Math.round( -10000000000.7)*1.0, -10000000001. );
+		#end
+
+		#end
+
+		eq( Math.ffloor( -10000000000.7), -10000000001. );
+		eq( Math.fceil( -10000000000.7), -10000000000. );
+		eq( Math.fround( -10000000000.7), -10000000001. );
+	}
+
+	function testStringMap() {
+		var h = new haxe.ds.StringMap<Null<Int>>();
+		h.set("x", -1);
+		h.set("abcd", 8546);
+		eq( h.get("x"), -1);
+		eq( h.get("abcd"), 8546 );
+		eq( h.get("e"), null );
+
+		var k = Lambda.array(h);
+		k.sort(Reflect.compare);
+		eq( k.join("#"), "-1#8546" );
+
+		var k = Lambda.array( { iterator : h.keys } );
+		k.sort(Reflect.compare);
+		eq( k.join("#"), "abcd#x" );
+
+		t( h.exists("x") );
+		t( h.exists("abcd") );
+		f( h.exists("e") );
+		h.remove("abcd");
+		t( h.exists("x") );
+		f( h.exists("abcd") );
+		f( h.exists("e") );
+		eq( h.get("abcd"), null);
+
+		h.set("x", null);
+		t( h.exists("x") );
+		t( h.remove("x") );
+		f( h.remove("x") );
+	}
+
+	function testIntMap() {
+		var h = new haxe.ds.IntMap<Null<Int>>();
+		h.set(0, -1);
+		h.set(-4815, 8546);
+		eq( h.get(0), -1);
+		eq( h.get(-4815), 8546 );
+		eq( h.get(456), null );
+
+		var k = Lambda.array(h);
+		k.sort(Reflect.compare);
+		eq( k.join("#"), "-1#8546" );
+
+		var k = Lambda.array( { iterator : h.keys } );
+		k.sort(Reflect.compare);
+		eq( k.join("#"), "-4815#0" );
+
+		t( h.exists(0) );
+		t( h.exists(-4815) );
+		f( h.exists(456) );
+		h.remove(-4815);
+		t( h.exists(0) );
+		
