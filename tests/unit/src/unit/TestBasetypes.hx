@@ -383,4 +383,131 @@ class TestBasetypes extends Test {
 			return new unit.MyAbstract.Meter(12.2);
 		}
 
-		eq(returnAbstract
+		eq(returnAbstractCast(), "12.2m");
+
+		// switch
+		function switchMe(b):String {
+			return switch(b) {
+				case true: new unit.MyAbstract.Meter(12.2);
+				default: new unit.MyAbstract.Meter(2.4);
+			}
+		}
+
+		eq(switchMe(true), "12.2m");
+		eq(switchMe(false), "2.4m");
+
+		// ctor
+		var m:unit.MyAbstract.Meter = 3000;
+		var c = new unit.MyAbstract.MyClassWithAbstractArgCtor(m);
+		feq(c.km, 3);
+	}
+
+	function testAbstractToAbstractCast() {
+		var m:unit.MyAbstract.Meter = 122.2;
+		var km:unit.MyAbstract.Kilometer = m;
+		feq(km, 0.1222);
+	}
+
+	function testAbstractTypeParameters() {
+		var hash1:unit.MyAbstract.MyHash<String> = ["k1", "v1", "k2", "v2"];
+		eq("v1", hash1.get("k1"));
+		eq("v2", hash1.get("k2"));
+		var hash1:unit.MyAbstract.MyHash<Int> = [1, 2, 3, 4];
+		eq(2, hash1.get("_s1"));
+		eq(4, hash1.get("_s3"));
+	}
+
+	function testAbstractToString() {
+		var km:unit.MyAbstract.Kilometer = 12.5;
+		var m:unit.MyAbstract.Meter = 12.5;
+		eq("12.5km", km);
+		eq("12.5m", m);
+		eq("Distance: 12.5km", "Distance: " + km);
+		eq("Distance: 12.5m", "Distance: " + m);
+	}
+
+	function testAbstractInline() {
+		eq(getAbstractValue(1), 2);
+		eq(unit.MyAbstract.MyAbstractCounter.counter, 1);
+		eq(getAbstractValue(2), 3);
+		eq(unit.MyAbstract.MyAbstractCounter.counter, 2);
+		eq(getAbstractValue(3), 4);
+		eq(unit.MyAbstract.MyAbstractCounter.counter, 3);
+	}
+
+	inline function getAbstractValue(a:unit.MyAbstract.MyAbstractCounter) {
+		return a.getValue();
+	}
+
+	function testAbstractOperatorOverload() {
+		var v1:unit.MyAbstract.MyVector = new unit.MyAbstract.MyPoint3(1, 1, 1);
+		var v2:unit.MyAbstract.MyVector = new unit.MyAbstract.MyPoint3(1, 2, 3);
+		eq("(2,3,4)", v1 + v2);
+#if !lua
+		eq("(2,4,6)", v2 * 2.);
+#end
+		var v1Old = v1;
+		v1 *= 2.;
+#if !lua
+		eq("(2,2,2)", v1);
+#end
+		eq(v1Old, v1);
+		var v3 = v1 * 2.;
+#if !lua
+		eq("(4,4,4)", v3);
+#end
+		f(v1 == v3);
+
+		var i:unit.MyAbstract.MyInt = 1;
+		eq(2, i + i);
+		i = i + i;
+		eq(2, i);
+
+		var s = "";
+		function getString() {
+			s += "b";
+			return s;
+		}
+
+		var r:unit.MyAbstract.MyInt = 5;
+		eq("aaaaa", r * "a");
+		eq("aaaaa", "a" * r);
+		eq("bbbbb", r * getString());
+		eq("bbbbbbbbbb", getString() * r);
+
+		var v:unit.MyAbstract.MyInt = 5;
+		eq("abcde", "abcdefghijk" / v);
+	}
+
+	function testAbstractSetter() {
+		var as = new unit.MyAbstract.MyAbstractSetter();
+		as.value = "foo";
+		eq(as.value, "foo");
+	}
+
+	function testAbstractMemberCall() {
+		var as = new MyAbstract.MyAbstractThatCallsAMember(2);
+		eq(3, as);
+	}
+
+	function testAbstractMultitypeInline() {
+		var a = new unit.MyAbstract.MySpecialString("My debugging abstract");
+		eq("debugging abstract", a.substr(3));
+	}
+
+	@:analyzer(no_local_dce)
+	function testOptionalStructureFields() {
+		var a:{?f:Int} = {};
+		eq(a.f, null);
+
+		var o:Dynamic = {};
+		var a:{?f:Int} = o;
+		eq(a.f, null);
+
+		var i:Dynamic = 1;
+		unspec(function() {
+			var a:{?f:Int} = i; // allowed to fail at runtime
+			unspec(function() a.f);
+		});
+	}
+}
