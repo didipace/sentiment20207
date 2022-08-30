@@ -69,4 +69,18 @@ class BytesBuffer {
 	public inline function addBytes(src:Bytes, pos:Int, len:Int) {
 		if (pos < 0 || len < 0 || pos + len > src.length) {
 			throw Error.OutsideBounds;
-	
+		} else {
+			b = Syntax.concat(b, src.getData().sub(pos, len).toString());
+		}
+	}
+
+	public function getBytes():Bytes {
+		var bytes = @:privateAccess new Bytes(length, b);
+		b = null;
+		return bytes;
+	}
+
+	inline function get_length():Int {
+		return Global.strlen(b);
+	}
+}
