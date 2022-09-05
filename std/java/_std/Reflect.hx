@@ -78,3 +78,69 @@ import java.Boot;
 		var args = java.Lib.nativeArray(args, true);
 		return untyped (func : Function).__hx_invokeDynamic(args);
 	}
+
+	@:keep
+	public static function fields(o:Dynamic):Array<String> {
+		if (Std.isOfType(o, IHxObject)) {
+			var ret:Array<String> = [];
+			untyped (o : IHxObject).__hx_getFields(ret);
+			return ret;
+		} else if (Std.isOfType(o, java.lang.Class)) {
+			return Type.getClassFields(cast o);
+		} else {
+			return [];
+		}
+	}
+
+	public static function isFunction(f:Dynamic):Bool {
+		return Std.isOfType(f, Function);
+	}
+
+	public static function compare<T>(a:T, b:T):Int {
+		return Runtime.compare(a, b);
+	}
+
+	@:access(java.internal.Closure)
+	public static function compareMethods(f1:Dynamic, f2:Dynamic):Bool {
+		if (f1 == f2) {
+			return true;
+		}
+		if (Std.isOfType(f1, Closure) && Std.isOfType(f2, Closure)) {
+			var f1c:Closure = cast f1;
+			var f2c:Closure = cast f2;
+			return Runtime.refEq(f1c.obj, f2c.obj) && f1c.field == f2c.field;
+		}
+		return false;
+	}
+
+	public static function isObject(v:Dynamic):Bool {
+		return v != null
+			&& !(Std.isOfType(v, HxEnum)
+				|| Std.isOfType(v, Function)
+				|| Std.isOfType(v, java.lang.Enum)
+				|| Std.isOfType(v, java.lang.Number)
+				|| Std.isOfType(v, java.lang.Boolean.BooleanClass));
+	}
+
+	public static function isEnumValue(v:Dynamic):Bool {
+		return v != null && (Std.isOfType(v, HxEnum) || Std.isOfType(v, java.lang.Enum));
+	}
+
+	public static function deleteField(o:Dynamic, field:String):Bool {
+		return (Std.isOfType(o, DynamicObject) && (o : DynamicObject).__hx_deleteField(field));
+	}
+
+	public static function copy<T>(o:Null<T>):Null<T> {
+		if (o == null)
+			return null;
+		var o2:Dynamic = {};
+		for (f in Reflect.fields(o))
+			Reflect.setField(o2, f, Reflect.field(o, f));
+		return cast o2;
+	}
+
+	@:overload(function(f:Array<Dynamic>->Void):Dynamic {})
+	public static function makeVarArgs(f:Array<Dynamic>->Dynamic):Dynamic {
+		return new VarArgsFunction(f);
+	}
+}
