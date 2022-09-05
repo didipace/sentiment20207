@@ -104,4 +104,18 @@ typedef ProxyHandler<T:{}> = {
 
 	/**
 		A trap for the `new` operator.
-	
+	**/
+	var ?construct:(target:Class<T>, argumentsList:Array<Any>, newTarget:Class<Any>) -> Void;
+}
+
+typedef RevocableProxy<T:{}> = {
+	/**
+		A Proxy object created with `new Proxy(target, handler)` call.
+	**/
+	final proxy:Proxy<T>;
+
+	/**
+		A function with no argument to invalidate (switch off) the `proxy`.
+	**/
+	function revoke():Void;
+}
