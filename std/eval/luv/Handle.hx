@@ -81,4 +81,5 @@ package eval.luv;
 
 	// 	@see https://aantron.github.io/luv/luv/Luv/Handle/#val-fileno
 	// **/
-	// static public function fileno(handle
+	// static public function fileno(handle:FileNo):Result<OsFd>;
+}

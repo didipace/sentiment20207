@@ -1,0 +1,13 @@
+{
+    "package": {
+        "name": "haxe",
+        "repo": "snapshot",
+        "subject": "::packageSubject::"
+    },
+
+    "version": {
+        "name": "::versionName::",
+        "desc": "::versionDesc::",
+        "released": "::gitDate::",
+        "attributes": [
+            {"name": "repo",   "values" : ["
