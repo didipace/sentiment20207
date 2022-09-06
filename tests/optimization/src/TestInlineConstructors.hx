@@ -101,4 +101,33 @@ class TestInlineConstructors extends TestBase {
 	}
 
 	@:js('return 1 + "" + "hello";')
-	static function test
+	static function testMethodInlining() {
+		var a : {function method() : String;} = new InlineClass();
+		return a.method();
+	}
+
+	@:js('var b = new InlineClass();return [new InlineClass().method(1),b.method(2)];')
+	static function testIncompatibleMethodCancelling() {
+		// InlineClass.method doesn't take any arguments, the method should not be inlined.
+		var a : {function method(arg : Int) : String;} = cast new InlineClass();
+		var b : Dynamic = new InlineClass();
+		return [a.method(1), b.method(2)];
+	}
+
+	@:js('var arr = new InlineClass().cancelThis();return [arr[0],arr[1]];')
+	static function testCancelOfReturnedObject() {
+		var a : {function cancelThis() : Array<Int>;} = new InlineClass();
+		var arr = a.cancelThis();
+		return [arr[0], arr[1]];
+	}
+
+	@:js('var v_i = 0;var acc = 0;while(v_i < 10) acc += v_i++;return acc;')
+	static function testIteratorMethodInliningInForLoop() {
+		var iter : Iterator<Int> = new InlineIterator();
+		var acc = 0;
+		for ( v in iter ) {
+			acc += v;
+		}
+		return acc;
+	}
+}
