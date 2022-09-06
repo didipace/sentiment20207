@@ -40,4 +40,18 @@ extern class MIDIAccess extends js.html.EventTarget {
 	var inputs(default,null) : MIDIInputMap;
 	
 	/**
-		Returns an instance of `MIDIOutputMap` which provides access to
+		Returns an instance of `MIDIOutputMap` which provides access to any available MIDI output ports.
+	**/
+	var outputs(default,null) : MIDIOutputMap;
+	
+	/**
+		Called whenever a new MIDI port is added or an existing port changes state.
+	**/
+	var onstatechange : haxe.Constraints.Function;
+	
+	/**
+		A boolean attribute indicating whether system exclusive support is enabled on the current MIDIAccess instance.
+	**/
+	var sysexEnabled(default,null) : Bool;
+	
+}
