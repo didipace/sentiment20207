@@ -129,3 +129,68 @@ import hl.Ref;
 	}
 
 	@:keep public function toString():String {
+		var outLen = 0;
+		var bytes = date_to_string(t, outLen);
+		return @:privateAccess String.__alloc__(bytes, outLen);
+	}
+
+	public static function now():Date {
+		var d:Date = untyped $new(Date);
+		d.t = date_now();
+		return d;
+	}
+
+	static function fromInt(t:Int):Date {
+		var d:Date = untyped $new(Date);
+		d.t = t;
+		return d;
+	}
+
+	public static function fromTime(t:Float):Date {
+		var d:Date = untyped $new(Date);
+		d.t = date_from_time(t);
+		return d;
+	}
+
+	public static function fromString(s:String):Date {
+		var d:Date = untyped $new(Date);
+		d.t = date_from_string(@:privateAccess s.bytes, s.length << 1);
+		return d;
+	}
+
+	@:hlNative
+	static function date_new(year:Int, month:Int, day:Int, hours:Int, minutes:Int, seconds:Int):Int {
+		return 0;
+	}
+
+	@:hlNative
+	static function date_now():Int {
+		return 0;
+	}
+
+	@:hlNative
+	static function date_from_time(t:Float):Int {
+		return 0;
+	}
+
+	@:hlNative
+	static function date_from_string(b:hl.Bytes, len:Int):Int {
+		return 0;
+	}
+
+	@:hlNative
+	static function date_get_time(t:Int):Float {
+		return 0.;
+	}
+
+	@:hlNative
+	static function date_get_inf(t:Int, year:Ref<Int>, month:Ref<Int>, day:Ref<Int>, hours:Ref<Int>, minutes:Ref<Int>, seconds:Ref<Int>, wday:Ref<Int>):Void {}
+
+	@:hlNative(1.11)
+	static function date_get_utc_inf(t:Int, year:Ref<Int>, month:Ref<Int>, day:Ref<Int>, hours:Ref<Int>, minutes:Ref<Int>, seconds:Ref<Int>, wday:Ref<Int>):Void {}
+
+	@:hlNative
+	static function date_to_string(t:Int, outLen:Ref<Int>):hl.Bytes {
+		return null;
+	}
+}
