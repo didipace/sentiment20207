@@ -43,4 +43,67 @@ extern class PerformanceTiming {
 	/**
 		When the `unload` event has been thrown, indicating the time at which the previous document in the window began to unload. If there is no previous document, or if the previous document or one of the needed redirects is not of the same origin, the value returned is `0`.
 	**/
-	var unloadEventStart(default
+	var unloadEventStart(default,null) : Int;
+	
+	/**
+		When the `unload` event handler finishes. If there is no previous document, or if the previous document, or one of the needed redirects, is not of the same origin, the value returned is `0`.
+	**/
+	var unloadEventEnd(default,null) : Int;
+	
+	/**
+		When the first HTTP redirect starts. If there is no redirect, or if one of the redirects is not of the same origin, the value returned is `0`.
+	**/
+	var redirectStart(default,null) : Int;
+	
+	/**
+		When the last HTTP redirect is completed, that is when the last byte of the HTTP response has been received. If there is no redirect, or if one of the redirects is not of the same origin, the value returned is `0`.
+	**/
+	var redirectEnd(default,null) : Int;
+	
+	/**
+		When the browser is ready to fetch the document using an HTTP request. This moment is before the check to any application cache.
+	**/
+	var fetchStart(default,null) : Int;
+	
+	/**
+		When the domain lookup starts. If a persistent connection is used, or the information is stored in a cache or a local resource, the value will be the same as `PerformanceTiming.fetchStart`.
+	**/
+	var domainLookupStart(default,null) : Int;
+	
+	/**
+		When the domain lookup is finished. If a persistent connection is used, or the information is stored in a cache or a local resource, the value will be the same as `PerformanceTiming.fetchStart`.
+	**/
+	var domainLookupEnd(default,null) : Int;
+	
+	/**
+		When the request to open a connection is sent to the network. If the transport layer reports an error and the connection establishment is started again, the last connection establishment start time is given. If a persistent connection is used, the value will be the same as `PerformanceTiming.fetchStart`.
+	**/
+	var connectStart(default,null) : Int;
+	
+	/**
+		When the connection is opened network. If the transport layer reports an error and the connection establishment is started again, the last connection establishment end time is given. If a persistent connection is used, the value will be the same as `PerformanceTiming.fetchStart`. A connection is considered as opened when all secure connection handshake, or SOCKS authentication, is terminated.
+	**/
+	var connectEnd(default,null) : Int;
+	
+	/**
+		When the secure connection handshake starts. If no such connection is requested, it returns `0`.
+	**/
+	var secureConnectionStart(default,null) : Int;
+	
+	/**
+		When the browser sent the request to obtain the actual document, from the server or from a cache. If the transport layer fails after the start of the request and the connection is reopened, this property will be set to the time corresponding to the new request.
+	**/
+	var requestStart(default,null) : Int;
+	
+	/**
+		When the browser received the first byte of the response, from the server from a cache, or from a local resource.
+	**/
+	var responseStart(default,null) : Int;
+	
+	/**
+		When the browser received the last byte of the response, or when the connection is closed if this happened first, from the server, the cache, or from a local resource.
+	**/
+	var responseEnd(default,null) : Int;
+	
+	/**
+		When the parser s
