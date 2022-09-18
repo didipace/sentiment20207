@@ -106,4 +106,43 @@ extern class PerformanceTiming {
 	var responseEnd(default,null) : Int;
 	
 	/**
-		When the parser s
+		When the parser started its work, that is when its `Document.readyState` changes to `'loading'` and the corresponding `readystatechange` event is thrown.
+	**/
+	var domLoading(default,null) : Int;
+	
+	/**
+		When the parser finished its work on the main document, that is when its `Document.readyState` changes to `'interactive'` and the corresponding `readystatechange` event is thrown.
+	**/
+	var domInteractive(default,null) : Int;
+	
+	/**
+		Right before the parser sent the `DOMContentLoaded` event, that is right after all the scripts that need to be executed right after parsing have been executed.
+	**/
+	var domContentLoadedEventStart(default,null) : Int;
+	
+	/**
+		Right after all the scripts that need to be executed as soon as possible, in order or not, have been executed.
+	**/
+	var domContentLoadedEventEnd(default,null) : Int;
+	
+	/**
+		When the parser finished its work on the main document, that is when its `Document.readyState` changes to `'complete'` and the corresponding `readystatechange` event is thrown.
+	**/
+	var domComplete(default,null) : Int;
+	
+	/**
+		When the `load` event was sent for the current document. If this event has not yet been sent, it returns `0.`
+	**/
+	var loadEventStart(default,null) : Int;
+	
+	/**
+		When the `load` event handler terminated, that is when the load event is completed. If this event has not yet been sent, or is not yet completed, it returns `0.`
+	**/
+	var loadEventEnd(default,null) : Int;
+	
+	
+	/**
+		Returns a JSON object representing this `PerformanceTiming` object.
+	**/
+	function toJSON() : Dynamic;
+}
