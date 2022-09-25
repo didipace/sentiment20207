@@ -66,4 +66,74 @@ type clr_meta_idx =
 type meta_pointer = clr_meta_idx * rid
 	(* generic reference to the meta table *)
 
-(* starting with all annotations of special coded t
+(* starting with all annotations of special coded types *)
+type type_def_or_ref = clr_meta
+and has_const = clr_meta
+and has_custom_attribute = clr_meta
+and has_field_marshal = clr_meta
+and has_decl_security = clr_meta
+and member_ref_parent = clr_meta
+and has_semantics = clr_meta
+and method_def_or_ref = clr_meta
+and member_forwarded = clr_meta
+and implementation = clr_meta
+and custom_attribute_type = clr_meta
+and resolution_scope = clr_meta
+and type_or_method_def = clr_meta
+
+and clr_meta =
+	| Module of meta_module
+		(* the current module descriptor *)
+	| TypeRef of meta_type_ref
+		(* class reference descriptors *)
+	| TypeDef of meta_type_def
+		(* class or interface definition descriptors *)
+	| FieldPtr of meta_field_ptr
+		(* a class-to-fields lookup table - does not exist in optimized metadatas *)
+	| Field of meta_field
+		(* field definition descriptors *)
+	| MethodPtr of meta_method_ptr
+		(* a class-to-methods lookup table - does not exist in optimized metadatas *)
+	| Method of meta_method
+		(* method definition descriptors *)
+	| ParamPtr of meta_param_ptr
+		(* a method-to-parameters lookup table - does not exist in optimized metadatas *)
+	| Param of meta_param
+		(* parameter definition descriptors *)
+	| InterfaceImpl of meta_interface_impl
+		(* interface implementation descriptors *)
+	| MemberRef of meta_member_ref
+		(* member (field or method) reference descriptors *)
+	| Constant of meta_constant
+		(* constant value that map the default values stored in the #Blob stream to *)
+		(* respective fields, parameters and properties *)
+	| CustomAttribute of meta_custom_attribute
+		(* custom attribute descriptors *)
+	| FieldMarshal of meta_field_marshal
+		(* field or parameter marshaling descriptors for managed/unmanaged interop *)
+	| DeclSecurity of meta_decl_security
+		(* security descriptors *)
+	| ClassLayout of meta_class_layout	
+		(* class layout descriptors that hold information about how the loader should lay out respective classes *)
+	| FieldLayout of meta_field_layout
+		(* field layout descriptors that specify the offset or oridnal of individual fields *)
+	| StandAloneSig of meta_stand_alone_sig
+		(* stand-alone signature descriptors. used in two capacities: *)
+		(* as composite signatures of local variables of methods *)
+		(* and as parameters of the call indirect (calli) IL instruction *)
+	| EventMap of meta_event_map
+		(* a class-to-events mapping table. exists also in optimized metadatas *)
+	| EventPtr of meta_event_ptr
+		(* an event map-to-events lookup table - does not exist in optimized metadata *)
+	| Event of meta_event
+		(* event descriptors *)
+	| PropertyMap of meta_property_map
+		(* a class-to-properties mapping table. exists also in optimized metadatas *)
+	| PropertyPtr of meta_property_ptr
+		(* a property map-to-properties lookup table - does not exist in optimized metadata *)
+	| Property of meta_property
+		(* property descriptors *)
+	| MethodSemantics of meta_method_semantics
+		(* method semantics descriptors that hold information about which method is associated *)
+		(* with a specific property or event and in what capacity *)
+	| MethodImpl of meta_meth
