@@ -136,4 +136,93 @@ and clr_meta =
 	| MethodSemantics of meta_method_semantics
 		(* method semantics descriptors that hold information about which method is associated *)
 		(* with a specific property or event and in what capacity *)
-	| MethodImpl of meta_meth
+	| MethodImpl of meta_method_impl
+		(* method implementation descriptors *)
+	| ModuleRef of meta_module_ref
+		(* module reference descriptors *)
+	| TypeSpec of meta_type_spec
+		(* Type specification descriptors *)
+	| ImplMap of meta_impl_map
+		(* implementation map descriptors used for platform invocation (P/Invoke) *)
+	| FieldRVA of meta_field_rva
+		(* field-to-data mapping descriptors *)
+	| ENCLog of meta_enc_log
+		(* edit-and-continue log descriptors that hold information about what changes *)
+		(* have been made to specific metadata items during in-memory editing *)
+		(* this table does not exist on optimized metadata *)
+	| ENCMap of meta_enc_map
+		(* edit-and-continue mapping descriptors. does not exist on optimized metadata *)
+	| Assembly of meta_assembly
+		(* the current assembly descriptor, which should appear only in the prime module metadata *)
+	| AssemblyProcessor of meta_assembly_processor | AssemblyOS of meta_assembly_os
+		(* unused *)
+	| AssemblyRef of meta_assembly_ref
+		(* assembly reference descriptors *)
+	| AssemblyRefProcessor of meta_assembly_ref_processor | AssemblyRefOS of meta_assembly_ref_os
+		(* unused *)
+	| File of meta_file
+		(* file descriptors that contain information about other files in the current assembly *)
+	| ExportedType of meta_exported_type
+		(* exported type descriptors that contain information about public classes *)
+		(* exported by the current assembly, which are declared in other modules of the assembly *)
+		(* only the prime module of the assembly should carry this table *)
+	| ManifestResource of meta_manifest_resource
+		(* managed resource descriptors *)
+	| NestedClass of meta_nested_class
+		(* nested class descriptors that provide mapping of nested classes to their respective enclosing classes *)
+	| GenericParam of meta_generic_param
+		(* type parameter descriptors for generic classes and methods *)
+	| MethodSpec of meta_method_spec
+		(* generic method instantiation descriptors *)
+	| GenericParamConstraint of meta_generic_param_constraint
+		(* descriptors of constraints specified for type parameters of generic classes and methods *)
+	| UnknownMeta of int
+
+(* all fields here need to be mutable, as they will first be initialized empty *)
+
+and meta_root = {
+	root_id : int;
+}
+
+and meta_root_ptr = {
+	ptr_id : int;
+	ptr_to : meta_root;
+}
+
+and meta_module = {
+	mutable md_id : int;
+	mutable md_generation : int;
+	mutable md_name : id;
+	mutable md_vid : guid;
+	mutable md_encid : guid;
+	mutable md_encbase_id : guid;
+}
+
+and meta_type_ref = {
+	mutable tr_id : int;
+	mutable tr_resolution_scope : resolution_scope;
+	mutable tr_name : id;
+	mutable tr_namespace : ns;
+}
+
+and meta_type_def = {
+	mutable td_id : int;
+	mutable td_flags : type_def_flags;
+	mutable td_name : id;
+	mutable td_namespace : ns;
+	mutable td_extends : type_def_or_ref option;
+	mutable td_field_list : meta_field list;
+	mutable td_method_list : meta_method list;
+
+	(* extra field *)
+	mutable td_extra_enclosing : meta_type_def option;
+}
+
+and meta_field_ptr = {
+	mutable fp_id : int;
+	mutable fp_field : meta_field;
+}
+
+and meta_field = {
+	mutable f_id : int;
+	mutable f_flags : field_flags;
