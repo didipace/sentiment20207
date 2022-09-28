@@ -226,3 +226,139 @@ and meta_field_ptr = {
 and meta_field = {
 	mutable f_id : int;
 	mutable f_flags : field_flags;
+	mutable f_name : id;
+	mutable f_signature : ilsig;
+}
+
+and meta_method_ptr = {
+	mutable mp_id : int;
+	mutable mp_method : meta_method;
+}
+
+and meta_method = {
+	mutable m_id : int;
+	mutable m_rva : rva;
+	mutable m_flags : method_flags;
+	mutable m_name : id;
+	mutable m_signature : ilsig;
+	mutable m_param_list : meta_param list; (* rid: Param *)
+
+	(* extra field *)
+	mutable m_declaring : meta_type_def option;
+}
+
+and meta_param_ptr = {
+	mutable pp_id : int;
+	mutable pp_param : meta_param;
+}
+
+and meta_param = {
+	mutable p_id : int;
+	mutable p_flags : param_flags;
+	mutable p_sequence : int;
+		(* 0 means return value *)
+	mutable p_name : id;
+}
+
+and meta_interface_impl = {
+	mutable ii_id : int;
+	mutable ii_class : meta_type_def; (* TypeDef rid *)
+	mutable ii_interface : type_def_or_ref;
+}
+
+and meta_member_ref = {
+	mutable memr_id : int;
+	mutable memr_class : member_ref_parent;
+	mutable memr_name : id;
+	mutable memr_signature : ilsig;
+}
+
+and meta_constant = {
+	mutable c_id : int;
+	mutable c_type : constant_type;
+	mutable c_parent : has_const;
+	mutable c_value : constant;
+}
+
+and named_attribute = bool * string * instance (* is_property * name * instance *)
+
+and meta_custom_attribute = {
+	mutable ca_id : int;
+	mutable ca_parent : has_custom_attribute;
+	mutable ca_type : custom_attribute_type;
+	mutable ca_value : (instance list * named_attribute list) option;
+		(* can be 0 *)
+}
+
+and meta_field_marshal = {
+	mutable fm_id : int;
+	mutable fm_parent : has_field_marshal;
+	mutable fm_native_type : nativesig;
+}
+
+and meta_decl_security = {
+	mutable ds_id : int;
+	mutable ds_action : action_security;
+	mutable ds_parent : has_decl_security;
+	mutable ds_permission_set : blobref;
+		(* an xml with the permission set *)
+}
+
+and meta_class_layout = {
+	mutable cl_id : int;
+	mutable cl_packing_size : int;
+		(* power of two; from 1 through 128 *)
+	mutable cl_class_size : int;
+	mutable cl_parent : meta_type_def; (* TypeDef rid *)
+}
+
+and meta_field_layout = {
+	mutable fl_id : int;
+	mutable fl_offset : int;
+		(* offset in bytes or ordinal *)
+	mutable fl_field : meta_field; (* Field rid *)
+}
+
+and meta_stand_alone_sig = {
+	mutable sa_id : int;
+	mutable sa_signature : ilsig;
+}
+
+and meta_event_map = {
+	mutable em_id : int;
+	mutable em_parent : meta_type_def; (* TypeDef rid *)
+	mutable em_event_list : meta_event list; (* Event rid *)
+}
+
+and meta_event_ptr = {
+	mutable ep_id : int;
+	mutable ep_event : meta_event; (* Event rid *)
+}
+
+and meta_event = {
+	mutable e_id : int;
+	mutable e_flags : event_flags;
+	mutable e_name : stringref;
+	mutable e_event_type : type_def_or_ref;
+}
+
+and meta_property_map = {
+	mutable pm_id : int;
+	mutable pm_parent : meta_type_def; (* TypeDef rid *)
+	mutable pm_property_list : meta_property list; (* Property rid *)
+}
+
+and meta_property_ptr = {
+	mutable prp_id : int;
+	mutable prp_property : meta_property; (* Property rid *)
+}
+
+and meta_property = {
+	mutable prop_id : int;
+	mutable prop_flags : property_flags;
+	mutable prop_name : stringref;
+	mutable prop_type : ilsig;
+}
+
+and meta_method_semantics = {
+	mutable ms_
