@@ -361,4 +361,132 @@ and meta_property = {
 }
 
 and meta_method_semantics = {
-	mutable ms_
+	mutable ms_id : int;
+	mutable ms_semantic : semantic_flags;
+	mutable ms_method : meta_method; (* Method rid *)
+	mutable ms_association : has_semantics;
+}
+
+and meta_method_impl = {
+	mutable mi_id : int;
+	mutable mi_class : meta_type_def; (* TypeDef rid *)
+	mutable mi_method_body : method_def_or_ref;
+		(* overriding method *)
+	mutable mi_method_declaration : method_def_or_ref;
+		(* overridden method *)
+}
+
+and meta_module_ref = {
+	mutable modr_id : int;
+	mutable modr_name : stringref;
+}
+
+and meta_type_spec = {
+	mutable ts_id : int;
+	mutable ts_signature : ilsig;
+}
+
+(* reserved ? *)
+and meta_enc_log = {
+	mutable el_id : int;
+	mutable el_token : to_det;
+	mutable el_func_code : to_det;
+}
+
+and meta_impl_map = {
+	mutable im_id : int;
+	mutable im_flags : impl_flags; (* mapping_flags *)
+	mutable im_forwarded : member_forwarded; (* method only *)
+	mutable im_import_name : stringref;
+	mutable im_import_scope : meta_module_ref; (* ModuleRef rid *)
+}
+
+(* reserved ? *)
+and meta_enc_map = {
+	mutable encm_id : int;
+	mutable encm_token : to_det;
+}
+
+and meta_field_rva = {
+	mutable fr_id : int;
+	mutable fr_rva : rva;
+	mutable fr_field : meta_field; (* Field rid *)
+}
+
+and meta_assembly = {
+	mutable a_id : int;
+	mutable a_hash_algo : hash_algo;
+	mutable a_major : int;
+	mutable a_minor : int;
+	mutable a_build : int;
+	mutable a_rev : int;
+	mutable a_flags : assembly_flags; (* assembly_flags *)
+	mutable a_public_key : blobref;
+	mutable a_name : stringref;
+	mutable a_locale : stringref;
+}
+
+(* unused *)
+and meta_assembly_processor = {
+	mutable ap_id : int;
+	mutable ap_processor : to_det;
+}
+
+(* unused *)
+and meta_assembly_os = {
+	mutable aos_id : int;
+	mutable aos_platform_id : to_det;
+	mutable aos_major_version : to_det;
+	mutable aos_minor_version : to_det;
+}
+
+and meta_assembly_ref = {
+	mutable ar_id : int;
+	mutable ar_major : int;
+	mutable ar_minor : int;
+	mutable ar_build : int;
+	mutable ar_rev : int;
+	mutable ar_flags : assembly_flags;
+	mutable ar_public_key : blobref;
+	mutable ar_name : stringref; (* no path, no extension *)
+	mutable ar_locale : stringref;
+	mutable ar_hash_value : blobref;
+}
+
+(* unused *)
+and meta_assembly_ref_processor = {
+	mutable arp_id : int;
+	mutable arp_processor : to_det;
+	mutable arp_assembly_ref : meta_assembly_ref; (* AssemblyRef rid *)
+}
+
+(* unused *)
+and meta_assembly_ref_os = {
+	mutable aros_id : int;
+	mutable aros_platform_id : to_det;
+	mutable aros_major : int;
+	mutable aros_minor : int;
+	mutable aros_assembly_ref : meta_assembly_ref; (* AssemblyRef rid *)
+}
+
+and meta_file = {
+	mutable file_id : int;
+	mutable file_flags : file_flag; (* file_flags *)
+	mutable file_name : stringref; (* no path; only file name *)
+	mutable file_hash_value : blobref;
+}
+
+and meta_exported_type = {
+	mutable et_id : int;
+	mutable et_flags : type_def_flags;
+	mutable et_type_def_id : int;
+		(* TypeDef token in another module *)
+	mutable et_type_name : stringref;
+	mutable et_type_namespace : ns;
+	mutable et_implementation : implementation;
+}
+
+and meta_manifest_resource = {
+	mutable mr_id : int;
+	mutable mr_offset : int;
+	mutable mr_flags : manifest_resource_flag; (* manifest_resource_flags 
