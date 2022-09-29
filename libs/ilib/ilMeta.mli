@@ -489,4 +489,115 @@ and meta_exported_type = {
 and meta_manifest_resource = {
 	mutable mr_id : int;
 	mutable mr_offset : int;
-	mutable mr_flags : manifest_resource_flag; (* manifest_resource_flags 
+	mutable mr_flags : manifest_resource_flag; (* manifest_resource_flags *)
+	mutable mr_name : stringref;
+	mutable mr_implementation : implementation option;
+}
+
+and meta_nested_class = {
+	mutable nc_id : int;
+	mutable nc_nested : meta_type_def; (* TypeDef rid *)
+	mutable nc_enclosing : meta_type_def; (* TypeDef rid *)
+}
+
+and meta_generic_param = {
+	mutable gp_id : int;
+	mutable gp_number : int; (* ordinal *)
+	mutable gp_flags : generic_flags;
+	mutable gp_owner : type_or_method_def;
+		(* generic type or method *)
+	mutable gp_name : stringref option;
+}
+
+and meta_method_spec = {
+	mutable mspec_id : int;
+	mutable mspec_method : method_def_or_ref;
+		(* instantiated method *)
+	mutable mspec_instantiation : ilsig;
+		(* instantiated signature *)
+}
+
+and meta_generic_param_constraint = {
+	mutable gc_id : int;
+	mutable gc_owner : meta_generic_param; (* GenericParam rid *)
+		(* constrained parameter *)
+	mutable gc_constraint : type_def_or_ref;
+		(* type the parameter must extend or implement *)
+}
+
+and to_det = int
+
+and not_implemented = int
+
+and constant =
+	| IBool of bool
+	| IChar of int
+	| IByte of int
+	| IShort of int
+	| IInt of int32
+	| IInt64 of int64
+	| IFloat32 of float
+	| IFloat64 of float
+	| IString of string
+	| INull
+
+and instance =
+	| InstConstant of constant
+	| InstBoxed of instance
+	| InstType of string
+	| InstArray of instance list
+	| InstEnum of int
+
+and constant_type =
+	| CBool (* 0x2 *)
+	| CChar (* 0x3 *)
+	| CInt8 (* 0x4 *)
+	| CUInt8 (* 0x5 *)
+	| CInt16 (* 0x6 *)
+	| CUInt16 (* 0x7 *)
+	| CInt32 (* 0x8 *)
+	| CUInt32 (* 0x9 *)
+	| CInt64 (* 0xA *)
+	| CUInt64 (* 0xB *)
+	| CFloat32 (* 0xC *)
+	| CFloat64 (* 0xD *)
+	| CString (* 0xE *)
+	| CNullRef (* 0x12 *)
+		(* null object reference - the value of the constant *)
+		(* of this type must be a 4-byte integer containing 0 *)
+
+and type_def_vis =
+	(* visibility flags - mask 0x7 *)
+	| VPrivate (* 0x0 *)
+		(* type is not visible outside the assembly. default *)
+	| VPublic (* 0x1 *)
+		(* type visible outside the assembly *)
+	| VNestedPublic (* 0x2 *)
+		(* the nested type has public visibility *)
+	| VNestedPrivate (* 0x3 *)
+		(* nested type has private visibility - it's not visible outside the enclosing class *)
+	| VNestedFamily (* 0x4 *)
+		(* nested type has family visibility - it's visible to descendants of the enclosing class only *)
+	| VNestedAssembly (* 0x5 *)
+		(* nested type visible within the assembly only *)
+	| VNestedFamAndAssem (* 0x6 *)
+		(* nested type is visible to the descendants of the enclosing class residing in the same assembly *)
+	| VNestedFamOrAssem (* 0x7 *)
+		(* nested type is visible to the descendants of the enclosing class either within *)
+		(* or outside the assembly and to every type within the assembly *)
+	
+and type_def_layout =
+	(* layout flags - mask 0x18 *)
+	| LAuto (* 0x0 *)
+		(* type fields are laid out automatically *)
+	| LSequential (* 0x8 *)
+		(* loader must preserve the order of the instance fields *)
+	| LExplicit (* 0x10 *)
+		(* type layout is specified explicitly *)
+
+and type_def_semantics =
+	(* semantics flags - mask 0x5A0 *)
+	| SInterface (* 0x20 *)
+		(* type is an interface. If specified, the default parent is set to nil *)
+	| SAbstract (* 0x80 *)
+	| SSealed (* 
