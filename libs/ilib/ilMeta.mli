@@ -600,4 +600,77 @@ and type_def_semantics =
 	| SInterface (* 0x20 *)
 		(* type is an interface. If specified, the default parent is set to nil *)
 	| SAbstract (* 0x80 *)
-	| SSealed (* 
+	| SSealed (* 0x100 *)
+	| SSpecialName (* 0x400 *)
+		(* type has a special name. how special depends on the name itself *)
+		(* e.g. .ctor or .cctor *)
+
+and type_def_impl =
+	(* type implementation flags - mask 0x103000 *)
+	| IImport (* 0x1000 *)
+		(* the type is imported from a COM type library *)
+	| ISerializable (* 0x2000 *)
+		(* the type can be serialized into sequential data *)
+	| IBeforeFieldInit (* 0x00100000 *)
+		(* the type can be initialized any time before the first access *)
+		(* to a static field. *)
+	
+and type_def_string =
+	(* string formatting flags - mask 0x00030000 *)
+	| SAnsi (* 0x0 *)
+		(* managed strings are marshaled to and from ANSI strings *)
+	| SUnicode (* 0x00010000 *)
+		(* managed strings are marshaled to and from UTF-16 *)
+	| SAutoChar (* 0x00020000 *)
+		(* marshaling is defined by the underlying platform *)
+
+and type_def_flags = {
+	tdf_vis : type_def_vis;
+	tdf_layout : type_def_layout;
+	tdf_semantics : type_def_semantics list;
+	tdf_impl : type_def_impl list;
+	tdf_string : type_def_string;
+}
+
+and field_access =
+	(* access flags - mask 0x07 *)
+	| FAPrivateScope (* 0x0 *)
+		(* default - exempt from the requirement of having a unique triad of owner, name and signature *)
+		(* so it must always be referenced by a FieldDef token and never by a MemberRef *)
+		(* privatescope fields are accessible from anywhere within the current module *)
+	| FAPrivate (* 0x1 *)
+		(* field is accessible from its owner and from classes nested in the field's owner. *)
+		(* global private fields are accessible from anywhere within current module *)
+	| FAFamAndAssem (* 0x2 *)
+		(* accessible from types belonging to the owner's family defined in the current assembly *)
+		(* family means the type itself and all its descendants *)
+	| FAAssembly (* 0x3 *)
+		(* accessible from types defined in the current assembly *)
+	| FAFamily (* 0x4 *)
+		(* accessible from the owner's family - defined in this or any other assembly *)
+	| FAFamOrAssem (* 0x5 *)
+		(* accessible from the owner's family and from all types defined in the current assembly *)
+	| FAPublic (* 0x6 *)
+		(* field is accessible from any type *)
+
+and field_contract =
+	(* contract flags - mask 0x02F0 *)
+	| CStatic (* 0x10 *)
+		(* static field. global fields must be static *)
+	| CInitOnly (* 0x20 *)
+		(* field can be initialized only and cannot be written to later. *)
+		(* Initialization takes place in an instance constructor (.ctor) for instance fields *)
+		(* and in a class constructor (.cctor) for static fields. *)
+		(* this flag is not enforced by the CLR *)
+	| CLiteral (* 0x40 *)
+		(* field is a compile-time constant. the loader does not lay out this field *)
+		(* and does not create an internal handle for it *)
+		(* it cannot be directly addressed from IL and can only be used as a Reflection reference *)
+	| CNotSerialized (* 0x80 *)
+		(* field is not serialized when the owner is remoted *)
+	| CSpecialName (* 0x200 *)
+		(* the field is special in some way, as defined by its name *)
+		(* example is the field value__ of an enumeration type *)
+
+and field_reserved = 
+	(* reserved fla
