@@ -751,4 +751,109 @@ and method_interop =
 	| OForwardRef (* 0x10 *)
 		(* managed object fiels and edit-and-continue scenarios only *)
 	| OPreserveSig (* 0x80 *)
-		(* method signa
+		(* method signature must not be mangled during interop with classic COM code *)
+	| OInternalCall (* 0x1000 *)
+		(* reserved for internal use. if set, RVA must be 0 *)
+	| OSynchronized (* 0x20 *)
+		(* automatically insert code to take a lock on entry to the method and release it *)
+		(* on exit from the method. Value types cannot have this flag set *)
+	| ONoInlining (* 0x08 *)
+		(* the runtime is not allowed to inline the method *)
+
+and method_flags = {
+	mf_access : field_access;
+	mf_contract : method_contract list;
+	mf_vtable : method_vtable list;
+	mf_impl : method_impl list;
+	mf_reserved : method_reserved list;
+	mf_code_type : method_code_type;
+	mf_code_mngmt : method_code_mngmt;
+	mf_interop : method_interop list;
+}
+
+and param_io =
+	(* input/output flags - mask 0x13 *)
+	| PIn (* 0x1 *)
+	| POut (* 0x2 *)
+	| POpt (* 0x10 *)
+
+and param_reserved =
+	(* reserved flags - mask 0xF000 *)
+	| PHasConstant (* 0x1000 *)
+		(* the parameter has an associated Constant record *)
+	| PMarshal (* 0x2000 *)
+		(* the parameter has an associated FieldMarshal record specifying how the parameter *)
+		(* must be marshaled when consumed by unmanaged code *)
+
+and param_flags = {
+	pf_io : param_io list;
+	pf_reserved : param_reserved list;
+}
+
+and event_flag =
+	| ESpecialName (* 0x0200 *)
+		(* event is special *)
+	| ERTSpecialName (* 0x0400 *)
+		(* CLI provides special behavior, depending on the name of the event *)
+
+and event_flags = event_flag list
+
+and property_flag =
+	| PSpecialName (* 0x0200 *)
+		(* property is special *)
+	| PRTSpecialName (* 0x0400 *)
+		(* runtime (intrinsic) should check name encoding *)
+	| PHasDefault (* 0x1000 *)
+		(* property has default *)
+	| PUnused (* 0xE9FF *)
+		(* reserved *)
+
+and property_flags = property_flag list
+
+and semantic_flag =
+	| SSetter (* 0x0001 *)
+		(* setter for property *)
+	| SGetter (* 0x0002 *)
+		(* getter for property *)
+	| SOther (* 0x0004 *)
+		(* other method for property or event *)
+	| SAddOn (* 0x0008 *)
+		(* addon method for event - refers to the required add_ method for events *)
+	| SRemoveOn (* 0x0010 *)
+		(* removeon method for event - refers to the required remove_ method for events *)
+	| SFire (* 0x0020 *)
+		(* fire method for event. this refers to the optional raise_ method for events *)
+
+and semantic_flags = semantic_flag list
+
+and action_security =
+	| SecNull
+	| SecRequest (* 0x1 *)
+	| SecDemand (* 0x2 *)
+	| SecAssert (* 0x3 *)
+	| SecDeny (* 0x4 *)
+	| SecPermitOnly (* 0x5 *)
+	| SecLinkCheck (* 0x6 *)
+	| SecInheritCheck (* 0x7 *)
+	| SecReqMin (* 0x8 *)
+	| SecReqOpt (* 0x9 *)
+	| SecReqRefuse (* 0xA *)
+	| SecPreJitGrant (* 0xB *)
+	| SecPreJitDeny (* 0xC *)
+	| SecNonCasDemand (* 0xD *)
+	| SecNonCasLinkDemand (* 0xE *)
+	| SecNonCasInheritance (* 0xF *)
+
+and impl_charset =
+	| IDefault (* 0x0 *)
+	| IAnsi (* 0x2 *)
+		(* method parameters of type string must be marshaled as ANSI zero-terminated *)
+		(* strings unless explicitly specified otherwise *)
+	| IUnicode (* 0x4 *)
+		(* method parameters of type string must be marshaled as Unicode strings *)
+	| IAutoChar (* 0x6 *)
+		(* method parameters of type string must be marshaled as ANSI or Unicode strings *)
+		(* depending on the platform *)
+
+and impl_callconv =
+	| IDefaul
