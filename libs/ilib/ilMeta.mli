@@ -856,4 +856,110 @@ and impl_charset =
 		(* depending on the platform *)
 
 and impl_callconv =
-	| IDefaul
+	| IDefaultCall (* 0x0 *)
+	| IWinApi (* 0x100 *)
+		(* the native method uses the calling convention standard for the underlying platform *)
+	| ICDecl (* 0x200 *)
+		(* the native method uses the C/C++ style calling convention *)
+	| IStdCall (* 0x300 *)
+		(* native method uses the standard Win32 API calling convention *)
+	| IThisCall (* 0x400 *)
+		(* native method uses the C++ member method (non-vararg) calling convention *)
+	| IFastCall (* 0x500 *)
+
+and impl_flag =
+	| INoMangle (* 0x1 *)
+		(* exported method's name must be matched literally *)
+	| IBestFit (* 0x10 *)
+		(* allow "best fit" guessing when converting the strings *)
+	| IBestFitOff (* 0x20 *)
+		(* disallow "best fit" guessing *)
+	| ILastErr (* 0x40 *)
+		(* the native method supports the last error querying by the Win32 API GetLastError *)
+	| ICharMapError (* 0x1000 *)
+		(* throw an exception when an unmappable character is encountered in a string *)
+	| ICharMapErrorOff (* 0x2000 *)
+		(* don't throw an exception when an unmappable character is encountered *)
+	
+and impl_flags = {
+	if_charset : impl_charset;
+	if_callconv : impl_callconv;
+	if_flags : impl_flag list;
+}
+
+and hash_algo =
+	| HNone (* 0x0 *)
+	| HReserved (* 0x8003 *)
+		(* MD5 ? *)
+	| HSha1 (* 0x8004 *)
+		(* SHA1 *)
+
+and assembly_flag =
+	| APublicKey (* 0x1 *)
+		(* assembly reference holds the full (unhashed) public key *)
+	| ARetargetable (* 0x100 *)
+		(* implementation of this assembly used at runtime is not expected to match *)
+		(* the version seen at compile-time *)
+	| ADisableJitCompileOptimizer (* 0x4000 *)
+		(* Reserved *)
+	| AEnableJitCompileTracking (* 0x8000 *)
+		(* Reserved *)
+
+and assembly_flags = assembly_flag list
+
+and file_flag =
+	| ContainsMetadata (* 0x0 *)
+	| ContainsNoMetadata (* 0x1 *)
+
+and manifest_resource_flag =
+	(* mask 0x7 *)
+	| RNone (* 0x0 *)
+	| RPublic (* 0x1 *)
+	| RPrivate (* 0x2 *)
+
+and generic_variance =
+	(* mask 0x3 *)
+	| VNone (* 0x0 *)
+	| VCovariant (* 0x1 *)
+	| VContravariant (* 0x2 *)
+
+and generic_constraint =
+	(* mask 0x1C *)
+	| CInstanceType (* 0x4 *)
+		(* generic parameter has the special class constraint *)
+	| CValueType (* 0x8 *)
+		(* generic parameter has the special valuetype constraint *)
+	| CDefaultCtor (* 0x10 *)
+		(* has the special .ctor constraint *)
+
+and generic_flags = {
+	gf_variance : generic_variance;
+	gf_constraint : generic_constraint list;
+}
+
+and ilsig =
+	(* primitive types *)
+	| SVoid (* 0x1 *)
+	| SBool (* 0x2 *)
+	| SChar (* 0x3 *)
+	| SInt8 (* 0x4 *)
+	| SUInt8 (* 0x5 *)
+	| SInt16 (* 0x6 *)
+	| SUInt16 (* 0x7 *)
+	| SInt32 (* 0x8 *)
+	| SUInt32 (* 0x9 *)
+	| SInt64 (* 0xA *)
+	| SUInt64 (* 0xB *)
+	| SFloat32 (* 0xC *)
+	| SFloat64 (* 0xD *)
+	| SString (* 0xE *)
+	| SPointer of ilsig (* 0xF *)
+		(* unmanaged pointer to type ( * ) *)
+	| SManagedPointer of ilsig (* 0x10 *)
+		(* managed pointer to type ( & ) *)
+	| SValueType of type_def_or_ref (* 0x11 *)
+		(* a value type modifier, followed by TypeDef or TypeRef token *)
+	| SClass of type_def_or_ref (* 0x12 *)
+		(* a class type modifier, followed by TypeDef or TypeRef token *)
+	| STypeParam of int (* 0x13 *)
+		(* generic parameter in a generic type definition. represented by a nu
