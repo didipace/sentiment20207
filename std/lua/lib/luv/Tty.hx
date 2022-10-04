@@ -1,5 +1,6 @@
+
 /*
- * Copyright (C)2005-2018 Haxe Foundation
+ * Copyright (C)2005-2019 Haxe Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -20,36 +21,21 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.iterators;
+package lua.lib.luv;
 
-/**
-	This iterator can be used to iterate over char codes in a string.
+@:luaRequire("luv")
+extern class Tty extends Stream {
+	static function new_tty(fd:Int, readable:Bool):Tty;
+	@:native("new_tty") function new(fd:Int, readable:Bool):Void;
 
-	Note that char codes may differ across platforms because of different
-	internal encoding of strings in different of runtimes.
-**/
-class StringIterator {
-	var offset = 0;
-	var s:String;
+	static function reset_mode():Int;
 
-	/**
-		Create a new `StringIterator` over String `s`.
-	**/
-	public inline function new(s:String) {
-		this.s = s;
-	}
+	function set_mode(mode:Int):Int;
+	function get_winsize():WidthHeight;
+}
 
-	/**
-		See `Iterator.hasNext`
-	**/
-	public inline function hasNext() {
-		return offset < s.length;
-	}
-
-	/**
-		See `Iterator.next`
-	**/
-	public inline function next() {
-		return StringTools.unsafeCodeAt(s, offset++);
-	}
+@:multiReturn
+extern class WidthHeight {
+	var width:Int;
+	var height:Int;
 }
