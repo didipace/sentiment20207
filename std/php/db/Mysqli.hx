@@ -84,4 +84,17 @@ extern class Mysqli {
 	function real_connect(?host:String, ?username:String, ?passwd:String, ?dbname:String, ?port:Int, ?socket:String, ?flags:Int):Bool;
 	function escape_string(escapestr:String):String;
 	function real_query(query:String):Bool;
-	function r
+	function reap_async_query():Mysqli_result;
+	function refresh(options:Int):Bool;
+	function rollback(?flags:Int, ?name:String):Bool;
+	function rpl_query_type(query:String):Int;
+	function select_db(dbname:String):Bool;
+	function send_query(query:String):Bool;
+	function set_charset(charset:String):Bool;
+	function set_local_infile_handler(read_func:Function):Bool;
+	function ssl_set(key:String, cert:String, ca:String, capath:String, cipher:String):Bool;
+	function stat():String;
+	function stmt_init():Mysqli_stmt;
+	function store_result(?option:Int):Mysqli_result;
+	function use_result():Mysqli_result;
+}
