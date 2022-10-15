@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,11 +21,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HashChangeEvent.webidl. Do not edit!
+// This file is generated from mozilla\CustomEvent.webidl. Do not edit!
 
 package js.html;
 
-typedef HashChangeEventInit = EventInit & {
-	var ?newURL : String;
-	var ?oldURL : String;
+typedef CustomEventInit = EventInit & {
+	var ?detail : Dynamic;
 }

@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,11 +21,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HashChangeEvent.webidl. Do not edit!
+// This file is generated from mozilla\CanvasRenderingContext2D.webidl. Do not edit!
 
 package js.html;
 
-typedef HashChangeEventInit = EventInit & {
-	var ?newURL : String;
-	var ?oldURL : String;
+enum abstract CanvasWindingRule(String) {
+	var NONZERO = "nonzero";
+	var EVENODD = "evenodd";
 }
