@@ -81,4 +81,108 @@ abstract Int64(__Int64) from __Int64 to __Int64 {
 	public static inline function getHigh(x:Int64):Int32
 		return cast(x.val >> 32);
 
-	public static inli
+	public static inline function getLow(x:Int64):Int32
+		return cast(x.val);
+
+	public static inline function isNeg(x:Int64):Bool
+		return x.val < 0;
+
+	public static inline function isZero(x:Int64):Bool
+		return x.val == 0;
+
+	public static inline function compare(a:Int64, b:Int64):Int {
+		if (a.val < b.val)
+			return -1;
+		if (a.val > b.val)
+			return 1;
+		return 0;
+	}
+
+	public static inline function ucompare(a:Int64, b:Int64):Int {
+		if (a.val < 0)
+			return (b.val < 0) ? compare(a, b) : 1;
+		return (b.val < 0) ? -1 : compare(a, b);
+	}
+
+	public static inline function toStr(x:Int64):String
+		return '${x.val}';
+
+	public static inline function divMod(dividend:Int64, divisor:Int64):{quotient:Int64, modulus:Int64}
+		return {quotient: dividend / divisor, modulus: dividend % divisor};
+
+	private inline function toString():String
+		return '$this';
+
+	public static function parseString(sParam:String):Int64 {
+		// can this be done?: return new Int64( java.lang.Long.LongClass.parseLong( sParam ) );
+		return Int64Helper.parseString(sParam);
+	}
+
+	public static function fromFloat(f:Float):Int64 {
+		return Int64Helper.fromFloat(f);
+	}
+
+	@:op(-A) public static function neg(x:Int64):Int64
+		return -x.val;
+
+	@:op(++A) private inline function preIncrement():Int64
+		return ++this;
+
+	@:op(A++) private inline function postIncrement():Int64
+		return this++;
+
+	@:op(--A) private inline function preDecrement():Int64
+		return --this;
+
+	@:op(A--) private inline function postDecrement():Int64
+		return this--;
+
+	@:op(A + B) public static inline function add(a:Int64, b:Int64):Int64
+		return a.val + b.val;
+
+	@:op(A + B) @:commutative private static inline function addInt(a:Int64, b:Int):Int64
+		return a.val + b;
+
+	@:op(A - B) public static inline function sub(a:Int64, b:Int64):Int64
+		return a.val - b.val;
+
+	@:op(A - B) private static inline function subInt(a:Int64, b:Int):Int64
+		return a.val - b;
+
+	@:op(A - B) private static inline function intSub(a:Int, b:Int64):Int64
+		return a - b.val;
+
+	@:op(A * B) public static inline function mul(a:Int64, b:Int64):Int64
+		return a.val * b.val;
+
+	@:op(A * B) @:commutative private static inline function mulInt(a:Int64, b:Int):Int64
+		return a.val * b;
+
+	@:op(A / B) public static inline function div(a:Int64, b:Int64):Int64
+		return a.val / b.val;
+
+	@:op(A / B) private static inline function divInt(a:Int64, b:Int):Int64
+		return a.val / b;
+
+	@:op(A / B) private static inline function intDiv(a:Int, b:Int64):Int64
+		return a / b.val;
+
+	@:op(A % B) public static inline function mod(a:Int64, b:Int64):Int64
+		return a.val % b.val;
+
+	@:op(A % B) private static inline function modInt(a:Int64, b:Int):Int64
+		return a.val % b;
+
+	@:op(A % B) private static inline function intMod(a:Int, b:Int64):Int64
+		return a % b.val;
+
+	@:op(A == B) public static inline function eq(a:Int64, b:Int64):Bool
+		return a.val == b.val;
+
+	@:op(A == B) @:commutative private static inline function eqInt(a:Int64, b:Int):Bool
+		return a.val == b;
+
+	@:op(A != B) public static inline function neq(a:Int64, b:Int64):Bool
+		return a.val != b.val;
+
+	@:op(A != B) @:commutative pri
