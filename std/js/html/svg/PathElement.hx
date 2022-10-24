@@ -32,4 +32,13 @@ package js.html.svg;
 	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement>
 **/
 @:native("SVGPathElement")
-extern class Path
+extern class PathElement extends GeometryElement {
+	var pathSegList(default,null) : PathSegList;
+	var animatedPathSegList(default,null) : PathSegList;
+	
+	
+	/**
+		Returns an unsigned long representing the index within the `SVGAnimatedPathData.pathSegList` utilizing the user agent's distance-along-a-path algorithm.
+	**/
+	function getPathSegAtLength( distance : Float ) : Int;
+}
