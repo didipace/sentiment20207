@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -21,17 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\HTMLPictureElement.webidl. Do not edit!
+package cpp.abi;
 
-package js.html;
-
-/**
-	The `HTMLPictureElement` interface represents a `picture` HTML element. It doesn't implement specific properties or methods.
-
-	Documentation [HTMLPictureElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLPictureElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/HTMLPictureElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLPictureElement>
-**/
-@:native("HTMLPictureElement")
-extern class PictureElement extends Element {
-}
+// Base case, for calling conventions - means "use default"
+extern class Abi {}
