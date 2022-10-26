@@ -42,4 +42,18 @@ extern class DataTransferItem {
 	/**
 		The drag data item's type, typically a MIME type.
 	**/
-	var
+	var type(default,null) : String;
+	
+	
+	/**
+		Invokes the specified callback with the drag data item string as its argument.
+		@throws DOMError
+	**/
+	function getAsString( callback : String -> Void ) : Void;
+	
+	/**
+		Returns the `File` object associated with the drag data item (or null if the drag item is not a file).
+		@throws DOMError
+	**/
+	function getAsFile() : File;
+}
