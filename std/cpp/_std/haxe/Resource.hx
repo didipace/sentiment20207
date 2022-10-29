@@ -20,17 +20,22 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\ScreenOrientation.webidl. Do not edit!
+package haxe;
 
-package js.html;
+@:coreApi
+class Resource {
+	public static function listNames():Array<String> {
+		return untyped __global__.__hxcpp_resource_names();
+	}
 
-enum abstract OrientationLockType(String) {
-	var ANY = "any";
-	var NATURAL = "natural";
-	var LANDSCAPE = "landscape";
-	var PORTRAIT = "portrait";
-	var PORTRAIT_PRIMARY = "portrait-primary";
-	var PORTRAIT_SECONDARY = "portrait-secondary";
-	var LANDSCAPE_PRIMARY = "landscape-primary";
-	var LANDSCAPE_SECONDARY = "landscape-secondary";
+	public static function getString(name:String):String {
+		return untyped __global__.__hxcpp_resource_string(name);
+	}
+
+	public static function getBytes(name:String):haxe.io.Bytes {
+		var array:haxe.io.BytesData = untyped __global__.__hxcpp_resource_bytes(name);
+		if (array == null)
+			return null;
+		return haxe.io.Bytes.ofData(array);
+	}
 }
