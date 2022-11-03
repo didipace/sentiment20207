@@ -126,3 +126,97 @@ package hl;
 	public function subtract(other:Bytes):Int {
 		return 0;
 	}
+
+	@:hlNative("std", "bytes_address")
+	static function get_address(b:Bytes, high:Ref<Int>):Int {
+		return 0;
+	}
+
+	@:hlNative("std", "bytes_from_address")
+	static function from_address(low:Int, high:Int):Bytes {
+		return null;
+	}
+
+	/**
+		Creates an pointer at a given memory address (highly unsafe)
+	**/
+	public static inline function fromAddress(h:haxe.Int64):Bytes {
+		return from_address(h.low, h.high);
+	}
+
+	/**
+		Returns the address value of the bytes. On 32 bit system the upper 32 bits will always be 0
+	**/
+	public function address():haxe.Int64 {
+		var high = 0;
+		var low = get_address(this, high);
+		return haxe.Int64.make(high, low);
+	}
+
+	public function sub(pos:Int, size:Int) {
+		var b = new Bytes(size);
+		b.blit(0, this, pos, size);
+		return b;
+	}
+
+	@:hlNative("std", "ucs2length")
+	public function ucs2Length(bytePos:Int):Int {
+		return 0;
+	}
+
+	@:hlNative("std", "hash")
+	function hash():Int {
+		return 0;
+	}
+
+	@:hlNative("std", "utf8_to_utf16")
+	public function utf8ToUtf16(bytePos:Int, outSize:Ref<Int>):Bytes {
+		return null;
+	}
+
+	@:hlNative("std","utf16_to_utf8")
+	public function utf16ToUtf8(len:Int, outSize:Ref<Int>) : Bytes {
+		return null;
+	}
+
+	@:hlNative("std", "ucs2_upper")
+	function ucs2Upper(bytePos:Int, size:Int):Bytes {
+		return null;
+	}
+
+	@:hlNative("std", "ucs2_lower")
+	function ucs2Lower(bytePos:Int, size:Int):Bytes {
+		return null;
+	}
+
+	@:hlNative("std", "url_encode")
+	function urlEncode(outSize:Ref<Int>):Bytes {
+		return null;
+	}
+
+	@:hlNative("std", "url_decode")
+	function urlDecode(outSize:Ref<Int>):Bytes {
+		return null;
+	}
+
+	@:hlNative("std", "value_to_string")
+	public static function fromValue(v:Dynamic, length:Ref<Int>):Bytes {
+		return null;
+	}
+
+	/**
+		Get the bytes reference from an array of basic types (no copy occurs)
+	**/
+	extern public static inline function getArray<T>(a:Array<T>):Bytes {
+		return untyped $abytes(a);
+	}
+
+	@:from
+	public static inline function fromBytes(bytes:haxe.io.Bytes) {
+		return @:privateAccess bytes.b;
+	}
+
+	public inline function toBytes(len:Int) {
+		return @:privateAccess new haxe.io.Bytes(this, len);
+	}
+}
