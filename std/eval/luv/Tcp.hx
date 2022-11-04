@@ -56,4 +56,7 @@ import eval.luv.SockAddr;
 	public function connect(addr:SockAddr, callback:(result:Result<Result.NoData>)->Void):Void;
 
 	/**
-	
+		Resets the connection.
+	**/
+	public function closeReset(callback:(result:Result<Result.NoData>)->Void):Void;
+}
