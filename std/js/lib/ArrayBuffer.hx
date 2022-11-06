@@ -48,4 +48,7 @@ private class ArrayBufferCompat {
 		untyped {
 			// IE10 ArrayBuffer.slice polyfill
 			if (js.Syntax.code("ArrayBuffer").prototype.slice == null)
-				js.Syntax.code("ArrayBuffer").prototype.slice = sli
+				js.Syntax.code("ArrayBuffer").prototype.slice = sliceImpl;
+		}
+}
+#end
