@@ -65,4 +65,96 @@ extern class ObjectElement extends Element {
 	var form(default,null) : FormElement;
 	
 	/**
-		Is a `DOMString` that reflects the `width` HTML attribute, specifying the displayed width of the resource in CSS pix
+		Is a `DOMString` that reflects the `width` HTML attribute, specifying the displayed width of the resource in CSS pixels.
+	**/
+	var width : String;
+	
+	/**
+		Is a `DOMString` that reflects the `height` HTML attribute, specifying the displayed height of the resource in CSS pixels.
+	**/
+	var height : String;
+	
+	/**
+		Returns a `Document` representing the active document of the object element's nested browsing context, if any; otherwise `null`.
+	**/
+	var contentDocument(default,null) : HTMLDocument;
+	
+	/**
+		Returns a `WindowProxy` representing the window proxy of the object element's nested browsing context, if any; otherwise `null`.
+	**/
+	var contentWindow(default,null) : Window;
+	
+	/**
+		Returns a `Boolean` that indicates whether the element is a candidate for constraint validation. Always `false` for `HTMLObjectElement` objects.
+	**/
+	var willValidate(default,null) : Bool;
+	
+	/**
+		Returns a `ValidityState` with the validity states that this element is in.
+	**/
+	var validity(default,null) : ValidityState;
+	
+	/**
+		Returns a `DOMString` representing a localized message that describes the validation constraints that the control does not satisfy (if any). This is the empty string if the control is not a candidate for constraint validation (`willValidate` is `false`), or it satisfies its constraints.
+	**/
+	var validationMessage(default,null) : String;
+	
+	/**
+		Is a `DOMString` representing an enumerated property indicating alignment of the element's contents with respect to the surrounding context. The possible values are `"left"`, `"right"`, `"justify"`, and `"center"`.
+	**/
+	var align : String;
+	
+	/**
+		Is a `DOMString` that reflects the `archive` HTML attribute, containing a list of archives for resources for this object.
+	**/
+	var archive : String;
+	
+	/**
+		Is a `DOMString` representing the name of an applet class file, containing either the applet's subclass, or the path to get to the class, including the class file itself.
+	**/
+	var code : String;
+	
+	/**
+		Is a `Boolean` that reflects the `declare` HTML attribute, indicating that this is a declaration, not an instantiation, of the object.
+	**/
+	var declare : Bool;
+	
+	/**
+		Is a `long` representing the horizontal space in pixels around the control.
+	**/
+	var hspace : Int;
+	
+	/**
+		Is a `DOMString` that reflects the `standby` HTML attribute, specifying a message to display while the object loads.
+	**/
+	var standby : String;
+	
+	/**
+		Is a `long` representing the horizontal space in pixels around the control.
+	**/
+	var vspace : Int;
+	
+	/**
+		Is a `DOMString` that reflects the `codebase` HTML attribute, specifying the base path to use to resolve relative URIs.
+	**/
+	var codeBase : String;
+	
+	/**
+		Is a `DOMString` that reflects the `codetype` HTML attribute, specifying the content type of the data.
+	**/
+	var codeType : String;
+	
+	/**
+		Is a `DOMString` that reflects the `border` HTML attribute, specifying the width of a border around the object.
+	**/
+	var border : String;
+	
+	
+	/**
+		Retuns a `Boolean` that always is `true`, because `object` objects are never candidates for constraint validation.
+	**/
+	function checkValidity() : Bool;
+	function reportValidity() : Bool;
+	
+	/**
+		Sets a custom validity mess
