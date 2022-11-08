@@ -157,4 +157,8 @@ extern class ObjectElement extends Element {
 	function reportValidity() : Bool;
 	
 	/**
-		Sets a custom validity mess
+		Sets a custom validity message for the element. If this message is not the empty string, then the element is suffering from a custom validity error, and does not validate.
+	**/
+	function setCustomValidity( error : String ) : Void;
+	function getSVGDocument() : HTMLDocument;
+}
