@@ -134,4 +134,36 @@ extern class CloseEvent extends Event {
 						<td>Reserved. Indicates that the connection was closed due to a failure to perform a TLS handshake (e.g., the server certificate can't be verified).</td>
 					</tr>
 					<tr>
-						<td><code>1016</code>–<code>
+						<td><code>1016</code>–<code>1999</code></td>
+						<td> </td>
+						<td>Reserved for future use by the WebSocket standard.</td>
+					</tr>
+					<tr>
+						<td><code>2000</code>–<code>2999</code></td>
+						<td> </td>
+						<td>Reserved for use by WebSocket extensions.</td>
+					</tr>
+					<tr>
+						<td><code>3000</code>–<code>3999</code></td>
+						<td> </td>
+						<td>Available for use by libraries and frameworks. May not be used by applications. Available for registration at the IANA via first-come, first-serve.</td>
+					</tr>
+					<tr>
+						<td><code>4000</code>–<code>4999</code></td>
+						<td> </td>
+						<td>Available for use by applications.</td>
+					</tr>
+				
+			</table>
+			
+	**/
+	var code(default,null) : Int;
+	
+	/**
+		Returns a `DOMString` indicating the reason the server closed the connection. This is specific to the particular server and sub-protocol.
+	**/
+	var reason(default,null) : String;
+	
+	/** @throws DOMError */
+	function new( type : String, ?eventInitDict : CloseEventInit ) : Void;
+}
