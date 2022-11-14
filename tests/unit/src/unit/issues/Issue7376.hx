@@ -37,4 +37,36 @@ class Issue7376 extends unit.Test {
 		foo(bool -> switch bool {
 			case true: intJob();
 			case false:
-	
+		});
+
+		var fn = bool -> switch bool {
+			case true: intJob();
+			case false:
+		}
+		foo(fn);
+
+		var fn = bool -> switch bool {
+			case true: intJob();
+			case false: return;
+		}
+		foo(fn);
+
+		noAssert();
+	}
+
+	function testIfElse() {
+		foo(bool -> bool ? intJob() : voidJob());
+
+		var fn = bool -> if(bool) intJob() else {};
+		foo(fn);
+
+		var fn = bool -> if (bool) intJob() else return;
+		foo(fn);
+
+		noAssert();
+	}
+
+	@:pure(false) static function foo(f:(Bool)->Void) f(true);
+	@:pure(false) static function intJob():Int return 0;
+	@:pure(false) static function voidJob():Void {}
+}
