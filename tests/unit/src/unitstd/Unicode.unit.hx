@@ -137,4 +137,145 @@ var o = new haxe.io.BytesOutput();
 o.writeString("éあ😂");
 o.writeString("éあ😂",RawNative);
 var bytes2 = o.getBytes();
-bytes2.toHe
+bytes2.toHex() == bytes.toHex();
+
+var input = new haxe.io.BytesInput(bytes2);
+input.readString(2) == "é";
+input.readString(7) == "あ😂";
+input.readString(bytes.length - 9,RawNative) == "éあ😂";
+
+var s = "ée";
+var s1 = s.charAt(1);
+s1 == "e";
+
+var s1 = s.substr(1, 1);
+var s2 = s.substr(1);
+var s3 = s.substr(-1);
+var s4 = s.substr(-1, 1);
+s1 == "e";
+s2 == "e";
+s3 == "e";
+s4 == "e";
+
+var s1 = s.substring(1, 2);
+var s2 = s.substring(1);
+var s3 = s.substring(2, 1);
+var s4 = s.substring(1, 20);
+s1 == "e";
+s2 == "e";
+s3 == "e";
+s4 == "e";
+
+Reflect.compare("ed", "éee".substr(1)) < 0;
+Reflect.compare("éed".substr(1), "éee".substr(1)) < 0;
+Reflect.compare("éed".substr(1), "ee") < 0;
+Reflect.compare("ee", "éed".substr(1)) > 0;
+Reflect.compare("éee".substr(1), "éed".substr(1)) > 0;
+Reflect.compare("éee".substr(1), "ed") > 0;
+
+var s = "ä😂";
+s.toUpperCase() == "Ä😂";
+s.toLowerCase() == s;
+
+var s = "Ä😂";
+s.toUpperCase() == s;
+s.toLowerCase() == "ä😂";
+
+var s = "a😂";
+s.toUpperCase() == "A😂";
+s.toLowerCase() == s;
+
+var s = "A😂";
+s.toUpperCase() == s;
+s.toLowerCase() == "a😂";
+
+"σ".toUpperCase() == "Σ";
+"Σ".toLowerCase() == "σ";
+
+var map = new haxe.ds.StringMap();
+map.set("path", 1);
+map.get("äpath".substr(1)) == 1;
+
+var data =  "<haxe><s>Hello World!</s><s2>π</s2></haxe>";
+var buf = new StringBuf();
+buf.addSub(data, 9, 12);
+var s = buf.toString();
+s == "Hello World!";
+s.length == 12;
+
+"äabc:def".substr(1).split(":") == ["abc","def"];
+
+var s1 = "abc";
+var b1 = haxe.io.Bytes.ofString(s1, RawNative);
+var s2 = b1.getString(0, b1.length, RawNative);
+s1 == s2;
+
+var obj:Dynamic = { abc: "ok" };
+var field = "äabc".substr(1);
+Reflect.field(obj, field) == "ok";
+Reflect.hasField(obj, field) == true;
+Reflect.deleteField(obj, field) == true;
+Reflect.deleteField(obj, field) == false;
+Reflect.hasField(obj, field) == false;
+Reflect.field(obj, field) == null;
+
+var obj:Dynamic = { };
+Reflect.setField(obj, field, "still ok");
+Reflect.field(obj, field) == "still ok";
+Reflect.hasField(obj, field) == true;
+Reflect.deleteField(obj, field) == true;
+Reflect.deleteField(obj, field) == false;
+Reflect.hasField(obj, field) == false;
+Reflect.field(obj, field) == null;
+
+// EReg -_-
+
+function test(left:String, middle:String, right:String, ?rex:EReg) {
+	var s = '$left:$middle:$right';
+	if (rex == null) {
+		rex = new EReg(':($middle):', "");
+	}
+	function check(rex:EReg) {
+		eq(rex.matchedLeft(), left);
+		eq(rex.matchedRight(), right);
+		eq(rex.matched(1), middle);
+		var pos = rex.matchedPos();
+		eq(pos.pos, left.length);
+		eq(pos.len, middle.length + 2);
+	}
+
+	t(rex.match(s));
+	check(rex);
+
+	var split = rex.split(s);
+	eq(2, split.length);
+	eq(left, split[0]);
+	eq(right, split[1]);
+
+	eq(rex.replace(s, "a"), '${left}a$right');
+	eq(rex.replace(s, "ä"), '${left}ä$right');
+
+	eq(rex.map(s, r -> {
+		check(r);
+		"a";
+	}), '${left}a$right');
+
+	eq(rex.map(s, r -> {
+		check(r);
+		"ä";
+	}), '${left}ä$right');
+}
+
+test("äb", "ä", "bc");
+test("äb", "a", "bc");
+test("ab", "a", "bc");
+test("ab", "ä", "bc");
+
+test("äb", "äbc", "bc");
+test("äb", "abc", "bc");
+test("ab", "abc", "bc");
+test("ab", "äbc", "bc");
+
+test("あb", "あbc", "bc");
+test("あb", "abc", "bc");
+test("ab", "
