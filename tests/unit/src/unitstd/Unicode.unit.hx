@@ -278,4 +278,33 @@ test("ab", "äbc", "bc");
 
 test("あb", "あbc", "bc");
 test("あb", "abc", "bc");
-test("ab", "
+test("ab", "abc", "bc");
+test("ab", "あbc", "bc");
+
+#if !flash
+// wontfix (cantfix?)
+test("😂b", "😂bc", "bc");
+test("😂b", "abc", "bc");
+test("ab", "abc", "bc");
+test("ab", "😂bc", "bc");
+#end
+
+#if (eval || lua || python)
+// unspecced?
+test("()", "ä", "[]", ~/:(\w):/);
+~/\bx/.match("äx") == false;
+~/x\b/.match("xä") == false;
+#end
+
+test("a", "É", "b", ~/:(é):/i);
+test("a", "é", "b", ~/:(É):/i);
+
+#else
+1 == 1;
+#end
+
+//Border values for surrogate pairs
+"𐀀".code == 65536; //D800,DC00 - U+10000
+"𐏿".code == 66559; //D800,DFFF - U+103FF
+"􏰀".code == 1113088; //DBFF,DC00 - U+10FC00
+"􏿿".code == 1114111; //DBFF,DFFF - U+10FFFF
