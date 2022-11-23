@@ -13,4 +13,26 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHAL
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+// This file is generated from mozilla\SVGMPathElement.webidl. Do not edit!
+
+package js.html.svg;
+
+/**
+	The `SVGMPathElement` interface corresponds to the `mpath` element.
+
+	Documentation [SVGMPathElement](https://developer.mozilla.org/en-US/docs/Web/API/SVGMPathElement) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGMPathElement$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGMPathElement>
+**/
+@:native("SVGMPathElement")
+extern class MPathElement extends Element {
+	var href(default,null) : AnimatedString;
+	
+}
