@@ -9,4 +9,16 @@ class Issue8979 extends unit.Test {
 		d.hello = 'world';
 		var json = Json.stringify(d);
 		eq('{"hello":"world"}', json);
-		eq('
+		eq('world', Json.parse(json).hello);
+	}
+#end
+}
+
+#if cs
+@:struct
+private class DummyStruct {
+	public var hello:String;
+	public function new() {}
+}
+#end
+
