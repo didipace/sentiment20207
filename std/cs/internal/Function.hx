@@ -70,4 +70,10 @@ package cs.internal;
 		var c = cs.Lib.as(obj, Closure);
 		if (c == null)
 			return false;
-		return (c.obj == this.obj &
+		return (c.obj == this.obj && c.field == this.field);
+	}
+
+	public function GetHashCode():Int {
+		return obj.GetHashCode() ^ untyped field.GetHashCode();
+	}
+}
