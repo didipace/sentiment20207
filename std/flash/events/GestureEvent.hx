@@ -18,4 +18,12 @@ package flash.events;
 	private function get_shiftKey() : Bool;
 	private function get_stageX() : Float;
 	private function get_stageY() : Float;
-	priv
+	private function set_altKey(value : Bool) : Bool;
+	private function set_ctrlKey(value : Bool) : Bool;
+	private function set_localX(value : Float) : Float;
+	private function set_localY(value : Float) : Float;
+	private function set_phase(value : String) : String;
+	private function set_shiftKey(value : Bool) : Bool;
+	function updateAfterEvent() : Void;
+	static final GESTURE_TWO_FINGER_TAP : String;
+}
