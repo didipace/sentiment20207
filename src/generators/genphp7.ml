@@ -446,4 +446,109 @@ let rec needs_parenthesis_to_call expr =
 	Check if specified unary operation modifies value in place
 *)
 let is_modifying_unop op =
-	match op w
+	match op with
+		| Increment
+		| Decrement -> true
+		| _ -> false
+
+(**
+	Check if specified binary operation contains assignment
+*)
+let is_assignment_binop op =
+	match op with
+		| OpAssign
+		| OpAssignOp _ -> true
+		| _ -> false
+
+(**
+	Indicates whether `expr` is a field access which should be generated as global namespace function
+*)
+let is_php_global expr =
+	match expr.eexpr with
+		| TField (_, FStatic (c, _)) when (has_class_flag c CExtern) -> c.cl_path = ([],"") || Meta.has Meta.PhpGlobal c.cl_meta
+		| _ -> false
+
+(**
+	Indicates whether `expr` is a field access which should be generated as class constant access
+*)
+let is_php_class_const expr =
+	match expr.eexpr with
+		| TField (_, FStatic (c, { cf_meta = meta; cf_kind = Var _ })) when (has_class_flag c CExtern) ->
+			Meta.has Meta.PhpClassConst meta
+		| _ -> false
+
+(**
+	Check if specified enum constructor has arguments
+*)
+let is_enum_constructor_with_args (constructor:tenum_field) =
+	match follow constructor.ef_type with
+		| TFun _ -> true
+		| _ -> false
+
+(**
+	Check if `target` is 100% guaranteed to be or extend an extern class.
+	Inversion of `sure_extends_extern` does not guarantee `target` does not extend an extern class.
+*)
+let rec sure_extends_extern (target:Type.t) =
+	match follow target with
+		| TInst ({ cl_path = ([], "String") }, _) -> false
+		| TInst (c, _) when (has_class_flag c CExtern) -> true
+		| TInst ({ cl_super = Some (tsuper, params) }, _) -> sure_extends_extern (TInst (tsuper,params))
+		| _ -> false
+
+(**
+	@param path Something like [ "/some/path/first_dir_to_create"; "nested_level1"; "nested_level2" ]
+	@return String representation of created path (E.g. "/some/path/first_dir_to_create/nested_level1/nested_level2")
+*)
+let create_dir_recursive (path:string list) =
+	let rec create dir nested_dirs =
+		let dir = Path.remove_trailing_slash dir in
+		if not (Sys.file_exists dir) then (Unix.mkdir dir 0o755);
+		match nested_dirs with
+			| [] -> dir
+			| next :: rest -> create (dir ^ "/" ^ next) rest
+	in
+	match path with
+		| [] -> "";
+		| root :: rest ->
+			create root rest
+
+(**
+	@return String representation of specified type path. E.g. returns "\example\Test" for (["example"], "Test")
+*)
+let get_full_type_name ?(escape=false) ?(omit_first_slash=false) (type_path:path) =
+	let name =
+		match type_path with
+			| ([], type_name) ->
+				if omit_first_slash then
+					type_name
+				else
+					"\\" ^ type_name
+			| (module_path, type_name) ->
+				let parts =
+					if omit_first_slash then
+						get_real_path module_path
+					else
+						"" :: get_real_path module_path
+				in
+				(String.concat "\\" parts) ^ "\\" ^ type_name
+	in
+	if escape then
+		String.escaped name
+	else
+		name
+
+(**
+	@return Short type name. E.g. returns "Test" for (["example"], "Test")
+*)
+let get_type_name (type_path:path) = snd type_path
+
+(**
+	@return E.g. returns ["example"] for (["example"], "Test")
+*)
+let get_module_path (type_path:path) = fst type_path
+
+(**
+	@return PHP visibility keyword.
+*)
+let get_visibility (meta:metadata) = if Meta.has Meta.Protected meta then "protected" else 
