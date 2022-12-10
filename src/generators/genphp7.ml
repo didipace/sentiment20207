@@ -238,4 +238,111 @@ let add_php_prefix ctx type_path =
 		| (pack, name) -> (ctx.pgc_prefix @ pack, name)
 
 (**
-	If 
+	If `expr` is a TCast or TMeta, then returns underlying expression (recursively bypassing nested casts).
+	Otherwise returns `expr` as is.
+*)
+let rec reveal_expr expr =
+	match expr.eexpr with
+		| TCast (e, _) -> reveal_expr e
+		| TMeta (_, e) -> reveal_expr e
+		| _ -> expr
+
+(**
+	If `expr` is a TCast or TMeta or TParenthesis, then returns underlying expression (recursively bypassing nested casts and parenthesis).
+	Otherwise returns `expr` as is.
+*)
+let rec reveal_expr_with_parenthesis expr =
+	match expr.eexpr with
+		| TCast (e, _) -> reveal_expr_with_parenthesis e
+		| TMeta (_, e) -> reveal_expr_with_parenthesis e
+		| TParenthesis e -> reveal_expr_with_parenthesis e
+		| _ -> expr
+
+(**
+	Get string representation of specified position in Haxe code.
+*)
+let stringify_pos pos = Lexer.get_error_pos (Printf.sprintf "%s:%d:") pos
+
+(**
+	@return Error message with position information
+*)
+let error_message pos message = (stringify_pos pos) ^ ": " ^ message
+
+(**
+	Terminates compiler process and prints user-friendly instructions about filing an issue in compiler repo.
+*)
+let fail ?msg p = Globals.die (Option.default "" msg) ~p
+
+(**
+	Check if `target` is a `Dynamic` type
+*)
+let rec is_dynamic_type (target:Type.t) = match follow target with TDynamic _ -> true | _ -> false
+
+(**
+	Check if `target` is `php.Ref`
+*)
+let is_ref (target:Type.t) = match target with TType ({ t_path = type_path }, _) -> type_path = ref_type_path | _ -> false
+
+(**
+	Check if `field` is a `dynamic function`
+*)
+let rec is_dynamic_method (field:tclass_field) =
+	match field.cf_kind with
+		| Method MethDynamic -> true
+		| _ -> false
+
+(**
+	Check if specified expression is of `Dynamic` type
+*)
+let is_dynamic expr = is_dynamic_type expr.etype
+
+(**
+	Check if specified expression is of `Int` type
+*)
+let is_int expr = match follow expr.etype with TAbstract ({ a_path = ([], "Int") }, _) -> true | _ -> false
+
+(**
+	Check if specified expression is of `Float` type
+*)
+let is_float expr = ExtType.is_float (follow expr.etype)
+
+(**
+	Check if specified expression is of String type
+*)
+let is_string expr = ExtType.is_string (follow expr.etype)
+
+(**
+	Check if specified type is Array
+*)
+let is_array_type t = match follow t with TInst ({ cl_path = ([], "Array") }, _) -> true | _ -> false
+
+(**
+	Check if specified type is haxe.Rest
+*)
+let is_rest_type t = ExtType.is_rest (Type.follow t)
+
+(**
+	Check if specified type represents a function
+*)
+let is_function_type t = match follow t with TFun _ -> true | _ -> false
+
+(**
+	Check if `expr` is an access to a method of special `php.PHP` class
+*)
+let is_syntax_extern expr =
+	match expr.eexpr with
+		| TField ({ eexpr = TTypeExpr (TClassDecl { cl_path = path }) }, _) -> path = syntax_type_path
+		| _ -> false
+
+(**
+	Check if specified type is actually a generic parameter
+*)
+let is_generic_parameter (target:Type.t) =
+	match follow target with
+		| TInst ({ cl_kind = KTypeParameter _ }, _) -> true
+		| _ -> false
+
+(**
+	Check if `target` type cannot be clarified on compilation
+*)
+let is_unknown_type (target:Type.t) = is_dynamic_type target || is_generic_paramet
