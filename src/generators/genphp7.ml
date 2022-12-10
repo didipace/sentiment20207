@@ -345,4 +345,105 @@ let is_generic_parameter (target:Type.t) =
 (**
 	Check if `target` type cannot be clarified on compilation
 *)
-let is_unknown_type (target:Type.t) = is_dynamic_type target || is_generic_paramet
+let is_unknown_type (target:Type.t) = is_dynamic_type target || is_generic_parameter target
+
+(**
+	@return `expr` wrapped in parenthesis
+*)
+let parenthesis expr = {eexpr = TParenthesis expr; etype = expr.etype; epos = expr.epos}
+
+(**
+	Check if `current` binary should be surrounded with parenthesis
+*)
+let need_parenthesis_for_binop current parent =
+	if current = parent && current != OpNotEq && current != OpEq then
+		false
+	else
+		match (current, parent) with
+			| (_, OpAssign) -> false
+			| (_, OpAssignOp _) -> false
+			| (OpAdd, OpSub) -> false
+			| (OpSub, OpAdd) -> false
+			| (OpMult, OpDiv) -> false
+			| (OpDiv, OpMult) -> false
+			| (OpMult, OpAdd) -> false
+			| (OpMult, OpSub) -> false
+			| (OpDiv, OpAdd) -> false
+			| (OpDiv, OpSub) -> false
+			| _ -> true
+
+(**
+	Check if specified expression may require dereferencing if used as "temporary expression"
+*)
+let needs_dereferencing for_assignment expr =
+	let is_create target_expr =
+		match (reveal_expr_with_parenthesis target_expr).eexpr with
+			| TNew _ -> for_assignment
+			| TArrayDecl _ -> for_assignment
+			| TObjectDecl _ -> for_assignment
+			| TConst TNull -> true
+			| TIf _ -> true
+			(* some of `php.Syntax` methods *)
+			| TCall ({ eexpr = TField (_, FStatic ({ cl_path = syntax_type_path }, { cf_name = name })) }, _) ->
+				(match name with
+					| "codeDeref" | "coalesce" | "assocDecl" | "arrayDecl" -> for_assignment
+					| _ -> false
+				)
+			| _ -> false
+	in
+	match (reveal_expr expr).eexpr with
+		| TField (target_expr, _) -> is_create target_expr
+		| TArray (target_expr, _) -> is_create target_expr
+		| _ -> false
+
+(**
+	Check if the value of `expr` needs to be stored to a temporary variable to be
+	reused.
+*)
+let rec needs_temp_var expr =
+	match (reveal_expr_with_parenthesis expr).eexpr with
+		| TConst _ | TLocal _ -> false
+		| TField (target, FInstance _) | TField (target, FStatic _) -> needs_temp_var target
+		| TArray (target, index) -> needs_temp_var target || needs_temp_var index
+		| _ -> true
+
+(**
+	@return (arguments_list, return_type)
+*)
+let get_function_signature (field:tclass_field) : (string * bool * Type.t) list * Type.t =
+	match follow field.cf_type with
+		| TFun (args, return_type) -> (args, return_type)
+		| _ -> fail field.cf_pos __LOC__
+
+(**
+	Check if `target` is 100% guaranteed to be a scalar type in PHP.
+	Inversion of `is_sure_scalar` does not guarantee `target` is not scalar.
+*)
+let is_sure_scalar (target:Type.t) =
+	match follow target with
+		| TInst ({ cl_path = ([], "String") }, _) -> true
+		| TAbstract ({ a_path = ([], ("Int" | "Float" | "Bool"))}, _) -> true
+		| _ -> false
+
+(**
+	Indicates if `expr` has to be wrapped into parentheses to be called.
+*)
+let rec needs_parenthesis_to_call expr =
+	match expr.eexpr with
+		| TParenthesis _ -> false
+		| TCast (e, None)
+		| TMeta (_, e) -> needs_parenthesis_to_call e
+		| TNew _
+		| TObjectDecl _
+		| TArrayDecl _
+		| TField (_, FClosure (_,_))
+		| TField (_, FStatic (_, { cf_kind = Var _ }))
+		| TField (_, FInstance (_, _, { cf_kind = Var _ })) -> true
+		(* | TField (_, FAnon { cf_kind = Var _ }) -> true *) (* Sometimes we get anon access to non-anonymous objects *)
+		| _ -> false
+
+(**
+	Check if specified unary operation modifies value in place
+*)
+let is_modifying_unop op =
+	match op w
