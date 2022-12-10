@@ -45,4 +45,106 @@ let write_resource dir name data =
 	If `dst` exists it will be overwritten.
 *)
 let copy_file src dst =
-	let buffer_size = 
+	let buffer_size = 8192 in
+	let buffer = String.create buffer_size in
+	let fd_in = Unix.openfile src [O_RDONLY] 0 in
+	let fd_out = Unix.openfile dst [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+	let rec copy_loop () =
+		match Unix.read fd_in buffer 0 buffer_size with
+			|  0 -> ()
+			| r -> ignore (Unix.write fd_out buffer 0 r); copy_loop ()
+	in
+	copy_loop ();
+	Unix.close fd_in;
+	Unix.close fd_out
+(**
+	Splits `"path/to/file"` into `["path"; "to"; "file"]`
+*)
+let split_file_path path =
+	if Globals.is_windows then
+		(Str.split (Str.regexp "[/\\]") path)
+	else
+		(Str.split (Str.regexp "/") path)
+
+type used_type = {
+	ut_alias : string;
+	ut_type_path : (string list * string)
+}
+
+type php_generator_context = {
+	pgc_common : Common.context;
+	(** Do not add comments with Haxe positions before each line of generated php code *)
+	pgc_skip_line_directives : bool;
+	(** The value of `-D php-prefix=value` split by dots *)
+	pgc_prefix : string list;
+	(** php.Boot *)
+	pgc_boot : tclass;
+	(** see type_name_used_in_namespace *)
+	pgc_namespaces_types_cache : (string list, string) Hashtbl.t;
+	(**
+		List of anon structures declarations found during generating current php file.
+		The key is a list of fields names.
+		The value is an auto-generated name for the class representing that anon.
+	*)
+	pgc_anons : (string list, string) Hashtbl.t;
+	(** a buffer to write to the bottom of the current php file (but before "Boot::registerClass()" and "::_hx_init()" calls) *)
+	pgc_bottom_buffer : Buffer.t;
+}
+
+(**
+	Reset the state of the context between before a generating a php file.
+*)
+let reset_context ctx =
+	Buffer.clear ctx.pgc_bottom_buffer;
+	Hashtbl.clear ctx.pgc_anons
+
+(**
+	Get list of keys in Hashtbl
+*)
+let hashtbl_keys tbl = Hashtbl.fold (fun key _ lst -> key :: lst) tbl []
+
+(**
+	@return List of items in `list1` which `list2` does not contain
+*)
+let diff_lists list1 list2 = List.filter (fun x -> not (List.mem x list2)) list1
+
+(**
+	@return List of items in `list1` which `list2` does contain too
+*)
+let intersect_lists list1 list2 = List.filter (fun x -> List.mem x list2) list1
+
+(**
+	Type path of `php.Boot`
+*)
+let boot_type_path = (["php"], "Boot")
+(**
+	Type path of the base class for all enums: `php.Boot.HxEnum`
+*)
+let hxenum_type_path = (["php"; "_Boot"], "HxEnum")
+(**
+	Type path of the implementation class for `Class<Dynamic>`
+*)
+let hxclass_type_path = (["php"; "_Boot"], "HxClass")
+(**
+	Type path of the implementation class for `String`
+*)
+let hxstring_type_path = (["php"; "_Boot"], "HxString")
+(**
+	Type path of the special implementation class for `String`
+	which is used when Dynamic value is suspected to be a string
+*)
+let hxdynamicstr_type_path = (["php"; "_Boot"], "HxDynamicStr")
+(**
+	Type path of the implementation class for anonymous objects
+*)
+let hxanon_type_path = (["php"; "_Boot"], "HxAnon")
+(**
+	Type path of the implementation class for closures
+*)
+let hxclosure_type_path = (["php"; "_Boot"], "HxClosure")
+(**
+	Type path for special PHP extern class to support specific language expressions
+*)
+let syntax_type_path = (["php"], "Syntax")
+(**
+	Special 
