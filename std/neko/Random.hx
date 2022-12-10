@@ -20,13 +20,44 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\RTCRtpSender.webidl. Do not edit!
+package neko;
 
-package js.html.rtc;
+/**
+	A seeded pseudo-random generator.
+**/
+class Random {
+	var r:Dynamic;
 
-enum abstract PriorityType(String) {
-	var VERY_LOW = "very-low";
-	var LOW = "low";
-	var MEDIUM = "medium";
-	var HIGH = "high";
+	/**
+		Create a new random with random seed.
+	**/
+	public function new() {
+		r = random_new();
+	}
+
+	/**
+		Set the generator seed.
+	**/
+	public function setSeed(s:Int) {
+		random_set_seed(r, s);
+	}
+
+	/**
+		Return a random integer modulo max.
+	**/
+	public function int(max:Int):Int {
+		return random_int(r, max);
+	}
+
+	/**
+		Return a random float.
+	**/
+	public function float():Float {
+		return random_float(r);
+	}
+
+	static var random_new = Lib.load("std", "random_new", 0);
+	static var random_set_seed = Lib.load("std", "random_set_seed", 2);
+	static var random_int = Lib.load("std", "random_int", 2);
+	static var random_float = Lib.load("std", "random_float", 1);
 }
