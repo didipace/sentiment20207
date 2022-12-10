@@ -147,4 +147,95 @@ let hxclosure_type_path = (["php"; "_Boot"], "HxClosure")
 *)
 let syntax_type_path = (["php"], "Syntax")
 (**
-	Special 
+	Special abstract which enables passing function arguments and return value by reference
+*)
+let ref_type_path = (["php"], "Ref")
+(**
+	Type path of the implementation class for `Array<T>`
+*)
+let array_type_path = ([], "Array")
+(**
+	Type path of the implementation class for `Array<T>`
+*)
+let native_array_type_path = (["php"], "NativeArray")
+(**
+	Type path of the `Void`
+*)
+let void_type_path = ([], "Void")
+(**
+	Type path of the `Bool`
+*)
+let bool_type_path = ([], "Bool")
+(**
+	Type path of the `Std`
+*)
+let std_type_path = ([], "Std")
+
+(**
+	The name of a file with polyfills for some functions which are not available in PHP 7.0
+*)
+let polyfills_file = "_polyfills.php"
+
+let php_keywords_list =
+	["__halt_compiler"; "abstract"; "and"; "array"; "as"; "break"; "callable"; "case"; "catch"; "class";
+	"clone"; "const"; "continue"; "declare"; "default"; "die"; "do"; "echo"; "else"; "elseif"; "empty";
+	"enddeclare"; "endfor"; "endforeach"; "endif"; "endswitch"; "endwhile"; "eval"; "exit"; "extends"; "final";
+	"finally"; "for"; "foreach"; "function"; "global"; "goto"; "if"; "implements"; "include"; "include_once";
+	"instanceof"; "insteadof"; "interface"; "isset"; "list"; "namespace"; "new"; "or"; "print"; "private";
+	"protected"; "public"; "require"; "require_once"; "return"; "static"; "switch"; "throw"; "trait"; "try";
+	"unset"; "use"; "var"; "while"; "xor"; "yield"; "__class__"; "__dir__"; "__file__"; "__function__"; "__line__";
+	"__method__"; "__trait__"; "__namespace__"; "int"; "float"; "bool"; "string"; "true"; "false"; "null"; "parent";
+	"void"; "iterable"; "object"; "fn"]
+
+let php_keywords_tbl = begin
+	let tbl = Hashtbl.create 100 in
+	List.iter (fun kwd -> Hashtbl.add tbl kwd ()) php_keywords_list;
+	tbl
+end
+
+(**
+	Check if specified string is a reserved word in PHP
+*)
+let is_keyword str = Hashtbl.mem php_keywords_tbl (String.lowercase str)
+
+(**
+	Check if specified type is php.NativeArray
+*)
+let is_native_array_type t = match follow t with TAbstract ({ a_path = tp }, _) -> tp = native_array_type_path | _ -> false
+
+(**
+	If `name` is not a reserved word in PHP then `name` is returned as-is.
+	Otherwise this method returns another string, which can be used instead of `name`
+*)
+let get_real_name name = if is_keyword name then name ^ "_hx" else name
+
+(**
+	Returns local variable name free of risk to collide with superglobals like $_SERVER or $_GET
+*)
+let vname name =
+	match name with
+	| "GLOBALS" | "_SERVER" | "_GET" | "_POST" | "_FILES" | "_COOKIE"
+	| "_SESSION" | "_REQUEST" | "_ENV" -> name ^ "_hx_"
+	| _ -> name
+
+(**
+	If `path` contains some reserved in PHP words, they will be replaced with allowed words.
+*)
+let get_real_path path = List.map get_real_name path
+
+(**
+	Resolve real type (bypass abstracts and typedefs)
+*)
+let rec follow = Abstract.follow_with_abstracts
+
+(**
+	Adds packages specified by `-D php-prefix` to `type_path`.
+	E.g. if `-D php-prefix=some.sub` and `type_path` is `(["pack"], "MyClass")`, then this function
+	will return `(["some", "sub", "pack"], "MyClass")`
+*)
+let add_php_prefix ctx type_path =
+	match type_path with
+		| (pack, name) -> (ctx.pgc_prefix @ pack, name)
+
+(**
+	If 
