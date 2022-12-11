@@ -654,4 +654,138 @@ let inject_defaults (ctx:php_generator_context) (func:tfunc) =
 				expr :: (inject rest body_exprs)
 	in
 	let exprs =
-		match f
+		match func.tf_expr.eexpr with
+			| TBlock exprs -> inject func.tf_args exprs
+			| _ -> inject func.tf_args [ func.tf_expr ]
+	in
+	{
+		eexpr = TBlock exprs;
+		etype = follow func.tf_expr.etype;
+		epos  = func.tf_expr.epos;
+	}
+
+(**
+	Check if `expr` is a constant string
+*)
+let is_constant_string expr =
+	match expr.eexpr with
+		| TConst (TString _) -> true
+		| _ -> false
+
+(**
+	Check if `expr` is a constant null
+*)
+let is_constant_null expr =
+	match expr.eexpr with
+		| TConst TNull -> true
+		| _ -> false
+
+(**
+	Check if `expr` is a constant
+*)
+let is_constant expr =
+	match expr.eexpr with
+		| TConst _ -> true
+		| _ -> false
+
+(**
+	Check if `expr` is a constant zero
+*)
+let is_constant_zero expr =
+	try
+		match expr.eexpr with
+			| TConst (TInt i) when i = Int32.zero -> true
+			| TConst (TFloat s) when float_of_string s = 0.0 -> true
+			| _ -> false
+	with _ ->
+		false
+
+(**
+	Check if `expr` is a concatenation
+*)
+let is_concatenation expr =
+	match expr.eexpr with
+		| TBinop (OpAdd, expr1, expr2) -> (is_string expr1) || (is_string expr2)
+		| _ -> false
+
+(**
+	Check if provided expression is a block of expressions
+*)
+let is_block expr = match expr.eexpr with TBlock _ -> true | _ -> false
+
+(**
+	Check if provided expression is a binary operation
+*)
+let is_binop expr = match expr.eexpr with TBinop _ -> true | _ -> false
+
+(**
+	Check if provided expression is an assignment binary operation
+*)
+let is_binop_assign expr =
+	match expr.eexpr with
+		| TBinop ((OpAssign | OpAssignOp _), _, _) -> true
+		| _ -> false
+
+(**
+	Check if specified expression is field access or array access
+*)
+let is_access expr =
+	match expr.eexpr with
+		| TField _ | TArray _ -> true
+		| _ -> false
+
+(**
+	Check if specified field access is an access to the field `Array.arr`
+	It's a private field of the php-specific implementation of Haxe Array.
+*)
+let is_array_arr faccess =
+	match faccess with
+		| FInstance ({ cl_path = [],"Array" }, _, { cf_name = "arr" }) -> true
+		| _ -> false
+
+(**
+	Indicates if `expr` is actually a call to Haxe->PHP magic function
+	@see http://old.haxe.org/doc/advanced/magic#php-magic
+*)
+let is_magic expr =
+	match expr.eexpr with
+	| TCall ({ eexpr = TIdent name}, _) ->
+		(match name with
+			| "__php__" -> true
+			| "__call__" -> true
+			| "__physeq__" -> true
+			| "__var__" -> true
+			| _ -> false
+		)
+	| _ -> false
+
+(**
+	Check if `expr1` and `expr2` can be reliably checked for equality only with `Boot.equal()`
+*)
+let need_boot_equal expr1 expr2 =
+	if is_constant_null expr1 || is_constant_null expr2 then
+		false
+	else
+		let unknown1 = is_unknown_type expr1.etype
+		and unknown2 = is_unknown_type expr2.etype in
+		if unknown1 && unknown2 then
+			true
+		else if is_function_type expr1.etype || is_function_type expr2.etype then
+			true
+		else
+			let int1 = is_int expr1
+			and int2 = is_int expr2
+			and float1 = is_float expr1
+			and float2 = is_float expr2 in
+			(int1 && float2)
+			|| (float1 && (float2 || int2))
+			|| (unknown1 && (int2 || float2))
+			|| ((int1 || float1) && unknown2)
+
+(**
+	Adds `return` expression to block if it does not have one already
+*)
+let ensure_return_in_block block_expr =
+	match block_expr.eexpr with
+		| TBlock [] -> fail block_expr.epos __LOC__
+		| TBlock exprs
