@@ -788,4 +788,102 @@ let need_boot_equal expr1 expr2 =
 let ensure_return_in_block block_expr =
 	match block_expr.eexpr with
 		| TBlock [] -> fail block_expr.epos __LOC__
-		| TBlock exprs
+		| TBlock exprs ->
+			let reversed = List.rev exprs in
+			let last_expr = List.hd reversed in
+			let return_expr = { last_expr with eexpr = TReturn (Some last_expr) } in
+			let reversed = return_expr::(List.tl reversed) in
+			{ block_expr with eexpr = TBlock (List.rev reversed) }
+		| _ -> fail block_expr.epos __LOC__
+
+(**
+	If `expr` is a block, then return list of expressions in that block.
+	Otherwise returns a list with `expr` as a single item.
+*)
+let unpack_block expr =
+		match expr.eexpr with
+			| TBlock exprs -> exprs
+			| _ -> [ expr ]
+
+(**
+	If `expr` is a block of a single expression, then return that single expression.
+	If `expr` is a block with multiple expressions, fail compilation.
+	Otherwise return `expr` as-is.
+*)
+let unpack_single_expr_block expr =
+		match expr.eexpr with
+			| TBlock [ e ] -> e
+			| TBlock _ -> fail expr.epos __LOC__
+			| _ -> expr
+
+(**
+	Check if specified type has rtti meta
+*)
+let has_rtti_meta ctx mtype =
+	match Texpr.build_metadata ctx.basic mtype with
+		| None -> false
+		| Some _ -> true
+
+(**
+	Check if user-defined field has the same name as one of php magic methods, but with not compatible signature.
+*)
+let field_needs_rename field =
+	match field.cf_kind with
+		| Var _ -> false
+		| Method _ ->
+			match field.cf_name with
+				| "__construct" | "__destruct" | "__call" | "__callStatic" | "__get" | "__set" | "__isset"
+				| "__unset" | "__sleep" | "__wakeup" | "__toString" | "__invoke" | "__set_state" | "__clone"
+				| "__debugInfo" -> not (Meta.has Meta.PhpMagic field.cf_meta)
+				| _ -> false
+(**
+	Get valid `field` name.
+*)
+let field_name field =
+	if field_needs_rename field then
+		"__hx__renamed" ^ field.cf_name
+	else
+		field.cf_name
+
+(**
+	Check if `expr` is `Std.is`
+*)
+let is_std_is expr =
+	match expr.eexpr with
+		| TField (_, FStatic ({ cl_path = path }, { cf_name = ("is" | "isOfType") })) -> path = boot_type_path || path = std_type_path
+		| _ -> false
+
+(**
+	Check if provided expression is actually a casting to NativeStructArray
+*)
+let is_native_struct_array_cast expr =
+	match expr.eexpr with
+		| TCall ({ eexpr = TField (_, field) }, _) ->
+			(match field with
+				| FStatic ({ cl_path = (["php"; "_NativeStructArray"], "NativeStructArray_Impl_") }, { cf_name = "__fromObject" }) -> true
+				| _ -> false
+			)
+		| _ -> false
+
+(**
+	Check if `expr` is an anonymous object declaration
+*)
+let is_object_declaration expr =
+	match (reveal_expr expr).eexpr with
+		| TObjectDecl _ -> true
+		| _ -> false
+
+(**
+	Check if `subject_arg` and `type_arg` can be generated as `$subject instanceof Type` expression.
+*)
+let instanceof_compatible (subject_arg:texpr) (type_arg:texpr) : bool =
+	let is_real_class path =
+		match path with
+			| ([], "String") | ([], "Class") | (["php";"_NativeArray"], "NativeArray_Impl_") -> false
+			| _ -> true
+	in
+	match (reveal_expr_with_parenthesis type_arg).eexpr with
+		| TTypeExpr (TClassDecl { cl_path = path }) when is_real_class path ->
+			let subject_arg = reveal_expr_with_parenthesis subject_arg in
+			(match subject_arg.eexpr with
+				| TLocal _ | 
