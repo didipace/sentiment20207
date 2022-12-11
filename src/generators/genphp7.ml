@@ -551,4 +551,107 @@ let get_module_path (type_path:path) = fst type_path
 (**
 	@return PHP visibility keyword.
 *)
-let get_visibility (meta:metadata) = if Meta.has Meta.Protected meta then "protected" else 
+let get_visibility (meta:metadata) = if Meta.has Meta.Protected meta then "protected" else "public"
+
+(**
+	Writes arguments list to output buffer
+*)
+let rec write_args (str_writer:string->unit) arg_writer (args:'a list) =
+	match args with
+		| [] -> ()
+		| [arg] -> arg_writer arg
+		| arg :: rest ->
+			arg_writer arg;
+			str_writer ", ";
+			write_args str_writer arg_writer rest
+
+(**
+	PHP 8 doesn't allow mandatory arguments after optional arguments.
+	This function makes optional arguments mandatory from left to right
+	unless there are no more mandatory arguments left to the end of args list.
+
+	E.g `(a:String = null, b:Int, c:Bool = false)` is changed into `(a:String, b:Int, c:Bool = false)`
+*)
+let fix_optional_args is_optional to_mandatory args =
+	let rec find_last_mandatory args i result =
+		match args with
+		| [] ->
+			result
+		| a :: args ->
+			find_last_mandatory args (i + 1) (if is_optional a then result else i)
+	in
+	let last_mandatory = find_last_mandatory args 0 (-1) in
+	List.mapi (fun i a -> if i <= last_mandatory && is_optional a then to_mandatory a else a ) args
+
+let fix_tfunc_args args =
+	fix_optional_args
+		(fun a -> Option.is_some (snd a))
+		(fun (v,_) -> (v,None))
+		args
+
+let fix_tsignature_args args =
+	fix_optional_args
+		(fun (_,optional,_) -> optional)
+		(fun (name,_,t) -> (name,false,t))
+		args
+
+(**
+	Inserts `null`s if there are missing optional args before empty rest arguments.
+*)
+let fix_call_args callee_type exprs =
+	match follow callee_type with
+	| TFun (args,_) ->
+		(match List.rev args with
+		| (_,_,t) :: args_rev when is_rest_type t && List.length args_rev > List.length exprs ->
+			let rec loop args exprs =
+				match args, exprs with
+				| [], _ | [_], _ -> exprs
+				| (_,_,t) :: args, [] -> (mk (TConst TNull) t null_pos) :: loop args exprs
+				| _ :: args, e :: exprs -> e :: loop args exprs
+			in
+			loop args exprs
+		| _ -> exprs
+		)
+	| _ -> exprs
+
+(**
+	Escapes all "$" chars and encloses `str` into double quotes
+*)
+let quote_string str =
+	"\"" ^ (Str.global_replace (Str.regexp "\\$") "\\$" (String.escaped str)) ^ "\""
+
+(**
+	Check if specified field is a var with non-constant expression
+*)
+let is_var_with_nonconstant_expr (field:tclass_field) =
+	match field.cf_kind with
+		| Var _ ->
+			(match field.cf_expr with
+				| None -> false
+				| Some ({eexpr = TConst _ }) -> false
+				| Some _ -> true
+			)
+		| Method _ -> false
+(**
+	Check if specified field is an `inline var` field.
+*)
+let is_inline_var (field:tclass_field) =
+	match field.cf_kind with
+		| Var { v_read = AccInline; v_write = AccNever } -> true
+		| _ -> false
+
+(**
+	@return New TBlock expression which is composed of setting default values for optional arguments and function body.
+*)
+let inject_defaults (ctx:php_generator_context) (func:tfunc) =
+	let rec inject args body_exprs =
+		match args with
+			| [] -> body_exprs
+			| (_, None) :: rest -> inject rest body_exprs
+			| (_, Some {eexpr = TConst TNull}) :: rest -> inject rest body_exprs
+			| (var, Some const) :: rest ->
+				let expr = Texpr.set_default ctx.pgc_common.basic var const func.tf_expr.epos in
+				expr :: (inject rest body_exprs)
+	in
+	let exprs =
+		match f
