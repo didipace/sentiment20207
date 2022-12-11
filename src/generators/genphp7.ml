@@ -886,4 +886,104 @@ let instanceof_compatible (subject_arg:texpr) (type_arg:texpr) : bool =
 		| TTypeExpr (TClassDecl { cl_path = path }) when is_real_class path ->
 			let subject_arg = reveal_expr_with_parenthesis subject_arg in
 			(match subject_arg.eexpr with
-				| TLocal _ | 
+				| TLocal _ | TField _ | TCall _ | TArray _ | TConst TThis -> not (is_magic subject_arg)
+				| _ -> false
+			)
+		| _ -> false
+
+
+(**
+	PHP DocBlock types
+*)
+type doc_type =
+	| DocVar of string * (string option) (* (type name, description) *)
+	| DocMethod of (string * bool * t) list * t * (string option) (* (arguments, return type, description) *)
+	| DocClass of string option
+
+(**
+	Common interface for module_type instances
+*)
+class virtual type_wrapper (type_path:path) (meta:metadata) (needs_generation:bool) =
+	object (self)
+		(**
+			Indicates if this type should be rendered to corresponding php file
+		*)
+		method needs_generation = needs_generation
+		(**
+			Indicates if class initialization method should be executed upon class loaded
+		*)
+		method virtual needs_initialization : bool
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method virtual get_source_file : string
+		(**
+			Returns `Type.module_type` instance for this type
+		*)
+		method virtual get_module_type : module_type
+		(**
+			Returns expression of a user-defined static __init__ method
+			@see http://old.haxe.org/doc/advanced/magic#initialization-magic
+		*)
+		method get_magic_init : texpr option = None
+		(**
+			Namespace path. E.g. ["some"; "pack"] for "some.pack.MyType"
+		*)
+		method get_namespace = get_module_path type_path
+		(**
+			Short type name. E.g. `SomeType` for `pack.SomeType`
+		*)
+		method get_name = get_type_name type_path
+		(**
+			Full type path
+		*)
+		method get_type_path = type_path
+		(**
+			If current type requires some additional type to be generated
+		*)
+		method get_service_type : module_type option = None
+	end
+
+(**
+	TClassDecl
+*)
+class class_wrapper (cls) =
+	object (self)
+		inherit type_wrapper cls.cl_path cls.cl_meta (not (has_class_flag cls CExtern))
+		(**
+			Indicates if class initialization method should be executed upon class loaded
+		*)
+		method needs_initialization =
+			(* Interfaces may need initialization only for RTTI meta data.
+				But that meta is written in `class_wrapper#write_rtti_meta` *)
+			if (has_class_flag cls CInterface) then
+				false
+			else
+				match cls.cl_init with
+					| Some _ -> true
+					| None ->
+						List.exists
+							(fun field ->
+								(* Skip `inline var` fields *)
+								not (is_inline_var field)
+								&& match field.cf_kind, field.cf_expr with
+									| Var _, Some { eexpr = TConst (TInt value) } -> value = Int32.min_int
+									| Var _, Some { eexpr = TConst _ } -> false
+									| Var _, Some _ -> true
+									| Method MethDynamic, _ -> true
+									| _ -> false
+							)
+							cls.cl_ordered_statics
+		(**
+			Returns expression of a user-defined static __init__ method
+			@see http://old.haxe.org/doc/advanced/magic#initialization-magic
+		*)
+		method get_magic_init = cls.cl_init
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method get_source_file = cls.cl_pos.pfile
+		(**
+			Returns `Type.module_type` instance for this type
+		*)
+		method get_module_type = TClass
