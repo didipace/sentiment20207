@@ -986,4 +986,127 @@ class class_wrapper (cls) =
 		(**
 			Returns `Type.module_type` instance for this type
 		*)
-		method get_module_type = TClass
+		method get_module_type = TClassDecl cls
+		(**
+			If current type requires some additional type to be generated
+		*)
+		method get_service_type : module_type option =
+			if not (has_class_flag cls CExtern) then
+				None
+			else
+				match cls.cl_init with
+					| None -> None
+					| Some body ->
+						let path =
+							match cls.cl_path with
+								| (pack, name) -> (pack, ("_extern_" ^ name))
+						in
+						let additional_cls = {
+							cls with
+								cl_path = path;
+								cl_fields  = PMap.create (fun a b -> 0);
+								cl_statics  = PMap.create (fun a b -> 0);
+								cl_ordered_fields  = [];
+								cl_ordered_statics  = [];
+								cl_constructor = None;
+								cl_init = Some body
+						} in
+						remove_class_flag additional_cls CExtern;
+						Some (TClassDecl additional_cls)
+	end
+
+(**
+	TEnumDecl
+*)
+class enum_wrapper (enm) =
+	object (self)
+		inherit type_wrapper enm.e_path enm.e_meta (not enm.e_extern)
+		(**
+			Indicates if class initialization method should be executed upon class loaded
+		*)
+		method needs_initialization = false
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method get_source_file = enm.e_pos.pfile
+		(**
+			Returns `Type.module_type` instance for this type
+		*)
+		method get_module_type = TEnumDecl enm
+	end
+
+(**
+	TTypeDecl
+*)
+class typedef_wrapper (tdef) =
+	object (self)
+		inherit type_wrapper tdef.t_path tdef.t_meta false
+		(**
+			Indicates if class initialization method should be executed upon class loaded
+		*)
+		method needs_initialization = false
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method get_source_file = tdef.t_pos.pfile
+		(**
+			Returns `Type.module_type` instance for this type
+		*)
+		method get_module_type = TTypeDecl tdef
+	end
+
+(**
+	TAbstractDecl
+*)
+class abstract_wrapper (abstr) =
+	object (self)
+		inherit type_wrapper abstr.a_path abstr.a_meta false
+		(**
+			Indicates if class initialization method should be executed upon class loaded
+		*)
+		method needs_initialization = false
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method get_source_file = abstr.a_pos.pfile
+		(**
+			Returns `Type.module_type` instance for this type
+		*)
+		method get_module_type = TAbstractDecl abstr
+	end
+
+(**
+	type_wrapper from table
+*)
+let get_stored_wrapper tbl wrap key : type_wrapper =
+	try
+		let wrapper = Hashtbl.find tbl key in
+		wrapper
+	with Not_found ->
+		let wrapper = wrap key in
+		Hashtbl.add tbl key wrapper;
+		wrapper
+
+(**
+	type_wrapper for classes
+*)
+let classes = Hashtbl.create 1000
+let get_class_wrapper = get_stored_wrapper classes (fun cls -> new class_wrapper cls)
+
+(**
+	type_wrapper for enums
+*)
+let enums = Hashtbl.create 200
+let get_enum_wrapper = get_stored_wrapper enums (fun enm -> new enum_wrapper enm)
+
+(**
+	type_wrapper for typedefs
+*)
+let typedefs = Hashtbl.create 200
+let get_typedef_wrapper = get_stored_wrapper typedefs (fun typedef -> new typedef_wrapper typedef)
+
+(**
+	type_wrapper for abstracts
+*)
+let abstracts = Hashtbl.create 200
+let get_abstract_wrapper = get_stored_wrapper abstracts (fun abstr
