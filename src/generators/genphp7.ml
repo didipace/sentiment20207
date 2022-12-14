@@ -1109,4 +1109,89 @@ let get_typedef_wrapper = get_stored_wrapper typedefs (fun typedef -> new typede
 	type_wrapper for abstracts
 *)
 let abstracts = Hashtbl.create 200
-let get_abstract_wrapper = get_stored_wrapper abstracts (fun abstr
+let get_abstract_wrapper = get_stored_wrapper abstracts (fun abstr -> new abstract_wrapper abstr)
+
+(**
+	Returns wrapper for module_type.
+	Caches wrappers so that each type will always return the same wrapper instance.
+*)
+let get_wrapper (mtype:module_type) : type_wrapper =
+	match mtype with
+		| TClassDecl cls -> get_class_wrapper cls
+		| TEnumDecl enm -> get_enum_wrapper enm
+		| TTypeDecl typedef -> get_typedef_wrapper typedef
+		| TAbstractDecl abstr -> get_abstract_wrapper abstr
+
+(**
+	Drop cached instances of type_wrapper
+*)
+let clear_wrappers () =
+	Hashtbl.clear classes;
+	Hashtbl.clear enums;
+	Hashtbl.clear typedefs;
+	Hashtbl.clear abstracts
+
+(**
+	Check if specified type name is used in specified namespace
+*)
+let type_name_used_in_namespace ctx type_path as_name namespace =
+	let types =
+		match Hashtbl.find_all ctx.pgc_namespaces_types_cache namespace with
+			| [] ->
+				List.iter
+					(fun ctx_type ->
+						let wrapper = get_wrapper ctx_type in
+						Hashtbl.add ctx.pgc_namespaces_types_cache wrapper#get_namespace (StringHelper.uppercase wrapper#get_name)
+					)
+					ctx.pgc_common.types;
+				Hashtbl.find_all ctx.pgc_namespaces_types_cache namespace
+			| types -> types
+	in
+	List.mem (StringHelper.uppercase as_name) types
+	&& (namespace, as_name) <> type_path
+
+(**
+	Class to simplify collecting lists of declared and used local vars.
+	Collected data is needed to generate closures correctly.
+*)
+class local_vars =
+	object (self)
+		(** Hashtbl to collect local var used in current scope *)
+		val mutable used_locals = [Hashtbl.create 100]
+		(** Hashtbl to collect local vars declared in current scope *)
+		val mutable declared_locals = [Hashtbl.create 100]
+		(** Local vars which were captured in closures (passed via `use` directive in php) *)
+		val captured_locals = Hashtbl.create 0
+		(**
+			Clear collected data
+		*)
+		method clear : unit =
+			used_locals <- [Hashtbl.create 100];
+			declared_locals <- [Hashtbl.create 100];
+			Hashtbl.clear captured_locals
+		(**
+			This method should be called upone entering deeper scope.
+			E.g. right before processing a closure. Just before closure arguments handling.
+		*)
+		method dive : unit =
+			used_locals <- (Hashtbl.create 100) :: used_locals;
+			declared_locals <- (Hashtbl.create 100) :: declared_locals
+		(**
+			This method should be called right after leaving a scope.
+			@return List of vars names used in finished scope, but declared in higher scopes.
+					And list of vars names declared in finished scope.
+					And list of vars names declared in finished scope and captured by closures via `use` directive
+		*)
+		method pop : string list * string list * string list =
+			match used_locals with
+				| [] -> die "" __LOC__
+				| used :: rest_used ->
+					match declared_locals with
+						| [] -> die "" __LOC__
+						| declared :: rest_declared ->
+							let higher_vars = diff_lists (hashtbl_keys used) (hashtbl_keys declared)
+							and declared_vars = hashtbl_keys declared in
+							used_locals <- rest_used;
+							declared_locals <- rest_declared;
+							List.iter self#used higher_vars;
+							let captured_vars
