@@ -1366,4 +1366,97 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 									let used_type = Hashtbl.find use_table !alias_upper in
 									if used_type.ut_type_path = type_path then
 										added := true
-								
+									else
+										prepend_alias (get_alias_next_part ());
+							with
+								| Not_found ->
+									Hashtbl.add use_table !alias_upper { ut_alias = !alias; ut_type_path = type_path; };
+									added := true
+								| _ -> fail self#pos __LOC__
+						done;
+						!alias
+			end
+		(**
+			Extracts type path from Type.t value and execute self#use on it
+			@return Unique alias for specified type.
+		*)
+		method use_t ?(for_doc=false) (t_inst:Type.t) =
+			match follow t_inst with
+				| TEnum (tenum, _) -> self#use tenum.e_path
+				| TInst (tcls, params) ->
+					(match tcls.cl_kind with
+						| KTypeParameter _ -> "mixed"
+						| _ ->
+							(match tcls.cl_path, params with
+								| ([], "String"), _ -> "string"
+								| ([], "Array"), [param] when for_doc -> (self#use_t param) ^ "[]|" ^ (self#use tcls.cl_path)
+								| _ -> self#use ~prefix:(not (has_class_flag tcls CExtern)) tcls.cl_path
+							)
+					)
+				| TFun _ -> self#use ~prefix:false ([], "Closure")
+				| TAnon _ -> "object"
+				| TDynamic _ -> "mixed"
+				| TLazy _ -> fail ~msg:"TLazy not implemented" self#pos __LOC__
+				| TMono mono ->
+					(match mono.tm_type with
+						| None -> "mixed"
+						| Some t -> self#use_t t
+					)
+				| TType _ -> fail ~msg:"TType not implemented" self#pos __LOC__
+				| TAbstract (abstr, _) ->
+					match abstr.a_path with
+						| ([],"Int") -> "int"
+						| ([],"Float") -> "float"
+						| ([],"Bool") -> "bool"
+						| ([],"Void") -> "void"
+						| ([],"Enum") -> "Enum"
+						| ([],"Class") -> "Class"
+						| (["php"],"NativeArray") when for_doc ->
+							(match Type.follow t_inst with
+								| TAbstract ({ a_path = ["php"],"NativeIndexedArray" }, [param]) -> (self#use_t param) ^ "[]"
+								| _ -> "array"
+							)
+						| (["php"],"NativeArray") -> "array"
+						| _ when Meta.has Meta.CoreType abstr.a_meta -> "mixed"
+						| _ -> self#use_t abstr.a_this
+		(**
+			Position of currently generated code in source hx files
+		*)
+		method pos =
+			match expr_hierarchy with
+				| { epos = pos } :: _ -> pos
+				| _ -> null_pos
+		(**
+			Indicates whether current expression nesting level is a top level of a block
+		*)
+		method parent_expr_is_block single_expr_is_not_block =
+			let rec expr_is_block expr parents no_parent_is_block =
+				match expr.eexpr with
+					| TBlock [_] when single_expr_is_not_block ->
+						(match parents with
+							| { eexpr = TBlock _ } :: _ -> true
+							| { eexpr = TFunction _ } :: _ -> true
+							| _ :: _ -> false
+							| [] -> no_parent_is_block
+						)
+					| TBlock _ -> true
+					| TIf (_, if_expr, Some else_expr) ->
+						if (expr_is_block if_expr [] false) || (expr_is_block else_expr [] false) then
+							true
+						else
+							(match parents with
+								| parent :: rest -> expr_is_block parent rest true
+								| [] -> false
+							)
+					| TIf (_, _, None) -> true
+					| TTry _ -> true
+					| TWhile _ -> true
+					| TFor _ -> true
+					| TSwitch _ -> true
+					| _ -> false
+			in
+			match expr_hierarchy with
+				| _ :: parent :: rest -> expr_is_block parent rest true
+				| _ -> false
+		(**
+			Returns paren
