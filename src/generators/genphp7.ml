@@ -1278,4 +1278,92 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 		(**
 			Set sourcemap generator
 		*)
-		method set_s
+		method set_sourcemap_generator generator = sourcemap <- Some generator
+		(**
+			Get sourcemap generator
+		*)
+		method get_sourcemap_generator = sourcemap
+		(**
+			Make this writer skip generation of `super()` expression if spotted.
+		*)
+		method extends_no_constructor = has_super_constructor <- false
+		(**
+			Increase indentation by one level
+		*)
+		method indent_more =
+			indentation <- indentation ^ "\t";
+		(**
+			Decrease indentation by one level
+		*)
+		method indent_less =
+			indentation <- String.make ((String.length indentation) - 1) '\t';
+		(**
+			Set indentation level (starting from zero for no indentation)
+		*)
+		method indent level =
+			indentation <- String.make level '\t';
+		(**
+			Get indentation level (starting from zero for no indentation)
+		*)
+		method get_indentation = String.length indentation
+		(**
+			Set indentation level (starting from zero for no indentation)
+		*)
+		method set_indentation level =
+			indentation <- String.make level '\t'
+		(**
+			Specify local var name declared in current scope
+		*)
+		method declared_local_var name = vars#declared name
+		(**
+			Adds type to "use" section if not added yet.
+			If it's a top-level type then type name returned without adding to "use" section.
+			@return Unique alias for specified type.
+		*)
+		method use ?prefix (type_path:path) =
+			if type_path = hx_type_path then
+				php_name
+			else if get_type_name type_path = "" then
+				match get_module_path type_path with
+				| [] -> "\\"
+				| module_path -> "\\" ^ (String.concat "\\" (get_real_path module_path)) ^ "\\"
+			else begin
+				let orig_type_path = type_path in
+				let type_path = match type_path with (pack, name) -> (pack, get_real_name name) in
+				let type_path =
+					match prefix with
+						| Some false -> type_path
+						| _ -> add_php_prefix ctx type_path
+				in
+				let module_path = get_module_path type_path in
+				match type_path with
+					| ([], type_name) -> "\\" ^ type_name
+					| _ ->
+						let alias_source = ref (List.rev module_path) in
+						let get_alias_next_part () =
+							match !alias_source with
+								| [] ->  fail ~msg:("Failed to find already used type: " ^ get_full_type_name type_path) self#pos __LOC__
+								| name :: rest ->
+									alias_source := (match rest with
+										| [] -> [name]
+										| _ -> rest
+									);
+									StringHelper.capitalize name
+						and added = ref false
+						and alias = ref (get_type_name type_path) in
+						let alias_upper = ref (StringHelper.uppercase !alias) in
+						let prepend_alias prefix =
+							alias := prefix ^ !alias;
+							alias_upper := StringHelper.uppercase !alias
+						in
+						if !alias_upper = (StringHelper.uppercase php_name) then
+							prepend_alias (get_alias_next_part ());
+						while not !added do
+							try
+								if (get_module_path type_path) <> namespace && type_name_used_in_namespace ctx orig_type_path !alias namespace then
+									prepend_alias (get_alias_next_part ())
+								else
+									let used_type = Hashtbl.find use_table !alias_upper in
+									if used_type.ut_type_path = type_path then
+										added := true
+								
