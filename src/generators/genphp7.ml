@@ -1194,4 +1194,88 @@ class local_vars =
 							used_locals <- rest_used;
 							declared_locals <- rest_declared;
 							List.iter self#used higher_vars;
-							let captured_vars
+							let captured_vars = intersect_lists declared_vars (hashtbl_keys captured_locals) in
+							List.iter (fun name -> Hashtbl.remove captured_locals name) declared_vars;
+							(higher_vars, declared_vars, captured_vars)
+		(**
+			This method should be called right after leaving a scope.
+			@return List of vars names used in finished scope, but declared in higher scopes
+		*)
+		method pop_used : string list = match self#pop with (higher_vars, _, _) -> higher_vars
+		(**
+			This method should be called right after leaving a scope.
+			@return List of vars names declared in finished scope
+		*)
+		method pop_declared : string list = match self#pop with (_, declared_vars, _) -> declared_vars
+		(**
+			Get current list of captured variables.
+			After leaving a scope all vars declared in that scope get removed from a list of captured variables.
+		*)
+		method pop_captured : string list = match self#pop with (_, _, captured_vars) -> captured_vars
+		(**
+			Specify local var name declared in current scope
+		*)
+		method declared (name:string) : unit =
+			match declared_locals with
+				| [] -> die "" __LOC__
+				| current :: _ -> Hashtbl.replace current name name
+		(**
+			Specify local var name used in current scope
+		*)
+		method used (name:string) : unit =
+			match used_locals with
+				| [] -> die "" __LOC__
+				| current :: _ -> Hashtbl.replace current name name
+		(**
+			Mark specified vars as captured by closures.
+		*)
+		method captured (var_names:string list) : unit =
+			List.iter (fun name -> Hashtbl.replace captured_locals name name) var_names
+	end
+
+(**
+	Consumes expressions and generates php code to output buffer.
+*)
+class code_writer (ctx:php_generator_context) hx_type_path php_name =
+	object (self)
+		(** Namespace path. E.g. ["some"; "pack"] for "some.pack.MyType" *)
+		val namespace = get_module_path hx_type_path
+		(** List of types for "use" section *)
+		val use_table = Hashtbl.create 50
+		(** Output buffer *)
+		val mutable buffer = Buffer.create 1024
+		(** Intendation used for each line written *)
+		val mutable indentation = ""
+		(** Expressions nesting. E.g. "if(callFn(ident))" will be represented as [ident, callFn, if] *)
+		val mutable expr_hierarchy : texpr list = []
+		(** Object to collect local vars declarations and usage as we iterate through methods' expressions *)
+		val vars = new local_vars
+		(** Sourcemap generator *)
+		val mutable sourcemap : sourcemap_builder option = None
+		(** Indicates if `super()` expressions should be generated if spotted. *)
+		val mutable has_super_constructor = true
+		(** The latest string written to the output buffer via `self#write_pos` method *)
+		val mutable last_written_pos = ""
+		(**
+			Get php name of current type
+		*)
+		method get_name : string = php_name
+		(**
+			Returns generated file contents
+		*)
+		method get_contents = Buffer.contents buffer
+		(**
+			Clears current generated content
+		*)
+		method clear_contents = Buffer.clear buffer
+		(**
+			Reset current state (expr hierarchy, indentation, local vars)
+		*)
+		method reset =
+			vars#clear;
+			self#indent 0;
+			expr_hierarchy <- []
+		(**
+			Set sourcemap generator
+		*)
+		method set_s
