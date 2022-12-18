@@ -1560,4 +1560,89 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 			Buffer.add_string buffer str;
 			Option.may (fun smap -> smap#insert (SMStr str)) sourcemap;
 		(**
-			W
+			Writes specified string to output buffer without affecting sourcemap generator
+		*)
+		method write_bypassing_sourcemap str =
+			Buffer.add_string buffer str;
+		(**
+			Writes constant double-quoted string to output buffer
+		*)
+		method write_const_string str =
+			self#write ("\"" ^ (escape_bin str) ^ "\"")
+		(**
+			Writes fixed amount of empty lines (E.g. between methods)
+		*)
+		method write_empty_lines =
+			self#write "\n"
+		(**
+			Writes current indentation to output buffer
+		*)
+		method write_indentation =
+			self#write indentation
+		(**
+			Writes current indentation followed by `str` to output buffer
+		*)
+		method write_with_indentation str =
+			self#write indentation;
+			self#write str
+		(**
+			Writes specified line to output buffer and appends \n
+		*)
+		method write_line line =
+			self#write (indentation ^ line ^ "\n")
+		(**
+			Writes specified statement to output buffer and appends ";\n"
+		*)
+		method write_statement statement =
+			self#write (indentation ^ statement ^ ";\n")
+		(**
+			Build "use" statements
+		*)
+		method write_use =
+			self#indent 0;
+			let write _ used_type =
+				let namespace =
+					if hx_type_path = ([],"") then namespace (* ([],"") is for index.php *)
+					else ctx.pgc_prefix @ namespace
+				in
+				if (get_module_path used_type.ut_type_path) <> namespace then
+					if get_type_name used_type.ut_type_path = used_type.ut_alias then
+						self#write_statement ("use " ^ (get_full_type_name used_type.ut_type_path))
+					else
+						let full_name = get_full_type_name used_type.ut_type_path in
+						self#write_statement ("use " ^ full_name ^ " as " ^ used_type.ut_alias)
+			in
+			Hashtbl.iter write use_table
+		(**
+			Writes array item declaration to output buffer and appends ",\n"
+			Adds indentation and ",\n" if `separate_line` is `true`.
+		*)
+		method write_array_item ?separate_line ?key value_expr =
+			let separate_line = match separate_line with Some true -> true | _ -> false in
+			if separate_line then self#write_indentation;
+			(match key with
+				| None ->
+					self#write_expr value_expr;
+				| Some key_str ->
+					self#write ((quote_string key_str) ^ " => ");
+					self#write_expr value_expr
+			);
+			if separate_line then self#write ",\n"
+		(**
+			Writes expression to output buffer
+		*)
+		method write_expr (expr:texpr) =
+			expr_hierarchy <- expr :: expr_hierarchy;
+			Option.may (fun smap -> smap#insert (SMPos expr.epos)) sourcemap;
+			(match expr.eexpr with
+				| TConst const -> self#write_expr_const const
+				| TLocal var ->
+					vars#used (vname var.v_name);
+					self#write ("$" ^ (vname var.v_name))
+				| TArray (target, index) -> self#write_expr_array_access target index
+				| TBinop (OpAssign, { eexpr = TArray (target, index) }, value) when is_array_type target.etype ->
+					self#write_expr_set_array_item target index value
+				| TBinop (operation, expr1, expr2) when needs_dereferencing (is_assignment_binop operation) expr1 ->
+					self#write_expr { expr with eexpr = TBinop (operation, self#dereference expr1, expr2) }
+				| TBinop (operation, expr1, expr2) -> self#write_expr_binop operation expr1 expr2
+				| TField ({ eexpr = TArra
