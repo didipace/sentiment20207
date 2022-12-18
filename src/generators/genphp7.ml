@@ -1793,4 +1793,107 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				write_index "[" "]"
 			in
 			match follow target.etype with
-				| TInst
+				| TInst ({ cl_path = path }, _) when path = array_type_path ->
+					if self#is_in_write_context then
+						write_normal_access()
+					else
+						write_fast_access()
+				| _ ->
+					write_normal_access ()
+		(**
+			Writes TVar to output buffer
+		*)
+		method write_expr_var var expr =
+			vars#declared (vname var.v_name);
+			self#write ("$" ^ (vname var.v_name) ^ " = ");
+			match expr with
+				| None -> self#write "null"
+				| Some expr -> self#write_expr expr
+		(**
+			Writes TFunction to output buffer
+		*)
+		method write_expr_function func =
+			self#write_closure_declaration func self#write_function_arg
+		(**
+			Writes closure declaration to output buffer
+		*)
+		method write_closure_declaration func write_arg =
+			vars#dive;
+			self#write "function (";
+			write_args self#write write_arg (fix_tfunc_args func.tf_args);
+			self#write ")";
+			(* Generate closure body to separate buffer *)
+			let original_buffer = buffer in
+			let sm_pointer_before_body = get_sourcemap_pointer sourcemap in
+			buffer <- Buffer.create 256;
+			self#write_expr (inject_defaults ctx func);
+			let body = Buffer.contents buffer in
+			buffer <- original_buffer;
+			set_sourcemap_pointer sourcemap sm_pointer_before_body;
+			(* Capture local vars used in closures *)
+			let used_vars = vars#pop_used in
+			vars#captured used_vars;
+			self#write " ";
+			if List.length used_vars > 0 then begin
+				self#write "use (";
+				write_args self#write (fun name -> self#write ("&$" ^ name)) used_vars;
+				self#write ") "
+			end;
+			self#write_bypassing_sourcemap body;
+			Option.may (fun smap -> smap#fast_forward) sourcemap
+		(**
+			Writes TBlock to output buffer
+		*)
+		method write_expr_block block_expr =
+			(* Check if parent expr could not contain blocks in PHP, and this block needs to be wrapped in a closure. *)
+			let needs_closure = match self#parent_expr with
+				| None -> false
+				| Some e ->
+					match e.eexpr with
+						| TIf (_, _, _) -> false
+						| TWhile (_, _, _) -> false
+						| TTry (_, _) -> false
+						| TFor (_, _, _) -> false
+						| TFunction _ -> false
+						| TBlock _ -> false
+						| TSwitch (_, _, _) -> false
+						| _ -> true
+			in
+			if needs_closure then
+				begin
+					self#write "(";
+					self#write_expr {
+						block_expr with eexpr = TFunction {
+							tf_args = [];
+							tf_type = block_expr.etype;
+							tf_expr = ensure_return_in_block block_expr;
+						}
+					};
+					self#write ")()"
+				end
+			else
+				begin
+					let inline_block = self#parent_expr_is_block false in
+					self#write_as_block ~inline:inline_block block_expr
+				end
+		(**
+			Emulates TBlock for parent expression and writes `expr` as inlined block
+		*)
+		method write_fake_block expr =
+			match expr.eexpr with
+				| TBlock [] -> ()
+				| _ ->
+					self#write_indentation;
+					let fake_block = { expr with eexpr = TBlock [expr] } in
+					expr_hierarchy <- fake_block :: expr_hierarchy;
+					self#write_as_block ~inline:true expr;
+					expr_hierarchy <- List.tl expr_hierarchy
+		(**
+			Write position of specified expression to output buffer
+		*)
+		method write_pos expr =
+			let pos = ("#" ^ (stringify_pos expr.epos) ^ "\n") in
+			if pos = last_written_pos then
+				false
+			else begin
+				last_writte
