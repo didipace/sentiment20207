@@ -2188,4 +2188,87 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 					write_method ((self#use boot_type_path) ^ "::shiftRightUnsigned")
 				| OpGt | OpGte | OpLt | OpLte ->
 					compare (" " ^ (Ast.s_binop operation) ^ " ")
-				| OpDiv when is_constant_zero (reveal_expr_w
+				| OpDiv when is_constant_zero (reveal_expr_with_parenthesis expr2) ->
+					write_method ((self#use boot_type_path) ^ "::divByZero")
+				| _ ->
+					write_binop (" " ^ (Ast.s_binop operation) ^ " ")
+		(**
+			Writes TUnOp to output buffer
+		*)
+		method write_expr_unop operation flag expr =
+			match flag with
+				| Prefix ->
+					self#write (Ast.s_unop operation);
+					self#write_expr expr
+				| Postfix ->
+					self#write_expr expr;
+					self#write (Ast.s_unop operation)
+
+		method private write_expr_for_field_access expr access_str field_str =
+			let access_str = ref access_str in
+			(match (reveal_expr expr).eexpr with
+				| TNew _
+				| TArrayDecl _
+				| TObjectDecl _ -> self#write_expr (parenthesis expr)
+				| TConst TSuper ->
+					self#write "parent";
+					access_str := "::"
+				| _ -> self#write_expr expr
+			);
+			self#write (!access_str ^ field_str)
+		(**
+			Writes TField to output buffer
+		*)
+		method write_expr_field expr access =
+			match access with
+				| FInstance ({ cl_path = [], "String"}, _, { cf_name = "length"; cf_kind = Var _ }) ->
+					self#write "mb_strlen(";
+					self#write_expr expr;
+					self#write ")"
+				| FInstance (_, _, field) -> self#write_expr_for_field_access expr "->" (field_name field)
+				| FStatic (_, ({ cf_kind = Var _ } as field)) ->
+					(match (reveal_expr expr).eexpr with
+						| TTypeExpr _ -> self#write_expr_for_field_access expr "::" ("$" ^ (field_name field))
+						| _ -> self#write_expr_for_field_access expr "->" (field_name field)
+					)
+				| FStatic (_, ({ cf_kind = Method MethDynamic } as field)) ->
+					(match self#parent_expr with
+						| Some { eexpr = TCall ({ eexpr = TField (e, a) }, _) } when a == access ->
+							self#write "(";
+							self#write_expr_for_field_access expr "::" ("$" ^ (field_name field));
+							self#write ")"
+						| _ ->
+							self#write_expr_for_field_access expr "::" ("$" ^ (field_name field))
+					)
+				| FStatic (_, ({ cf_kind = Method _ } as field)) -> self#write_expr_field_static expr field
+				| FAnon field ->
+					let written_as_probable_string = self#write_expr_field_if_string expr (field_name field) in
+					if not written_as_probable_string then self#write_expr_for_field_access expr "->" (field_name field)
+				| FDynamic field_name -> self#write_expr_field_dynamic expr field_name
+				| FClosure (tcls, field) -> self#write_expr_field_closure tcls field expr
+				| FEnum (_, field) ->
+					self#write_expr_field_enum expr field
+		(**
+			Generate EField for enum constructor.
+		*)
+		method write_expr_field_enum expr field =
+			let write_field () =
+				self#write_expr expr;
+				let access_operator =
+					match (reveal_expr expr).eexpr with
+						| TTypeExpr _ -> "::"
+						| _ -> "->"
+				in
+				self#write (access_operator ^ field.ef_name)
+			in
+			if is_enum_constructor_with_args field then
+				match self#parent_expr with
+					(* Invoking this enum field *)
+					| Some { eexpr = TCall ({ eexpr = TField (target_expr, FEnum (_, target_field)) }, _) } when target_expr == expr && target_field == field ->
+						write_field ()
+					(* Passing this enum field somewhere *)
+					| _ ->
+						self#write_static_method_closure expr field.ef_name
+			else
+				begin
+		
