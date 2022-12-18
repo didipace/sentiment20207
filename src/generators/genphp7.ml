@@ -1645,4 +1645,49 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				| TBinop (operation, expr1, expr2) when needs_dereferencing (is_assignment_binop operation) expr1 ->
 					self#write_expr { expr with eexpr = TBinop (operation, self#dereference expr1, expr2) }
 				| TBinop (operation, expr1, expr2) -> self#write_expr_binop operation expr1 expr2
-				| TField ({ eexpr = TArra
+				| TField ({ eexpr = TArrayDecl exprs }, faccess) when is_array_arr faccess && not self#current_expr_is_for_ref ->
+					self#write_native_array_decl exprs
+				| TField (fexpr, access) when is_php_global expr -> self#write_expr_php_global expr
+				| TField (fexpr, access) when is_php_class_const expr -> self#write_expr_php_class_const expr
+				| TField (fexpr, access) when needs_dereferencing (self#is_in_write_context) expr -> self#write_expr (self#dereference expr)
+				| TField (fexpr, access) -> self#write_expr_field fexpr access
+				| TTypeExpr mtype -> self#write_expr_type mtype
+				| TParenthesis expr ->
+					self#write "(";
+					self#write_expr expr;
+					self#write ")"
+				| TObjectDecl fields -> self#write_expr_object_declaration fields
+				| TArrayDecl exprs -> self#write_expr_array_decl exprs
+				| TCall (target, [arg1; arg2]) when is_std_is target -> self#write_expr_std_is target arg1 arg2
+				| TCall (_, [arg]) when is_native_struct_array_cast expr && is_object_declaration arg ->
+					(match (reveal_expr arg).eexpr with TObjectDecl fields -> self#write_assoc_array_decl fields | _ -> fail self#pos __LOC__)
+				| TCall ({ eexpr = TIdent name}, args) when is_magic expr -> self#write_expr_magic name args
+				| TCall ({ eexpr = TField (expr, access) }, args) when is_string expr -> self#write_expr_call_string expr access args
+				| TCall (expr, args) when is_syntax_extern expr -> self#write_expr_call_syntax_extern expr args
+				| TCall (target, args) -> self#write_expr_call target args
+				| TNew (_, _, args) when is_string expr -> write_args self#write self#write_expr args
+				| TNew (tcls, _, args) -> self#write_expr_new tcls args
+				| TUnop (operation, flag, target_expr) when needs_dereferencing (is_modifying_unop operation) target_expr ->
+					self#write_expr { expr with eexpr = TUnop (operation, flag, self#dereference target_expr) }
+				| TUnop (operation, flag, expr) -> self#write_expr_unop operation flag expr
+				| TFunction fn -> self#write_expr_function fn
+				| TVar (var, expr) -> self#write_expr_var var expr
+				| TBlock exprs -> self#write_expr_block expr
+				| TFor (var, iterator, body) -> fail self#pos __LOC__
+				| TIf (condition, if_expr, else_expr) -> self#write_expr_if condition if_expr else_expr
+				| TWhile (condition, expr, do_while) ->
+					(match (reveal_expr_with_parenthesis condition).eexpr with
+						| TField (_, FStatic ({ cl_path = path }, { cf_name = "foreachCondition" })) when path = syntax_type_path  ->
+							self#write_expr_syntax_foreach expr
+						| _ ->
+							self#write_expr_while condition expr do_while
+					)
+				| TSwitch (switch, cases, default ) -> self#write_expr_switch switch cases default
+				| TTry (try_expr, catches) -> self#write_expr_try_catch try_expr catches
+				| TReturn expr -> self#write_expr_return expr
+				| TBreak -> self#write "break"
+				| TContinue -> self#write "continue"
+				| TThrow expr -> self#write_expr_throw expr
+				| TCast (expr, mtype) -> self#write_expr_cast expr mtype
+				| TMeta (_, expr) -> self#write_expr expr
+				| TEnumParameter (expr, constructor, index) -> self#write_expr_enum_parameter expr con
