@@ -1896,4 +1896,107 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 			if pos = last_written_pos then
 				false
 			else begin
-				last_writte
+				last_written_pos <- pos;
+				self#write pos;
+				true
+			end
+		(**
+			Writes "{ <expressions> }" to output buffer
+		*)
+		method write_as_block ?inline ?unset_locals expr =
+			let unset_locals = match unset_locals with Some true -> true | _ -> false
+			and exprs = match expr.eexpr with TBlock exprs -> exprs | _ -> [expr] in
+			let write_body () =
+				let write_expr expr =
+					if not ctx.pgc_skip_line_directives && not (is_block expr) && expr.epos <> null_pos then
+						if self#write_pos expr then self#write_indentation;
+					match expr.eexpr with
+						| TBlock _ ->
+							self#write_as_block ~inline:true expr
+						| _ ->
+							self#write_expr expr;
+							match expr.eexpr with
+								| TBlock _ | TIf _ | TTry _ | TSwitch _ | TWhile (_, _, NormalWhile) -> self#write "\n"
+								| _ -> self#write ";\n"
+				in
+				let write_expr_with_indent expr =
+					self#write_indentation;
+					write_expr expr
+				in
+				let write_exprs () =
+					match exprs with
+						| [] -> ()
+						| first :: rest ->
+							write_expr first; (* write first expression without indentation in case of block inlining *)
+							List.iter write_expr_with_indent rest
+				in
+				if unset_locals then
+					begin
+						let original_buffer = buffer in
+						let sm_pointer_before_body = get_sourcemap_pointer sourcemap in
+						buffer <- Buffer.create 256;
+						vars#dive;
+						write_exprs();
+						let body = Buffer.contents buffer in
+						buffer <- original_buffer;
+						set_sourcemap_pointer sourcemap sm_pointer_before_body;
+						let locals = vars#pop_captured in
+						if List.length locals > 0 then begin
+							self#write ("unset($" ^ (String.concat ", $" locals) ^ ");\n");
+							self#write_indentation
+						end;
+						self#write_bypassing_sourcemap body;
+						Option.may (fun smap -> smap#fast_forward) sourcemap
+					end
+				else
+					write_exprs()
+			in
+			match inline with
+				| Some true -> write_body ()
+				| _ ->
+					self#write "{\n";
+					self#indent_more;
+					(match exprs with
+						| [] -> ()
+						| _ ->
+							self#write_indentation; (* indentation for the first expression in block *)
+							write_body ()
+					);
+					self#indent_less;
+					self#write_with_indentation "}"
+		(**
+			Writes TReturn to output buffer
+		*)
+		method write_expr_return expr =
+			match expr with
+				| None -> self#write "return";
+				| Some expr ->
+					self#write "return ";
+					self#write_expr expr
+		(**
+			Writes TThrow to output buffer
+		*)
+		method write_expr_throw expr =
+			self#write "throw ";
+			self#write_expr expr
+		(**
+			Writes try...catch to output buffer
+		*)
+		method write_expr_try_catch try_expr catches =
+			self#write "try ";
+			self#write_as_block try_expr;
+			let rec traverse = function
+				| [] -> ()
+				| (v,body) :: rest ->
+					self#write (" catch(" ^ (self#use_t v.v_type) ^ " $" ^ (vname v.v_name) ^ ") ");
+					vars#declared (vname v.v_name);
+					self#write_as_block body;
+					traverse rest
+			in
+			traverse catches
+		(**
+			Writes TCast to output buffer
+		*)
+		method write_expr_cast expr (mtype:module_type option) =
+			match mtype with
+			
