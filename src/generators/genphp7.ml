@@ -2095,4 +2095,97 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				if ((is_constant expr) && not (is_constant_null expr))
 					|| (is_concatenation expr)
 					|| is_php_global expr
-					|| i
+					|| is_php_class_const expr
+				then
+					self#write_expr expr
+				else
+					match (reveal_expr expr).eexpr with
+					| TConst TNull -> self#write "'null'"
+					| TBinop _ | TUnop _ -> self#write_expr (parenthesis expr)
+					| TParenthesis { eexpr = (TBinop _ | TUnop _) }
+					| TCall ({ eexpr = TField (_, FStatic ({ cl_path = ([],"Std") }, { cf_name = "string" })) }, [_]) ->
+						self#write_expr expr
+					| _ ->
+						self#write "(";
+						self#write_expr expr;
+						self#write "??'null')"
+			and write_binop ?writer ?right_writer str =
+				let write_left = match writer with None -> self#write_expr | Some writer -> writer in
+				let write_right = match right_writer with None -> write_left | Some writer -> writer
+				and need_parenthesis =
+					match self#parent_expr with
+						| Some { eexpr = TBinop (parent, _, _) } -> need_parenthesis_for_binop operation parent
+						| _ -> false
+				in
+				if need_parenthesis then self#write "(";
+				write_left expr1;
+				self#write str;
+				write_right expr2;
+				if need_parenthesis then self#write ")"
+			and compare_strings op =
+				write_method "strcmp";
+				self#write (op ^ "0")
+			in
+			let compare op =
+				if is_string expr1 && is_string expr2 then
+						compare_strings op
+					else
+						write_binop op
+			in
+			match operation with
+				| OpAdd ->
+					if (is_string expr1) || (is_string expr2) then
+						write_binop ~writer:write_for_concat " . "
+					else if (is_unknown_type expr1.etype) && (is_unknown_type expr2.etype) then
+						write_method ((self#use boot_type_path) ^ "::addOrConcat")
+					else
+						write_binop " + "
+				| OpEq ->
+					if need_boot_equal expr1 expr2 then
+						write_method ((self#use boot_type_path) ^ "::equal")
+					else
+						write_binop " === "
+				| OpNotEq ->
+					if need_boot_equal expr1 expr2 then
+						begin
+							self#write "!";
+							write_method ((self#use boot_type_path) ^ "::equal")
+						end
+					else
+						write_binop " !== "
+				| OpMod ->
+					if is_int expr1 && is_int expr2 then
+						write_binop " % "
+					else
+						write_method "fmod"
+				| OpUShr -> write_method ((self#use boot_type_path) ^ "::shiftRightUnsigned")
+				| OpAssignOp OpAdd ->
+					if (is_string expr1) then
+						begin
+							self#write_expr expr1;
+							self#write " = ";
+							write_binop ~writer:write_for_concat " . "
+						end
+					else if (is_unknown_type expr1.etype) && (is_unknown_type expr2.etype) then
+						begin
+							self#write_expr expr1;
+							self#write " = ";
+							write_method ((self#use boot_type_path) ^ "::addOrConcat")
+						end
+					else
+						write_binop " += "
+				| OpAssignOp OpMod ->
+					if is_int expr1 && is_int expr2 then
+						write_binop " %= "
+					else begin
+						self#write_expr expr1;
+						self#write " = ";
+						write_method "fmod"
+					end
+				| OpAssignOp OpUShr ->
+					self#write_expr expr1;
+					self#write " = ";
+					write_method ((self#use boot_type_path) ^ "::shiftRightUnsigned")
+				| OpGt | OpGte | OpLt | OpLte ->
+					compare (" " ^ (Ast.s_binop operation) ^ " ")
+				| OpDiv when is_constant_zero (reveal_expr_w
