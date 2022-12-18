@@ -1690,4 +1690,107 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				| TThrow expr -> self#write_expr_throw expr
 				| TCast (expr, mtype) -> self#write_expr_cast expr mtype
 				| TMeta (_, expr) -> self#write_expr expr
-				| TEnumParameter (expr, constructor, index) -> self#write_expr_enum_parameter expr con
+				| TEnumParameter (expr, constructor, index) -> self#write_expr_enum_parameter expr constructor index
+				| TEnumIndex expr -> self#write_expr_enum_index expr
+				| TIdent s -> self#write s
+			);
+			expr_hierarchy <- List.tl expr_hierarchy
+		(**
+			Writes TConst to output buffer
+		*)
+		method write_expr_const const =
+			match const with
+				| TFloat str -> self#write str
+				| TString str -> self#write_const_string str
+				| TBool value -> self#write (if value then "true" else "false")
+				| TNull -> self#write "null"
+				| TThis -> self#write "$this"
+				| TSuper -> self#write "parent"
+				| TInt value ->
+					(* See https://github.com/HaxeFoundation/haxe/issues/5289 *)
+					if value = Int32.min_int then
+						self#write "((int)-2147483648)"
+					else
+						self#write (Int32.to_string value)
+		(**
+			Writes TArrayDecl to output buffer
+		*)
+		method write_expr_array_decl exprs =
+			match exprs with
+				| [] ->
+					let decl () = self#write ("new " ^ (self#use array_type_path) ^ "()") in
+					(* Wrap into parentheses if trying to access items of empty array declaration *)
+					(match self#parent_expr with
+						| Some { eexpr = TArray _ } ->
+							self#write "(";
+							decl();
+							self#write ")"
+						| _ ->
+							decl()
+					)
+				| _ ->
+					self#write ((self#use array_type_path) ^ "::wrap(");
+					self#write_native_array_decl exprs;
+					self#write ")"
+		(**
+			Writes native array declaration to output buffer
+		*)
+		method write_native_array_decl exprs =
+			match exprs with
+				| [] ->
+					self#write "[]";
+				| [expr] ->
+					self#write "[";
+					self#write_expr expr;
+					self#write "]"
+				| _ ->
+					self#write "[\n";
+					self#indent_more;
+					List.iter (fun expr -> self#write_array_item ~separate_line:true expr) exprs;
+					self#indent_less;
+					self#write_with_indentation "]"
+		(**
+			Write associative array declaration
+		*)
+		method write_assoc_array_decl fields =
+			match fields with
+				| [] -> self#write "[]"
+				| [((key, _, _), value)] ->
+					self#write "[";
+					self#write_array_item ~key:key value;
+					self#write "]"
+				| _ ->
+					self#write "[\n";
+					self#indent_more;
+					let write_field ((key,_,_), value) = self#write_array_item ~separate_line:true ~key:key value in
+					List.iter write_field fields;
+					self#indent_less;
+					self#write_with_indentation "]"
+		(**
+			Writes `target[index] = value` assuming `target` is of `Array` type
+		*)
+		method write_expr_set_array_item target index value =
+			self#write_expr target;
+			self#write "->offsetSet(";
+			write_args self#write self#write_expr [index; value];
+			self#write ")"
+		(**
+			Writes TArray to output buffer
+		*)
+		method write_expr_array_access target index =
+			let write_index left_bracket right_bracket =
+				self#write left_bracket;
+				self#write_expr index;
+				self#write right_bracket
+			in
+			let write_fast_access () =
+				self#write "(";
+				self#write_expr target;
+				self#write "->arr";
+				write_index "[" "] ?? null)"
+			and write_normal_access () =
+				self#write_expr target;
+				write_index "[" "]"
+			in
+			match follow target.etype with
+				| TInst
