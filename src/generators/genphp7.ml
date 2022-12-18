@@ -1999,4 +1999,100 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 		*)
 		method write_expr_cast expr (mtype:module_type option) =
 			match mtype with
-			
+				| None -> self#write_expr expr
+				| Some mtype ->
+					self#write ((self#use boot_type_path) ^ "::typedCast(");
+					self#write_expr_type mtype;
+					self#write ", ";
+					self#write_expr expr;
+					self#write ")"
+		(**
+			Write Haxe->PHP magic function call
+			@see http://old.haxe.org/doc/advanced/magic#php-magic
+		*)
+		method write_expr_magic name args =
+			let msg = "untyped " ^ name ^ " is deprecated. Use php.Syntax instead." in
+			DeprecationCheck.warn_deprecation ctx.pgc_common msg self#pos;
+			let error = ("Invalid arguments for " ^ name ^ " magic call") in
+			match args with
+				| [] -> fail ~msg:error self#pos __LOC__
+				| { eexpr = TConst (TString code) } as expr :: args ->
+					(match name with
+						| "__php__" ->
+							(match expr.eexpr with
+								| TConst (TString php) ->
+									Codegen.interpolate_code ctx.pgc_common php args self#write self#write_expr self#pos
+								| _ -> fail self#pos __LOC__
+							)
+						| "__call__" ->
+							self#write (code ^ "(");
+							write_args self#write self#write_expr args;
+							self#write ")"
+						| "__physeq__" ->
+							(match args with
+								| [expr2] -> self#write_expr_binop OpEq expr expr2
+								| _ -> fail ~msg:error self#pos __LOC__
+							)
+						| "__var__" ->
+							(match args with
+								| [] ->
+									self#write ("$" ^ code)
+								| [expr2] ->
+									self#write ("$" ^ code ^ "[");
+									self#write_expr expr2;
+									self#write "]"
+								| _ -> fail ~msg:error self#pos __LOC__
+							)
+						| _ -> fail ~msg:error self#pos __LOC__
+					)
+				| [expr1; expr2] ->
+					(match name with
+						| "__physeq__" ->
+							(match args with
+								| [expr1; expr2] -> self#write_expr_binop OpEq expr1 expr2
+								| _ -> fail ~msg:error self#pos __LOC__
+							)
+						| _ -> fail ~msg:error self#pos __LOC__
+					)
+				| _ -> fail ~msg:error self#pos __LOC__
+		(**
+			Writes TTypeExpr to output buffer
+		*)
+		method write_expr_type (mtype:module_type) =
+			let ttype = type_of_module_type mtype in
+			match self#parent_expr with
+				(* When type is used to access type fields. E.g. `TypeExpr.someField` *)
+				| Some { eexpr = TField (_, FStatic _) }
+				| Some { eexpr = TField (_, FEnum _) } ->
+					self#write (self#use_t ttype)
+				(* Other cases *)
+				| _ ->
+					let class_name =
+						match self#use_t ttype with
+							| "int" -> "'Int'"
+							| "float" -> "'Float'"
+							| "bool" -> "'Bool'"
+							| "string" -> "'String'"
+							| "array" -> "'array'"
+							| "mixed" -> "'Dynamic'"
+							| "Enum" -> "'Enum'"
+							| "Class" -> "'Class'"
+							| name -> name ^ "::class"
+					in
+					self#write ((self#use boot_type_path) ^ "::getClass(" ^ class_name ^ ")")
+		(**
+			Writes binary operation to output buffer
+		*)
+		method write_expr_binop operation expr1 expr2 =
+			let write_method method_name =
+				self#write (method_name ^ "(");
+				self#write_expr expr1;
+				self#write ", ";
+				self#write_expr expr2;
+				self#write ")"
+			in
+			let write_for_concat expr =
+				if ((is_constant expr) && not (is_constant_null expr))
+					|| (is_concatenation expr)
+					|| is_php_global expr
+					|| i
