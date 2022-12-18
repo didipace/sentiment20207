@@ -1459,4 +1459,105 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				| _ :: parent :: rest -> expr_is_block parent rest true
 				| _ -> false
 		(**
-			Returns paren
+			Returns parent expression  (bypasses casts and metas)
+		*)
+		method parent_expr =
+			let rec traverse expr parents =
+				match expr.eexpr with
+					| TCast (_, None)
+					| TMeta _ ->
+						(match parents with
+							| parent :: rest -> traverse parent rest
+							| [] -> None
+						)
+					| _ -> Some expr
+			in
+			match expr_hierarchy with
+				| _ :: parent :: rest -> traverse parent rest
+				| _ -> None
+		(**
+			Indicates if parent expression is a call (bypasses casts and metas)
+		*)
+		method parent_expr_is_call =
+			match self#parent_expr with
+				| Some { eexpr = TCall _ } -> true
+				| _ -> false
+		(**
+			Indicates if current expression is passed to `php.Ref<T>`
+		*)
+		method current_expr_is_for_ref =
+			match expr_hierarchy with
+				| [] -> false
+				| current :: _ ->
+					match self#parent_expr with
+						| Some { eexpr = TCall (target, params) } when current != (reveal_expr target) ->
+							(match follow target.etype with
+								| TFun (args,_) ->
+									let rec check args params =
+										match args, params with
+										| (_, _, t) :: _, param :: _ when current == (reveal_expr param) ->
+											is_ref t
+										| _, [] | [], _ ->
+											false
+										| _ :: args, _ :: params ->
+											check args params
+									in
+									check args params
+								| _ -> false
+							)
+						| _ -> false
+		(**
+			Check if currently generated expression is located in a left part of assignment.
+		*)
+		method is_in_write_context =
+			let is_in_ref_arg current types args =
+				try List.exists2 (fun (_,_,t) arg -> arg == current && is_ref t) types args
+				with Invalid_argument _ -> false
+			in
+			let rec traverse current parents =
+				match parents with
+					| { eexpr = TBinop(OpAssign, left_expr, _) } :: _
+					| { eexpr = TBinop(OpAssignOp _, left_expr, _) } :: _ -> left_expr == current
+					| { eexpr = TUnop(op, _, _) } :: _ -> is_modifying_unop op
+					| { eexpr = TCall({ etype = TFun(types,_) }, args) } :: _ when is_in_ref_arg current types args -> true
+					| [] -> false
+					| parent :: rest -> traverse parent rest
+			in
+			match expr_hierarchy with
+				| current :: parents -> traverse current parents
+				| _ -> false
+		(**
+			Add a function call to "dereference" part of expression to avoid "Cannot use temporary expression in write context"
+			erro in expressions like:
+			```
+			new MyClass().fieldName = 'value';
+			```
+		*)
+		method dereference expr =
+			let deref expr =
+				{ expr with eexpr = TCall (
+					{ expr with eexpr = TField (
+						{ expr with eexpr = TTypeExpr (TClassDecl ctx.pgc_boot) },
+						FStatic (ctx.pgc_boot, PMap.find "deref" ctx.pgc_boot.cl_statics)
+					) },
+					[ expr ]
+				) }
+			in
+			match expr.eexpr with
+				| TField (target_expr, access) ->
+					{
+						expr with eexpr = TField (deref target_expr, access)
+					}
+				| TArray (target_expr, access_expr) ->
+					{
+						expr with eexpr = TArray (deref target_expr, access_expr)
+					}
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes specified string to output buffer
+		*)
+		method write str =
+			Buffer.add_string buffer str;
+			Option.may (fun smap -> smap#insert (SMStr str)) sourcemap;
+		(**
+			W
