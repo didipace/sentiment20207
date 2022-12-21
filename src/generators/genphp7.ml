@@ -2362,4 +2362,82 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 						self#write (class_name ^ "::$" ^ (field_name field) ^ "'");
 					| _ ->
 						self#write_expr expr;
-	
+						self#write ("->" ^ (field_name field))
+			else
+				let new_closure = ((self#use boot_type_path) ^ "::getInstanceClosure") in
+				match expr.eexpr with
+					| TTypeExpr mtype ->
+						let class_name = self#use_t (type_of_module_type mtype) in
+						self#write (new_closure ^ "(" ^ class_name ^ "::class, '" ^ (field_name field) ^ "')");
+					| _ ->
+						(match follow expr.etype with
+							| TInst ({ cl_path = ([], "String") }, []) ->
+								self#write ("(new " ^ (self#use hxdynamicstr_type_path) ^ "(");
+								self#write_expr expr;
+								self#write ("))->" ^ (field_name field))
+							| _ ->
+								self#write (new_closure ^ "(");
+								self#write_expr expr;
+								self#write (", '" ^ (field_name field) ^ "')")
+						);
+		(**
+			Write anonymous object declaration to output buffer
+		*)
+		method write_expr_object_declaration fields =
+			match fields with
+				| [] -> self#write ("new " ^ (self#use hxanon_type_path) ^ "()")
+				| _ ->
+					self#write ("new " ^ (self#use hxanon_type_path)  ^ "(");
+					self#write_assoc_array_decl fields;
+					self#write ")"
+		(**
+			Writes specified type to output buffer depending on type of expression.
+		*)
+		method write_type type_expr =
+			match type_expr.eexpr with
+				| TTypeExpr (TClassDecl tcls) ->
+					self#write (self#use_t (TInst (tcls, [])))
+				| _ ->
+					if is_string (reveal_expr type_expr) then
+						self#write_expr type_expr
+					else begin
+						self#write "(";
+						self#write_expr type_expr;
+						self#write "->phpClassName)";
+					end
+		(**
+			Write language specific expression declared in `php.Syntax` extern
+		*)
+		method write_expr_call_syntax_extern expr args =
+			let name = match expr.eexpr with
+				| TField (_, FStatic (_, field)) -> field_name field
+				| _ -> fail self#pos __LOC__
+			in
+			match name with
+				| "code" | "codeDeref" -> self#write_expr_syntax_code args
+				| "coalesce" -> self#write_expr_syntax_coalesce args
+				| "instanceof" -> self#write_expr_syntax_instanceof args
+				| "nativeClassName" -> self#write_expr_syntax_native_class_name args
+				| "construct" -> self#write_expr_syntax_construct args
+				| "field" | "getField" -> self#write_expr_syntax_get_field args
+				| "setField" -> self#write_expr_syntax_set_field args
+				| "getStaticField" -> self#write_expr_syntax_get_static_field args
+				| "setStaticField" -> self#write_expr_syntax_set_static_field args
+				| "call" -> self#write_expr_syntax_call args
+				| "staticCall" -> self#write_expr_syntax_static_call args
+				| "arrayDecl" -> self#write_expr_syntax_array_decl args
+				| "assocDecl" -> self#write_expr_syntax_assoc_decl args
+				| "suppress" -> self#write_expr_syntax_suppress args
+				| "keepVar" -> ()
+				| _ -> ctx.pgc_common.error ("php.Syntax." ^ name ^ "() is not supported.") self#pos
+		(**
+			Writes plain php code (for `php.Syntax.code()`)
+		*)
+		method write_expr_syntax_code args =
+			match args with
+				| [] -> fail self#pos __LOC__
+				| { eexpr = TConst (TString php) } :: args ->
+					let args = List.map
+						(fun arg ->
+							match (reveal_expr arg).eexpr with
+							
