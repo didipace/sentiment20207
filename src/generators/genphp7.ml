@@ -2440,4 +2440,102 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 					let args = List.map
 						(fun arg ->
 							match (reveal_expr arg).eexpr with
-							
+								| TBinop _ | TUnop _ -> parenthesis arg
+								| _ -> arg
+						)
+						args
+					in
+					Codegen.interpolate_code ctx.pgc_common php args self#write self#write_expr self#pos
+				| _ -> ctx.pgc_common.error "First argument of php.Syntax.code() must be a constant string." self#pos
+		(**
+			Writes error suppression operator (for `php.Syntax.suppress()`)
+		*)
+		method write_expr_syntax_suppress args =
+			match args with
+				| [ args_expr ] ->
+					self#write "@";
+					self#write_expr args_expr
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes native array declaration (for `php.Syntax.arrayDecl()`)
+		*)
+		method write_expr_syntax_array_decl args =
+			self#write "[";
+			write_args self#write (fun e -> self#write_expr e) args;
+			self#write "]"
+		(**
+			Writes native array declaration (for `php.Syntax.arrayDecl()`)
+		*)
+		method write_expr_syntax_assoc_decl args =
+			match args with
+				| [] -> self#write_assoc_array_decl []
+				| { eexpr = TObjectDecl fields } :: [] -> self#write_assoc_array_decl fields
+				| _ -> ctx.pgc_common.error "php.Syntax.assocDecl() accepts object declaration only." self#pos
+		(**
+			Writes `e` to be used as a field access.
+			If `e` is a constant string, writes the constant without quotes.
+			Otherwise writes `{e}`
+		*)
+		method write_syntax_field_expr field_expr =
+			match reveal_expr field_expr with
+				| { eexpr = TConst (TString method_name) } ->
+					self#write method_name
+				| _ ->
+					self#write "{";
+					self#write_expr field_expr;
+					self#write "}"
+		(**
+			Writes a call to instance method (for `php.Syntax.call()`)
+		*)
+		method write_expr_syntax_call args =
+			match args with
+				| obj_expr :: method_expr :: args ->
+					self#write_expr obj_expr;
+					self#write "->";
+					self#write_syntax_field_expr method_expr;
+					self#write "(";
+					write_args self#write (fun e -> self#write_expr e) args;
+					self#write ")"
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes a call to a static method (for `php.Syntax.staticCall()`)
+		*)
+		method write_expr_syntax_static_call args =
+			match args with
+				| type_expr :: method_expr :: args ->
+					self#write_type type_expr;
+					self#write "::";
+					self#write_syntax_field_expr method_expr;
+					self#write "(";
+					write_args self#write (fun e -> self#write_expr e) args;
+					self#write ")"
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes field access for reading (for `php.Syntax.getField()`)
+		*)
+		method write_expr_syntax_get_field args =
+			match args with
+				| obj_expr :: field_expr :: [] ->
+					self#write_expr obj_expr;
+					self#write "->";
+					self#write_syntax_field_expr field_expr;
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes field access for writing (for `php.Syntax.setField()`)
+		*)
+		method write_expr_syntax_set_field args =
+			match args with
+				| obj_expr :: field_expr :: value_expr :: [] ->
+					self#write_expr obj_expr;
+					self#write "->{";
+					self#write_expr field_expr;
+					self#write "}";
+					self#write " = ";
+					self#write_expr value_expr
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes static field access for reading (for `php.Syntax.getStaticField()`)
+		*)
+		method write_expr_syntax_get_static_field args =
+			match args with
+				| ty
