@@ -2271,4 +2271,95 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 						self#write_static_method_closure expr field.ef_name
 			else
 				begin
-		
+					write_field ();
+					self#write "()"
+				end
+		(**
+			Writes field access on Dynamic expression to output buffer.
+			Returns `true` if requested field is most likely belongs to String (and field resolution will be handled at runtime).
+			Otherwise returns `false`
+		*)
+		method write_expr_field_if_string expr field_name =
+			(* Special case for String fields *)
+			match field_name with
+				| "length"
+				| "toUpperCase"
+				| "toLowerCase"
+				| "charAt"
+				| "indexOf"
+				| "lastIndexOf"
+				| "split"
+				| "toString"
+				| "substring"
+				| "substr"
+				| "charCodeAt" ->
+					self#write ((self#use hxdynamicstr_type_path) ^ "::wrap(");
+					self#write_expr expr;
+					self#write (")->" ^ field_name);
+					true
+				| _ ->
+					false
+		(**
+			Convert field access expressions for strings to native PHP string functions and write to output buffer
+		*)
+		method write_expr_call_string expr access args =
+			match access with
+				| FInstance (_, _, ({ cf_kind = Method _ } as field))
+				| FClosure (_, ({ cf_kind = Method _ } as field)) ->
+					self#write ((self#use hxstring_type_path) ^ "::" ^ (field_name field) ^ "(");
+					write_args self#write self#write_expr (fix_call_args field.cf_type (expr :: args));
+					self#write ")"
+				| _ ->
+					let msg =
+						"Unexpected field access " ^ (s_field_access (s_type (print_context())) access)
+					in
+					fail ~msg self#pos __LOC__
+		(**
+			Writes FStatic field access for methods to output buffer
+		*)
+		method write_expr_field_static expr field =
+			let write_expr () =
+				match expr.eexpr with
+					| TTypeExpr (TClassDecl { cl_path = ([], "String") }) -> self#write (self#use hxstring_type_path)
+					| _ -> self#write_expr expr
+			and operator =
+				match (reveal_expr expr).eexpr with
+					| TTypeExpr (TClassDecl ({ cl_path = (_,"") } as c)) when (has_class_flag c CExtern) -> ""
+					| TTypeExpr _ -> "::"
+					| _ -> "->"
+			in
+			match self#parent_expr with
+				| Some { eexpr = TCall ({ eexpr = TField (e, FStatic (_, f)) }, _) } when e == expr && f == field ->
+					write_expr ();
+					self#write (operator ^ (field_name field))
+				| _ ->
+					self#write_static_method_closure expr field.cf_name
+		(**
+			Generates a closure of a static method. `expr` should contain a `HxClass` instance or a string name of a class.
+		*)
+		method write_static_method_closure expr field_name =
+			let expr = reveal_expr expr in
+			self#write ((self#use boot_type_path) ^ "::getStaticClosure(");
+			(match (reveal_expr expr).eexpr with
+				| TTypeExpr (TClassDecl { cl_path = ([], "String") }) ->
+					self#write ((self#use hxstring_type_path) ^ "::class")
+				| TTypeExpr _ ->
+					self#write_expr expr;
+					self#write "::class"
+				| _ ->
+					self#write_expr expr;
+					self#write "->phpClassName"
+			);
+			self#write (", '" ^ field_name ^ "')")
+		(**
+			Writes FClosure field access to output buffer
+		*)
+		method write_expr_field_closure tcls field expr =
+			if is_dynamic_method field then
+				match expr.eexpr with
+					| TTypeExpr mtype ->
+						let class_name = self#use_t (type_of_module_type mtype) in
+						self#write (class_name ^ "::$" ^ (field_name field) ^ "'");
+					| _ ->
+						self#write_expr expr;
+	
