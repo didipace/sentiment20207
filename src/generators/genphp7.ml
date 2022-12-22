@@ -2630,4 +2630,101 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 						match collection.eexpr with
 							| TLocal _ | TField _ | TArray _ -> false
 							| _ -> true
-			
+					in
+					self#write "foreach (";
+					if add_parentheses then self#write "(";
+					self#write_expr collection;
+					if add_parentheses then self#write ")";
+					self#write (" as $" ^ (vname key.v_name) ^ " => $" ^ (vname value.v_name) ^ ") ");
+					self#write_as_block ~unset_locals:true { body with eexpr = TBlock body_exprs };
+				| _ ->
+					fail self#pos __LOC__
+		(**
+			Writes TCall to output buffer
+		*)
+		method write_expr_call target_expr args =
+			let no_call = ref false in
+			(match reveal_expr target_expr with
+				| { eexpr = TConst TSuper } ->
+					no_call := not has_super_constructor;
+					if not !no_call then self#write "parent::__construct"
+				| e when needs_parenthesis_to_call e ->
+					self#write_expr (parenthesis e)
+				| e ->
+					self#write_expr e
+			);
+			if not !no_call then
+				begin
+					self#write "(";
+					write_args self#write self#write_expr (fix_call_args target_expr.etype args);
+					self#write ")"
+				end
+		(**
+			Writes `Std.isOfType(value, type)` to output buffer
+		*)
+		method write_expr_std_is target_expr value_expr type_expr =
+			if instanceof_compatible value_expr type_expr then
+				self#write_expr_syntax_instanceof [value_expr; type_expr]
+			else
+				let no_optimisation() =
+					self#write_expr_call target_expr [value_expr; type_expr]
+				in
+				match (reveal_expr type_expr).eexpr with
+					| TTypeExpr mtype ->
+						let t = follow (type_of_module_type mtype) in
+						if ExtType.is_string t then
+							begin
+								self#write "is_string(";
+								self#write_expr value_expr;
+								self#write ")"
+							end
+						else if ExtType.is_bool t then
+							begin
+								self#write "is_bool(";
+								self#write_expr value_expr;
+								self#write ")"
+							end
+						else if ExtType.is_float t && not (needs_temp_var value_expr) then
+							begin
+								self#write "(is_float(";
+								self#write_expr value_expr;
+								self#write ") || is_int(";
+								self#write_expr value_expr;
+								self#write "))"
+							end
+						else
+							no_optimisation()
+					| _ ->
+						no_optimisation()
+
+		(**
+			Writes a name of a function or a constant from global php namespace
+		*)
+		method write_expr_php_global target_expr =
+			match target_expr.eexpr with
+				| TField (_, FStatic (_, field)) ->
+					let name = field_name field in
+					if namespace <> [] && not (is_keyword name) then self#write "\\";
+					self#write name
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes access to PHP class constant
+		*)
+		method write_expr_php_class_const target_expr =
+			match target_expr.eexpr with
+				| TField (_, FStatic (ecls, field)) ->
+					self#write ((self#use_t (TInst (ecls, []))) ^ "::" ^ (field_name field))
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes TNew to output buffer
+		*)
+		method write_expr_new inst_class args =
+			let needs_php_prefix = not (has_class_flag inst_class CExtern) in
+			self#write ("new " ^ (self#use ~prefix:needs_php_prefix inst_class.cl_path) ^ "(");
+			let args =
+				match inst_class.cl_constructor with
+				| Some field -> fix_call_args field.cf_type args
+				| None -> args
+			in
+			write_args self#write self#write_expr args;
+			se
