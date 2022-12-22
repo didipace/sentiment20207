@@ -2727,4 +2727,114 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 				| None -> args
 			in
 			write_args self#write self#write_expr args;
-			se
+			self#write ")"
+		(**
+			Writes ternary operator expressions to output buffer
+		*)
+		method write_expr_ternary condition if_expr (else_expr:texpr) pos =
+			let if_expr = unpack_single_expr_block if_expr
+			and else_expr = unpack_single_expr_block else_expr in
+			self#write "(";
+			(match condition.eexpr with
+				| TParenthesis expr -> self#write_expr expr;
+				| _ -> self#write_expr else_expr
+			);
+			self#write " ? ";
+			self#write_expr if_expr;
+			self#write " : ";
+			self#write_expr else_expr;
+			self#write ")"
+		(**
+			Writes "if...else..." expression to output buffer
+		*)
+		method write_expr_if condition if_expr (else_expr:texpr option) =
+			let is_ternary =
+				if self#parent_expr_is_block true then
+					false
+				else
+					match (if_expr.eexpr, else_expr) with
+						| (TBlock exprs, _)  when (List.length exprs) > 1 -> false
+						| (_, Some { eexpr=TBlock exprs }) when (List.length exprs) > 1 -> false
+						| (_, None) -> false
+						| _ -> true
+			in
+			if is_ternary then
+				match else_expr with
+					| None -> fail self#pos __LOC__
+					| Some expr ->
+						self#write_expr_ternary condition if_expr expr self#pos
+			else begin
+				self#write "if ";
+				self#write_expr condition;
+				self#write " ";
+				self#write_as_block if_expr;
+				(match else_expr with
+					| None -> ()
+					| Some expr ->
+						self#write " else ";
+						match expr.eexpr with
+							| TIf _ -> self#write_expr expr
+							| _ -> self#write_as_block expr
+				)
+			end
+		(**
+			Writes TWhile ("while..." or "do...while") to output buffer
+		*)
+		method write_expr_while condition expr do_while =
+			match do_while with
+				| NormalWhile ->
+					self#write "while ";
+					self#write_expr condition;
+					self#write " ";
+					self#write_as_block ~unset_locals:true expr
+				| DoWhile ->
+					self#write "do ";
+					self#write_as_block ~unset_locals:true expr;
+					self#write " while ";
+					self#write_expr condition
+		(**
+			Writes TSwitch to output buffer
+		*)
+		method write_expr_switch switch cases default =
+			let write_switch =
+				match switch.eexpr with
+					| TLocal _ ->
+						(fun () -> self#write_expr switch)
+					| TParenthesis ({ eexpr = TLocal _ } as e) ->
+						(fun () -> self#write_expr e)
+					| _ ->
+						self#write "$__hx__switch = ";
+						self#write_expr switch;
+						self#write ";\n";
+						self#write_indentation;
+						(fun () -> self#write "$__hx__switch")
+			in
+			let rec write_conditions conditions =
+				match conditions with
+					| [] -> ()
+					| condition :: rest ->
+						if need_boot_equal switch condition then
+							begin
+								self#write ((self#use boot_type_path) ^ "::equal(");
+								write_switch ();
+								self#write ", ";
+								self#write_expr condition;
+								self#write ")"
+							end
+						else
+							begin
+								write_switch ();
+								self#write " === ";
+								self#write_expr condition;
+							end;
+						match rest with
+							| [] -> ()
+							| _ ->
+								self#write " || ";
+								write_conditions rest
+			in
+			let rec write_cases cases =
+				match cases with
+					| [] -> ()
+					| (conditions, expr) :: rest ->
+						self#write "if (";
