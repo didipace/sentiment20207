@@ -2538,4 +2538,96 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 		*)
 		method write_expr_syntax_get_static_field args =
 			match args with
-				| ty
+				| type_expr :: field_expr :: [] ->
+					self#write_type type_expr;
+					self#write "::${";
+					self#write_expr field_expr;
+					self#write "}"
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes static field access for writing (for `php.Syntax.setField()`)
+		*)
+		method write_expr_syntax_set_static_field args =
+			match args with
+				| type_expr :: field_expr :: value_expr :: [] ->
+					self#write_expr type_expr;
+					self#write "::${";
+					self#write_expr field_expr;
+					self#write "}";
+					self#write " = ";
+					self#write_expr value_expr
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes `new` expression with class name taken local variable (for `php.Syntax.construct()`)
+		*)
+		method write_expr_syntax_construct args =
+			let (class_expr, args) = match args with
+				| class_expr :: args -> (class_expr, args)
+				| _ -> fail self#pos __LOC__
+			in
+			self#write "new ";
+			self#write_expr class_expr;
+			(match follow class_expr.etype with
+				| TInst ({ cl_path = ([], "String") }, _) -> ()
+				| _ -> self#write "->phpClassName"
+			);
+			self#write "(";
+			write_args self#write (fun e -> self#write_expr e) args;
+			self#write ")"
+		(**
+			Writes `$left ?? $right` expression to output buffer (for `php.Syntax.coalesce()`)
+		*)
+		method write_expr_syntax_coalesce args =
+			match args with
+				| left :: right :: [] ->
+					self#write "(";
+					self#write_expr left;
+					self#write " ?? ";
+					self#write_expr right;
+					self#write ")";
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes `instanceof` expression to output buffer (for `php.Syntax.instanceof()`)
+		*)
+		method write_expr_syntax_instanceof args =
+			match args with
+				| val_expr :: type_expr :: [] ->
+					self#write "(";
+					self#write_expr val_expr;
+					self#write " instanceof ";
+					(match (reveal_expr type_expr).eexpr with
+						| TTypeExpr (TClassDecl tcls) ->
+							self#write (self#use_t (TInst (tcls, [])))
+						| _ ->
+							self#write_expr type_expr;
+							if not (is_string type_expr) then self#write "->phpClassName"
+					);
+					self#write ")"
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes either a "Cls::class" expression (if class is passed directly) or a `$cls->phpClassName` expression
+			(if class is passed as a variable) to output buffer (for `php.Syntax.nativeClassName()`)
+		*)
+		method write_expr_syntax_native_class_name args =
+			match args with
+				| cls_expr :: [] ->
+					(match (reveal_expr cls_expr).eexpr with
+						| TTypeExpr mtype ->
+							self#write (self#use_t (type_of_module_type mtype));
+							self#write "::class"
+						| _ ->
+							self#write_expr cls_expr;
+							self#write "->phpClassName"
+					);
+				| _ -> fail self#pos __LOC__
+		(**
+			Writes `foreach` expression to output buffer (for `php.Syntax.foreach()`)
+		*)
+		method write_expr_syntax_foreach body =
+			match body.eexpr with
+				| TBlock ({ eexpr = TCall (_, [collection]) } :: { eexpr = TVar (key, _) } :: { eexpr = TVar (value, _) } :: _ :: body_exprs) ->
+					let add_parentheses =
+						match collection.eexpr with
+							| TLocal _ | TField _ | TArray _ -> false
+							| _ -> true
+			
