@@ -2838,3 +2838,97 @@ class code_writer (ctx:php_generator_context) hx_type_path php_name =
 					| [] -> ()
 					| (conditions, expr) :: rest ->
 						self#write "if (";
+						write_conditions conditions;
+						self#write ") ";
+						self#write_as_block expr;
+						match rest with
+							| [] -> ()
+							| _ ->
+								self#write " else ";
+								write_cases rest
+			in
+			write_cases cases;
+			match default with
+				| None -> ()
+				| Some expr ->
+					self#write " else ";
+					self#write_as_block expr;
+		(**
+			Write TEnumParameter expression to output buffer
+		*)
+		method write_expr_enum_parameter expr constructor index =
+			(match expr.eexpr with
+				| TConst TNull -> self#write "(null)"
+				| _ -> self#write_expr expr
+			);
+			self#write ("->params[" ^ (string_of_int index) ^ "]")
+		(**
+			Write TEnumIndex expression to output buffer
+		*)
+		method write_expr_enum_index expr =
+			(match expr.eexpr with
+				| TConst TNull -> self#write "(null)"
+				| _ -> self#write_expr expr
+			);
+			self#write "->index"
+		(**
+			Writes argument for function declarations or calls
+		*)
+		method write_arg with_optionals (arg_name, optional, (arg_type:Type.t)) =
+			let rest = if is_rest_type arg_type then "..." else ""
+			and opt = if with_optionals && optional then " = null" else "" in
+			self#write (rest ^ "$" ^ arg_name ^ opt);
+		(**
+			Writes argument with optional value for function declarations
+		*)
+		method write_function_arg arg =
+			match arg with
+				| ({ v_name = arg_name; v_type = arg_type }, default_value) ->
+					vars#declared (vname arg_name);
+					if is_rest_type arg_type then self#write "...";
+					if is_ref arg_type then self#write "&";
+					self#write ("$" ^ (vname arg_name));
+					match default_value with
+						| None -> ()
+						| Some expr ->
+							self#write " = ";
+							match expr.eexpr with
+								| TConst _ -> self#write_expr expr
+								| _ -> self#write "null"
+		(**
+			Write an access to a field of dynamic value
+		*)
+		method private write_expr_field_dynamic expr field_name =
+			let write_direct_access () =
+				let written_as_probable_string = self#write_expr_field_if_string expr field_name in
+				if not written_as_probable_string then self#write_expr_for_field_access expr "->" field_name
+			in
+			let write_wrapped_access () =
+				self#write ((self#use boot_type_path) ^ "::dynamicField(");
+				self#write_expr expr;
+				self#write (", '" ^ field_name ^ "')");
+			in
+			let check_and_write checked_expr =
+				match (reveal_expr checked_expr).eexpr with
+					| TField (target, _) when target == expr -> write_direct_access()
+					| _ -> write_wrapped_access()
+			in
+			match self#parent_expr with
+				| Some { eexpr = TCall (callee, _) } -> check_and_write callee
+				| Some { eexpr = TUnop (op, _, target) } when is_modifying_unop op -> check_and_write target
+				| Some { eexpr = TBinop (op, left, _) } when is_assignment_binop op -> check_and_write left
+				| _ -> write_wrapped_access()
+	end
+
+(**
+	Base class for type builders
+*)
+class virtual type_builder ctx (wrapper:type_wrapper) =
+	object (self)
+		(** PHP code writer *)
+		val writer = new code_writer ctx wrapper#get_type_path (get_real_name wrapper#get_name)
+		(** This is required to make wrapper accessible by extending classes *)
+		val wrapper = wrapper
+		(** This is required to make conext accessible by extending classes *)
+		val ctx = ctx
+		(** Ca
