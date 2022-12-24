@@ -2931,4 +2931,94 @@ class virtual type_builder ctx (wrapper:type_wrapper) =
 		val wrapper = wrapper
 		(** This is required to make conext accessible by extending classes *)
 		val ctx = ctx
-		(** Ca
+		(** Cache for generated conent *)
+		val mutable contents = ""
+		(**
+			Get PHP namespace path
+		*)
+		method get_namespace =
+			match ctx.pgc_prefix with
+				| [] -> get_real_path wrapper#get_namespace
+				| prefix -> get_real_path (prefix @ wrapper#get_namespace)
+		(**
+			Get type name
+		*)
+		method get_name : string = writer#get_name
+		(**
+			Get full type path
+		*)
+		method get_type_path : path =
+			match wrapper#get_type_path with
+				| (path, name) -> (get_real_path path, get_real_name name)
+		(**
+			Returns hx source file name where this type was declared
+		*)
+		method get_source_file : string = wrapper#get_source_file
+		(**
+			Get amount of arguments of a parent method.
+			Returns (mandatory_args_count * total_args_count)
+			Returns `None` if no such parent method exists.
+		*)
+		method private get_parent_method_args_count name is_static : (int * int) option = None
+		(**
+			Writes type declaration line to output buffer.
+			E.g. "class SomeClass extends Another implements IFace"
+		*)
+		method virtual private write_declaration : unit
+		(**
+			Writes type body to output buffer.
+			E.g. for "class SomeClass { <BODY> }" writes <BODY> part.
+		*)
+		method virtual private write_body : unit
+		(**
+			Writes expressions for `__hx__init` method
+		*)
+		method virtual private write_hx_init_body : unit
+		(**
+			Writes additional initialization code, which should be called before `__hx__init()`
+		*)
+		method virtual private write_pre_hx_init : unit
+		(**
+			Writes initialization code for type instances
+		*)
+		method virtual private write_instance_initialization : unit
+		(**
+			Indicates if type should be declared as `final`
+		*)
+		method is_final = false
+		(**
+			Indicates if `field` should be declared as `final`
+		*)
+		method is_final_field (field:tclass_field) : bool = false
+		(**
+			Indicates if class has user-defined static __init__ method
+			@see http://old.haxe.org/doc/advanced/magic#initialization-magic
+		*)
+		method has_magic_init = match wrapper#get_magic_init with None -> false | Some _ -> true
+		(**
+			Returns generated file contents
+		*)
+		method get_contents =
+			if (String.length contents) = 0 then begin
+				self#write_declaration;
+				writer#write_line " {"; (** opening bracket for a class *)
+				self#write_body;
+				if wrapper#needs_initialization then self#write_hx_init;
+				writer#indent 0;
+				writer#write_line "}"; (** closing bracket for a class *)
+				let body = writer#get_contents in
+				writer#clear_contents;
+				let footer =
+					writer#write "\n";
+					let boot_class = writer#use boot_type_path in
+					(* Boot initialization *)
+					if boot_type_path = self#get_type_path then begin
+						writer#write_statement ("require_once __DIR__.'/" ^ polyfills_file ^ "'");
+						writer#write_statement (boot_class ^ "::__hx__init()")
+					end;
+					let haxe_class = match wrapper#get_type_path with (path, name) -> String.concat "." (path @ [name]) in
+					writer#write_statement (boot_class ^ "::registerClass(" ^ (self#get_name) ^ "::class, '" ^ haxe_class ^ "')");
+					self#write_rtti_meta;
+					self#write_pre_hx_init;
+					(* Current class initialization *)
+					if wr
