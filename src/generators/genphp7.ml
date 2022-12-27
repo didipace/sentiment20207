@@ -3021,4 +3021,100 @@ class virtual type_builder ctx (wrapper:type_wrapper) =
 					self#write_rtti_meta;
 					self#write_pre_hx_init;
 					(* Current class initialization *)
-					if wr
+					if wrapper#needs_initialization && boot_type_path <> self#get_type_path then
+						writer#write_statement (self#get_name ^ "::__hx__init()");
+					writer#get_contents
+				in
+				Option.may (fun smap -> smap#rewind) self#get_sourcemap_generator;
+				writer#clear_contents;
+				self#write_header;
+				writer#write "\n";
+				let header = writer#get_contents in
+				contents <- header ^ body ^ (Buffer.contents ctx.pgc_bottom_buffer) ^ footer
+			end;
+			contents
+		(**
+			Indicates if there is no constructor in inheritance chain of this type.
+			Own constructor is ignored.
+		*)
+		method private extends_no_constructor = true
+		(**
+			Build file header (<?php, namespace and file doc block)
+		*)
+		method private write_header =
+			writer#indent 0;
+			writer#write_line "<?php";
+			writer#write_line "/**";
+			Codegen.map_source_header ctx.pgc_common (fun s -> writer#write_line (" * " ^ s));
+			if ctx.pgc_common.debug then writer#write_line (" * Haxe source file: " ^ self#get_source_file);
+			writer#write_line " */";
+			writer#write "\n";
+			let namespace = self#get_namespace in
+			if List.length namespace > 0 then
+				writer#write_line ("namespace " ^ (String.concat "\\" namespace) ^ ";\n");
+			writer#write_use
+		(**
+			Generates PHP docblock and attributes to output buffer.
+		*)
+		method private write_doc doc_block meta =
+			(match doc_block with
+				| DocVar (type_name, doc) ->
+					writer#write_line "/**";
+					writer#write_line (" * @var " ^ type_name);
+					(match doc with
+						| None -> ()
+						| Some txt -> self#write_doc_description txt
+					);
+					writer#write_line " */"
+				| DocClass doc ->
+					(match doc with
+						| None -> ()
+						| Some txt ->
+							writer#write_line "/**";
+							self#write_doc_description txt;
+							writer#write_line " */"
+					)
+				| DocMethod (args, return, doc) ->
+					self#write_method_docblock args return doc
+			);
+			self#write_attributes meta;
+		(**
+			Writes description section of docblocks
+		*)
+		method write_doc_description (doc:string) =
+			let lines = Str.split (Str.regexp "\n") (String.trim doc)
+			and write_line line =
+				let trimmed = String.trim line in
+				if String.length trimmed > 0 then (
+					if String.get trimmed 0 = '*' then
+						writer#write_line (" " ^ trimmed)
+					else
+						writer#write_line (" * " ^ trimmed)
+				)
+			in
+			List.iter write_line lines
+		(**
+			Generates docblock for a method and writes it to output buffer
+		*)
+		method write_method_docblock args return_type doc =
+			writer#write_line "/**";
+			(match doc with
+				| None -> ()
+				| Some txt ->
+					self#write_doc_description txt;
+					writer#write_line " * "
+			);
+			let write_arg arg =
+				match arg with
+					| (arg_name, is_optional, arg_type) ->
+						writer#write_line (" * @param " ^ (writer#use_t ~for_doc:true arg_type) ^ " $" ^ arg_name)
+			in
+			List.iter write_arg args;
+			if List.length args > 0 then writer#write_line " * ";
+			writer#write_line (" * @return " ^ (writer#use_t ~for_doc:true return_type));
+			writer#write_line " */"
+		(**
+			Writes rtti meta to output buffer
+		*)
+		method write_rtti_meta =
+			match Texpr.build_metadata ctx.pgc_common.basic wrapper
