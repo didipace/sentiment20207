@@ -3203,4 +3203,105 @@ class virtual type_builder ctx (wrapper:type_wrapper) =
 					let rec loop args mandatory total =
 						match args with
 							| [] when total = 0 -> []
-							| [] 
+							| [] ->
+								let arg_var = alloc_var VGenerated ("_" ^ (string_of_int total)) t_dynamic null_pos in
+								(arg_var, default_value()) :: loop args (next mandatory) (next total)
+							| (arg_var, None) :: rest when mandatory = 0 ->
+								(arg_var, default_value()) :: loop rest 0 (next total)
+							| arg :: rest ->
+								arg :: loop rest (next mandatory) (next total)
+					in
+					loop args mandatory total
+		(**
+			Writes a body for a special method if `field` represents one.
+			Returns `true` if `field` is such a method.
+		*)
+		method private write_body_if_special_method name =
+			(* php.Boot.isPhpKeyword(str:String) *)
+			if self#get_type_path = boot_type_path && name = "isPhpKeyword" then
+				begin
+					writer#write "{\n";
+					writer#indent_more;
+					writer#write_line "switch(strtolower($str)) {";
+					writer#indent_more;
+					writer#write_indentation;
+					let cnt = ref 0 in
+					List.iter
+						(fun kwd ->
+							if !cnt <= 5 then incr cnt
+							else begin
+								cnt := 0;
+								writer#write "\n";
+								writer#write_indentation
+							end;
+							writer#write ("case '" ^ kwd ^ "': ")
+						)
+						php_keywords_list;
+					writer#write "\n";
+					writer#indent_more;
+					writer#write_statement "return true";
+					writer#indent_less;
+					writer#write_line "default:";
+					writer#indent_more;
+					writer#write_statement "return false";
+					writer#indent_less;
+					writer#indent_less;
+					writer#write_line "}";
+					writer#indent_less;
+					writer#write_with_indentation "}";
+					true
+				end
+			else
+				false
+		(**
+			Generates PHP attributes to output buffer based on `@:php.attribute` metas.
+		*)
+		method private write_attributes meta =
+			let rec traverse found meta =
+				match meta with
+					| [] -> ()
+					| (m,el,p) :: rest ->
+						let found =
+							if m == PhpAttribute then begin
+								writer#write_indentation;
+								writer#write "#[";
+								(match el with
+									| [EConst (String (s,_)),p] ->
+										writer#write s
+									| _ ->
+										ctx.pgc_common.error ("@:php.attribute meta expects a single string constant as an argument.") p
+								);
+								writer#write "]\n";
+								true
+							end else
+								found
+						in
+						traverse found rest
+			in
+			traverse false meta
+		(**
+			Set sourcemap generator
+		*)
+		method set_sourcemap_generator generator = writer#set_sourcemap_generator generator
+		(**
+			Get sourcemap generator
+		*)
+		method get_sourcemap_generator = writer#get_sourcemap_generator
+	end
+
+(**
+	Builds enum contents
+*)
+class enum_builder ctx (enm:tenum) =
+	object (self)
+		inherit type_builder ctx (get_wrapper (TEnumDecl enm))
+		(**
+			Writes type declaration line to output buffer.
+			E.g. "class SomeClass extends Another implements IFace"
+		*)
+		method private write_declaration =
+			self#write_doc (DocClass (gen_doc_text_opt enm.e_doc)) enm.e_meta;
+			writer#write ("class " ^ self#get_name ^ " extends " ^ (writer#use hxenum_type_path))
+		(**
+			Writes type body to output buffer.
+			E.g. for "class SomeClass { <BODY> }" writes <B
