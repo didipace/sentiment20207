@@ -3304,4 +3304,100 @@ class enum_builder ctx (enm:tenum) =
 			writer#write ("class " ^ self#get_name ^ " extends " ^ (writer#use hxenum_type_path))
 		(**
 			Writes type body to output buffer.
-			E.g. for "class SomeClass { <BODY> }" writes <B
+			E.g. for "class SomeClass { <BODY> }" writes <BODY> part.
+		*)
+		method private write_body =
+			let write_empty_lines = ref false in
+			PMap.iter
+				(fun name field ->
+					if !write_empty_lines then
+						writer#write_empty_lines
+					else
+						write_empty_lines := true;
+					self#write_constructor name field
+				)
+				enm.e_constrs;
+			self#write_reflection
+		(**
+			Writes constructor declaration to output buffer
+		*)
+		method private write_constructor name (field:tenum_field) =
+			let args =
+				match follow field.ef_type with
+					| TFun (args, _) -> args
+					| TEnum _ -> []
+					| _ -> fail field.ef_pos __LOC__
+			in
+			writer#indent 1;
+			self#write_doc (DocMethod (args, TEnum (enm, []), (gen_doc_text_opt field.ef_doc))) field.ef_meta;
+			writer#write_with_indentation ("static public function " ^ name ^ " (");
+			write_args writer#write (writer#write_arg true) (fix_tsignature_args args);
+			writer#write ") {\n";
+			writer#indent_more;
+			let index_str = string_of_int field.ef_index in
+			let write_construction args =
+				writer#write ("new " ^ self#get_name ^ "('" ^ name ^ "', " ^ index_str ^", [");
+				write_args writer#write (fun (name, _, _) -> writer#write ("$" ^ name)) args;
+				writer#write "])"
+			in
+			(match args with
+				| [] ->
+					(* writer#write ((writer#use hxenum_type_path) ^ "::singleton(static::class, '" ^ name ^ "', " ^ index_str ^")") *)
+					writer#write_line "static $inst = null;";
+					writer#write_with_indentation "if (!$inst) $inst = ";
+					write_construction [];
+					writer#write ";\n";
+					writer#write_line "return $inst;"
+				| args ->
+					writer#write_with_indentation "return ";
+					write_construction args;
+					writer#write ";\n";
+			);
+			writer#indent_less;
+			writer#write_line "}"
+		(**
+			Writes special methods for reflection
+		*)
+		method private write_reflection =
+			(* __hx__list *)
+			writer#write_empty_lines;
+			writer#indent 1;
+			writer#write_line "/**";
+			writer#write_line " * Returns array of (constructorIndex => constructorName)";
+			writer#write_line " *";
+			writer#write_line " * @return string[]";
+			writer#write_line " */";
+			writer#write_line "static public function __hx__list () {";
+			writer#indent_more;
+			writer#write_line "return [";
+			writer#indent_more;
+			PMap.iter
+				(fun name field ->
+					writer#write_line ((string_of_int field.ef_index) ^ " => '" ^ name ^ "',")
+				)
+				enm.e_constrs;
+			writer#indent_less;
+			writer#write_statement "]";
+			writer#indent_less;
+			writer#write_line "}";
+			(* __hx__paramsCount *)
+			writer#write_empty_lines;
+			writer#indent 1;
+			writer#write_line "/**";
+			writer#write_line " * Returns array of (constructorName => parametersCount)";
+			writer#write_line " *";
+			writer#write_line " * @return int[]";
+			writer#write_line " */";
+			writer#write_line "static public function __hx__paramsCount () {";
+			writer#indent_more;
+			writer#write_line "return [";
+			writer#indent_more;
+			PMap.iter
+				(fun name field ->
+					let count = match follow field.ef_type with
+						| TFun (params, _) -> List.length params
+						| TEnum _ -> 0
+						| _ -> fail field.ef_pos __LOC__
+					in
+					writer#write_line ("'" ^ name ^ "' => " ^ (string_of_int count) ^ ",")
+				
