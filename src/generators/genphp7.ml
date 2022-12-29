@@ -3117,4 +3117,90 @@ class virtual type_builder ctx (wrapper:type_wrapper) =
 			Writes rtti meta to output buffer
 		*)
 		method write_rtti_meta =
-			match Texpr.build_metadata ctx.pgc_common.basic wrapper
+			match Texpr.build_metadata ctx.pgc_common.basic wrapper#get_module_type with
+				| None -> ()
+				| Some meta_expr ->
+					let boot_class = writer#use boot_type_path in
+					writer#write (boot_class ^ "::registerMeta(" ^ (self#get_name) ^ "::class, ");
+					writer#write_expr meta_expr;
+					writer#write ");\n"
+		(**
+			Writes type initialization method.
+		*)
+		method private write_hx_init =
+			writer#write_empty_lines;
+			writer#indent 1;
+			writer#write_line "/**";
+			writer#write_line " * @internal";
+			writer#write_line " * @access private";
+			writer#write_line " */";
+			writer#write_line "static public function __hx__init ()";
+			writer#write_line "{";
+			writer#indent_more;
+			writer#write_statement "static $called = false";
+			writer#write_statement "if ($called) return";
+			writer#write_statement "$called = true";
+			writer#write "\n";
+			writer#reset;
+			writer#indent 2;
+			(match wrapper#get_magic_init with
+				| None -> ()
+				| Some expr -> writer#write_fake_block expr
+			);
+			writer#write "\n";
+			writer#reset;
+			writer#indent 2;
+			self#write_hx_init_body;
+			writer#indent 1;
+			writer#write_line "}"
+		(**
+			Writes method to output buffer
+		*)
+		method private write_method name func is_static is_abstract =
+			match name with
+				| "__construct" -> self#write_constructor_declaration func
+				| _ -> self#write_method_declaration name func is_static is_abstract
+		(**
+			Writes constructor declaration (except visibility and `static` keywords) to output buffer
+		*)
+		method private write_constructor_declaration func =
+			if self#extends_no_constructor then writer#extends_no_constructor;
+			writer#write ("function __construct (");
+			write_args writer#write writer#write_function_arg (fix_tfunc_args func.tf_args);
+			writer#write ") {\n";
+			writer#indent_more;
+			self#write_instance_initialization;
+			let func = inject_defaults ctx func in
+			writer#write_fake_block func;
+			writer#indent_less;
+			writer#write_with_indentation "}"
+		(**
+			Writes method declaration (except visibility keywords) to output buffer
+		*)
+		method private write_method_declaration name func is_static is_abstract =
+			if is_abstract then writer#write "abstract ";
+			if is_static then writer#write "static ";
+			let by_ref = if is_ref func.tf_type then "&" else "" in
+			writer#write ("function " ^ by_ref ^ name ^ " (");
+			let args =
+				if is_static then
+					self#align_args_to_parent_static_method func.tf_args name
+				else
+					func.tf_args
+			in
+			write_args writer#write writer#write_function_arg (fix_tfunc_args args);
+			writer#write ") ";
+			if not (self#write_body_if_special_method name) then
+				writer#write_expr (inject_defaults ctx func)
+		(**
+		*)
+		method private align_args_to_parent_static_method args method_name =
+			match self#get_parent_method_args_count method_name true with
+				| None -> args
+				| Some (mandatory, total) ->
+					let default_value() = Some (mk (TConst TNull) t_dynamic null_pos) in
+					let next value = max 0 (value - 1) in
+					let rec loop args mandatory total =
+						match args with
+							| [] when total = 0 -> []
+							| [] 
