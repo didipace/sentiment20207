@@ -3599,4 +3599,87 @@ class class_builder ctx (cls:tclass) =
 						if !at_least_one_field_written then writer#write_empty_lines;
 						at_least_one_field_written := true;
 						self#write_field is_static field
-			
+			and write_if_var is_static _ field =
+				match field.cf_kind with
+					| Var { v_read = AccInline; v_write = AccNever } -> ()
+					| Method MethDynamic ->
+						at_least_one_field_written := true;
+						let kind = Var { v_read = AccNormal; v_write = AccNormal; } in
+						self#write_field is_static { field with cf_kind = kind }
+					| Var _ ->
+						at_least_one_field_written := true;
+						self#write_field is_static field
+					| Method _ -> ()
+			in
+			if boot_type_path = self#get_type_path then begin
+				self#write_php_prefix ();
+				at_least_one_field_written := true
+			end;
+		 	if not (has_class_flag cls CInterface) then begin
+		 		(* Inlined statc vars (constants) *)
+				PMap.iter (write_if_constant) cls.cl_statics;
+				if !at_least_one_field_written then writer#write_empty_lines;
+				at_least_one_field_written := false;
+		 		(* Statc vars *)
+				PMap.iter (write_if_var true) cls.cl_statics;
+				if !at_least_one_field_written then writer#write_empty_lines;
+				at_least_one_field_written := false;
+				(* instance vars *)
+				PMap.iter (write_if_var false) cls.cl_fields
+			end;
+			(* Statc methods *)
+			PMap.iter (write_if_method true) cls.cl_statics;
+			(* Constructor *)
+			(match self#get_constructor with
+				| Some field -> write_if_method false "new" field
+				| None -> ()
+			);
+			(* Instance methods *)
+			PMap.iter (write_if_method false) cls.cl_fields;
+			(* Generate `__toString()` if not defined by user, but has `toString()` *)
+			self#write_toString_if_required
+		method private write_toString_if_required =
+			try 
+				let toString = PMap.find "toString" cls.cl_fields in
+				if (not (has_class_flag cls CInterface)) && (not (PMap.exists "__toString" cls.cl_statics)) && (not (PMap.exists "__toString" cls.cl_fields)) then
+					begin
+						writer#write_empty_lines;
+						writer#indent 1;
+						writer#write_line "public function __toString() {";
+						writer#indent_more;
+						let callee_str = match toString.cf_kind with
+							| Var _ -> "($this->toString)"
+							| Method _ -> "$this->toString"
+						in
+						writer#write_line ("return " ^ callee_str ^ "();");
+						writer#indent_less;
+						writer#write_line "}"
+					end
+			with Not_found -> ()
+		(**
+			Check if this class requires constructor to be generated even if there is no user-defined one
+		*)
+		method private constructor_is_required =
+			if (has_class_flag cls CInterface) || List.length self#get_namespace > 0 then
+				false
+			else begin
+				let required = ref false in
+				List.iter
+					(fun field ->
+						if not !required then
+							required := (String.lowercase field.cf_name = String.lowercase self#get_name)
+					)
+					(cls.cl_ordered_statics @ cls.cl_ordered_fields);
+				!required
+			end
+		(**
+			Writes `-D php-prefix` value as class constant PHP_PREFIX
+		*)
+		method private write_php_prefix () =
+			let prefix = String.concat "\\" ctx.pgc_prefix in
+			let indentation = writer#get_indentation in
+			writer#indent 1;
+			writer#write_statement ("const PHP_PREFIX = \"" ^ (String.escaped prefix) ^ "\"");
+			writer#indent indentation
+		(**
+			Writes expres
