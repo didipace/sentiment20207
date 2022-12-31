@@ -3682,4 +3682,82 @@ class class_builder ctx (cls:tclass) =
 			writer#write_statement ("const PHP_PREFIX = \"" ^ (String.escaped prefix) ^ "\"");
 			writer#indent indentation
 		(**
-			Writes expres
+			Writes expressions for `__hx__init` method
+		*)
+		method private write_hx_init_body =
+			(* `static dynamic function` initialization *)
+			let write_dynamic_method_initialization field =
+				let field_access = "self::$" ^ (field_name field) in
+				writer#write_with_indentation (field_access ^ " = ");
+				(match field.cf_expr with
+					| Some expr -> writer#write_expr expr
+					| None -> fail field.cf_pos __LOC__
+				);
+				writer#write ";\n"
+			in
+			List.iter
+				(fun field ->
+					match field.cf_kind with
+						| Method MethDynamic -> write_dynamic_method_initialization field
+						| _ -> ()
+				)
+				cls.cl_ordered_statics;
+			(* `static var` initialization *)
+			let write_var_initialization field =
+				let write_assign expr =
+					writer#write_with_indentation ("self::$" ^ (field_name field) ^ " = ");
+					writer#write_expr expr
+				in
+				(*
+					Do not generate fields for RTTI meta, because this generator uses another way to store it.
+					Also skip initialization for `inline var` fields as those are generated as PHP class constants.
+				*)
+				let is_auto_meta_var() = field.cf_name = "__meta__" && (has_rtti_meta ctx.pgc_common wrapper#get_module_type) in
+				if (is_var_with_nonconstant_expr field) && (not (is_auto_meta_var())) && (not (is_inline_var field)) then begin
+					(match field.cf_expr with
+						| None -> ()
+						(* There can be not-inlined blocks when compiling with `-debug` *)
+						| Some { eexpr = TBlock exprs } ->
+							let rec write_per_line exprs =
+								match exprs with
+									| [] -> ()
+									| [expr] -> write_assign expr
+									| expr :: rest ->
+										writer#write_indentation;
+										writer#write_expr expr;
+										writer#write ";\n";
+										write_per_line rest
+							in
+							write_per_line exprs
+						| Some expr -> write_assign expr
+					);
+					writer#write ";\n"
+				end
+				else match field.cf_expr with
+					| Some ({ eexpr = TConst (TInt value) } as expr) when value = Int32.min_int ->
+						write_assign expr;
+						writer#write ";\n"
+					| _ -> ()
+			in
+			List.iter write_var_initialization cls.cl_ordered_statics
+		(**
+			Writes single field to output buffer.
+		*)
+		method private write_field is_static field =
+			match field.cf_kind with
+				| Var { v_read = AccInline; v_write = AccNever } -> self#write_const field
+				| Var _ when is_physical_field field ->
+					(* Do not generate fields for RTTI meta, because this generator uses another way to store it *)
+					let is_auto_meta_var = is_static && field.cf_name = "__meta__" && (has_rtti_meta ctx.pgc_common wrapper#get_module_type) in
+					if not is_auto_meta_var then self#write_var field is_static;
+				| Var _ -> ()
+				| Method MethMacro -> ()
+				| Method MethDynamic when is_static -> ()
+				| Method MethDynamic -> self#write_dynamic_method field
+				| Method _ -> self#write_class_method field is_static
+		(**
+			Writes var-field to output buffer
+		*)
+		method private write_var field is_static =
+			writer#indent 1;
+			self#write_doc (DocVar (writer#use_t ~for_doc:true field.cf_type, (gen_doc_text_opt field.cf_doc))
