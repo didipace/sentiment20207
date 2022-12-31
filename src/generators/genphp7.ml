@@ -3760,4 +3760,77 @@ class class_builder ctx (cls:tclass) =
 		*)
 		method private write_var field is_static =
 			writer#indent 1;
-			self#write_doc (DocVar (writer#use_t ~for_doc:true field.cf_type, (gen_doc_text_opt field.cf_doc))
+			self#write_doc (DocVar (writer#use_t ~for_doc:true field.cf_type, (gen_doc_text_opt field.cf_doc))) field.cf_meta;
+			writer#write_indentation;
+			if is_static then writer#write "static ";
+			let visibility = get_visibility field.cf_meta in
+			writer#write (visibility ^ " $" ^ (field_name field));
+			match field.cf_expr with
+				| None ->
+					writer#write ";\n"
+				| Some { eexpr = TConst (TInt value) } when value = Int32.min_int ->
+					writer#write ";\n"
+				| Some expr ->
+					match expr.eexpr with
+						| TConst _ ->
+							writer#write " = ";
+							writer#write_expr expr;
+							writer#write ";\n"
+						| _ -> writer#write ";\n"
+		(**
+			Writes "inline var" to output buffer as constant
+		*)
+		method private write_const field =
+			match field.cf_expr with
+				| None -> fail writer#pos __LOC__
+				(* Do not generate a PHP constant of `inline var` field if expression is not compatible with PHP const *)
+				| Some expr when not (is_constant expr) -> ()
+				| Some expr ->
+					writer#indent 1;
+					self#write_doc (DocVar (writer#use_t field.cf_type, (gen_doc_text_opt field.cf_doc))) field.cf_meta;
+					writer#write_with_indentation ("const " ^ (field_name field) ^ " = ");
+					writer#write_expr expr;
+					writer#write ";\n"
+		(**
+			Writes method to output buffer
+		*)
+		method private write_class_method field is_static =
+			self#validate_method_name field;
+			writer#reset;
+			writer#indent 1;
+			let (args, return_type) = get_function_signature field in
+			List.iter (fun (arg_name, _, _) -> writer#declared_local_var arg_name) args;
+			self#write_doc (DocMethod (args, return_type, (gen_doc_text_opt field.cf_doc))) field.cf_meta;
+			writer#write_indentation;
+			if self#is_final_field field then writer#write "final ";
+			if has_class_field_flag field CfAbstract then writer#write "abstract ";
+			writer#write ((get_visibility field.cf_meta) ^ " ");
+			match field.cf_expr with
+				| None ->
+					if is_static then writer#write "static ";
+					writer#write ("function " ^ (field_name field) ^ " (");
+					write_args writer#write (writer#write_arg true) (fix_tsignature_args args);
+					writer#write ")";
+					writer#write " ;\n"
+				| Some { eexpr = TFunction fn } ->
+					let name = if field.cf_name = "new" then "__construct" else (field_name field) in
+					self#write_method name fn is_static (has_class_field_flag field CfAbstract);
+					writer#write "\n"
+				| _ -> fail field.cf_pos __LOC__
+		(**
+			Writes dynamic method to output buffer.
+			Only for non-static methods. Static methods are created as static vars in `__hx__init`.
+		*)
+		method private write_dynamic_method field =
+			self#validate_method_name field;
+			writer#reset;
+			writer#indent 1;
+			let (args, return_type) = get_function_signature field in
+			List.iter (fun (arg_name, _, _) -> writer#declared_local_var arg_name) args;
+			self#write_doc (DocMethod (args, return_type, (gen_doc_text_opt field.cf_doc))) field.cf_meta;
+			let visibility_kwd = get_visibility field.cf_meta in
+			writer#write_with_indentation (visibility_kwd ^ " function " ^ (field_name field));
+			(match field.cf_expr with
+				| None -> (* interface *)
+					writer#write " (";
+					write_args writer#write (writer#write_arg true) (fix_tsign
