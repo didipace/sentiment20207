@@ -3400,4 +3400,111 @@ class enum_builder ctx (enm:tenum) =
 						| _ -> fail field.ef_pos __LOC__
 					in
 					writer#write_line ("'" ^ name ^ "' => " ^ (string_of_int count) ^ ",")
-				
+				)
+				enm.e_constrs;
+			writer#indent_less;
+			writer#write_statement "]";
+			writer#indent_less;
+			writer#write_line "}";
+		(**
+			Method `__hx__init` is not needed for enums
+		**)
+		method private write_hx_init_body = ()
+		(**
+			No need for additional initialization of enum instances
+		*)
+		method private write_instance_initialization = ()
+		(**
+			No need for additional type initialization for enums
+		*)
+		method private write_pre_hx_init = ()
+	end
+
+(**
+	Builds class contents
+*)
+class class_builder ctx (cls:tclass) =
+	object (self)
+		inherit type_builder ctx (get_wrapper (TClassDecl cls)) as super
+		(**
+			List of methods names uppercased.
+			Used to check for methods with similar names because PHP function names are case-insensitive.
+		*)
+		val mutable used_method_names = []
+		(**
+			Indicates if type should be declared as `final`
+		*)
+		method is_final =
+			if not (has_class_flag cls CFinal) then
+				false
+			else begin
+				let hacked = ref false in
+				List.iter
+					(fun com_type ->
+						if not !hacked then
+							match com_type with
+								| TClassDecl tcls ->
+									if self#extended_by tcls then hacked := Meta.has Meta.Hack tcls.cl_meta
+								| _ -> ()
+					)
+					ctx.pgc_common.types;
+				not !hacked
+			end
+		(**
+			Get amount of arguments of a parent method.
+			Returns `None` if no such parent method exists.
+		*)
+		method private get_parent_method_args_count name is_static : (int * int) option =
+			match cls.cl_super with
+				| None -> None
+				| Some (cls, _) ->
+					let fields = if is_static then cls.cl_statics else cls.cl_fields in
+					try
+						match (PMap.find name fields).cf_type with
+							| TFun (args,_) ->
+								let rec count args mandatory total =
+									match args with
+										| [] ->
+											(mandatory, total)
+										| (_, true, _) :: rest ->
+											let left_count = List.length args in
+											(mandatory, total + left_count)
+										| (_, false, _) :: rest ->
+											count rest (mandatory + 1) (total + 1)
+								in
+								Some (count args 0 0)
+							| _ -> None
+					with Not_found -> None
+		(**
+			Indicates if `field` should be declared as `final`
+		*)
+		method is_final_field (field:tclass_field) : bool =
+			has_class_field_flag field CfFinal
+		(**
+			Check if there is no native php constructor in inheritance chain of this class.
+			E.g. `StdClass` does have a constructor while still can be called with `new StdClass()`.
+			So this method will return true for `MyClass` if `MyClass extends StdClass`.
+		*)
+		method private extends_no_constructor =
+			let rec extends_no_constructor tcls =
+				match tcls.cl_super with
+					| None -> true
+					| Some (parent, _) ->
+						if Meta.has Meta.PhpNoConstructor parent.cl_meta then
+							true
+						else
+							match parent.cl_constructor with
+								| Some _ -> false
+								| None -> extends_no_constructor parent
+			in
+			extends_no_constructor cls
+		(**
+			Recursively check if current class is a parent class for a `child`
+		*)
+		method private extended_by child =
+			let result =
+				if child == cls then
+					false
+				else
+					let rec check current =
+						match cur
