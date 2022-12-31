@@ -3909,4 +3909,89 @@ class class_builder ctx (cls:tclass) =
 						write rest
 			and type_name = get_full_type_name ~escape:true ~omit_first_slash:true (add_php_prefix ctx wrapper#get_type_path) in
 			let write_register register_method lst =
-				writer#write_line ((writer#use boot_type_path) ^ "::" ^ register_method ^ "('" ^ type_name ^ "', 
+				writer#write_line ((writer#use boot_type_path) ^ "::" ^ register_method ^ "('" ^ type_name ^ "', [");
+				writer#indent_more;
+				write lst;
+				writer#indent_less;
+				writer#write_statement "])"
+			in
+			if List.length !getters > 0 then write_register "registerGetters" !getters;
+			if List.length !setters > 0 then write_register "registerSetters" !setters;
+	end
+
+(**
+	Handles generation process
+*)
+class generator (ctx:php_generator_context) =
+	object (self)
+		val mutable build_dir = ""
+		val root_dir = Path.remove_trailing_slash ctx.pgc_common.file
+		val mutable init_types = []
+		val mutable boot : (type_builder * string) option  = None
+		val mutable polyfills_source_path : string option = None
+		val mutable polyfills_dest_path : string option = None
+		(**
+			Perform required actions before actual php files generation
+		*)
+		method initialize =
+			self#create_output_dirs;
+		(**
+			Generates php file for specified type
+		*)
+		method generate (builder:type_builder) =
+			reset_context ctx;
+			let namespace = builder#get_namespace
+			and name = builder#get_name in
+			let filename = (create_dir_recursive (build_dir :: namespace)) ^ "/" ^ name ^ ".php" in
+			let channel = open_out filename in
+			if Common.defined ctx.pgc_common Define.SourceMap then
+				builder#set_sourcemap_generator (new sourcemap_builder filename);
+			output_string channel builder#get_contents;
+			close_out channel;
+			(match builder#get_sourcemap_generator with
+				| Some smap -> smap#generate ctx.pgc_common
+				| None -> ()
+			);
+			if builder#get_type_path = boot_type_path then
+				begin
+					boot <- Some (builder, filename);
+					let source_dir = Filename.dirname builder#get_source_file in
+					polyfills_source_path <- Some (Filename.concat source_dir polyfills_file);
+					let dest_dir = Filename.dirname filename in
+					polyfills_dest_path <- Some (Filename.concat dest_dir polyfills_file)
+				end
+			else if builder#has_magic_init then
+				init_types <- (get_full_type_name (namespace, name)) :: init_types
+		(**
+			Perform actions which should be executed after all classes were processed
+		*)
+		method finalize : unit =
+			self#generate_magic_init;
+			self#generate_entry_point;
+			match polyfills_source_path, polyfills_dest_path with
+				| Some src, Some dst -> copy_file src dst
+				| _ -> fail null_pos __LOC__
+		(**
+			Generates calls to static __init__ methods in Boot.php
+		*)
+		method generate_magic_init : unit =
+			match init_types with
+				| [] -> ()
+				| _ ->
+					match boot with
+						| None -> fail null_pos __LOC__
+						| Some (_, filename) ->
+							let channel = open_out_gen [Open_creat; Open_text; Open_append] 0o644 filename in
+							List.iter
+								(fun class_name -> output_string channel (class_name ^ "::__hx__init();\n"))
+								init_types;
+							close_out channel
+		(**
+			Creates `index.php` which can be used as entry-point for standalone Haxe->PHP app
+		*)
+		method generate_entry_point =
+			match self#get_entry_point with
+				| None -> ()
+				| Some (uses, entry_point) ->
+					let filename = Common.defined_value_safe ~default:"index.php" ctx.pgc_common Define.PhpFront in
+					let front_dir
