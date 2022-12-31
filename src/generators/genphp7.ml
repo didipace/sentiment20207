@@ -3507,4 +3507,96 @@ class class_builder ctx (cls:tclass) =
 					false
 				else
 					let rec check current =
-						match cur
+						match current.cl_super with
+							| None -> false
+							| Some (scls, _) ->
+								if scls == cls then true else check scls
+					in
+					check child
+			in
+			result
+		(**
+			Writes type declaration line to output buffer.
+			E.g. "class SomeClass extends Another implements IFace"
+		*)
+		method private write_declaration =
+			self#write_doc (DocClass (gen_doc_text_opt cls.cl_doc)) cls.cl_meta;
+			if self#is_final then writer#write "final ";
+			if has_class_flag cls CAbstract then writer#write "abstract ";
+			writer#write (if (has_class_flag cls CInterface) then "interface " else "class ");
+			writer#write self#get_name;
+			(
+				match cls.cl_super with
+					| None -> ();
+					| Some (super_class, params) ->
+						let super_name = writer#use_t (TInst (super_class, params)) in
+						writer#write (" extends " ^ super_name)
+			);
+			if List.length cls.cl_implements > 0 then begin
+				writer#write (if (has_class_flag cls CInterface) then " extends " else " implements ");
+				let use_interface iface =
+					match iface with
+						| (i, params) -> writer#use_t (TInst (i, params))
+				in
+				(* Do not add interfaces which are implemented through other interfaces inheritance *)
+				let unique = List.filter
+					(fun (iface, _) ->
+						not (List.exists
+							(fun (probably_descendant, _) ->
+								if probably_descendant == iface then
+									false
+								else
+									extends probably_descendant iface
+							)
+							cls.cl_implements
+						)
+					)
+					cls.cl_implements
+				in
+				let interfaces = List.map use_interface unique in
+				writer#write (String.concat ", " interfaces);
+			end;
+		(**
+			Returns either user-defined constructor or creates empty constructor if instance initialization is required.
+		*)
+		method private get_constructor : tclass_field option =
+			match cls.cl_constructor with
+				| Some field -> Some field
+				| None ->
+					if not self#constructor_is_required then
+						None
+					else
+						Some {
+							(mk_field "new" (TFun ([], ctx.pgc_common.basic.tvoid)) cls.cl_pos cls.cl_pos) with
+							cf_kind = Method MethNormal;
+							cf_expr = Some {
+								eexpr = TFunction {
+									tf_args = [];
+									tf_type = ctx.pgc_common.basic.tvoid;
+									tf_expr = { eexpr = TBlock []; epos = cls.cl_pos; etype = ctx.pgc_common.basic.tvoid; };
+								};
+								epos = cls.cl_pos;
+								etype = ctx.pgc_common.basic.tvoid;
+							};
+						}
+		(**
+			Writes type body to output buffer.
+			E.g. for "class SomeClass { <BODY> }" writes <BODY> part.
+		*)
+		method private write_body =
+			let at_least_one_field_written = ref false in
+			let write_if_constant _ field =
+				match field.cf_kind with
+					| Var { v_read = AccInline; v_write = AccNever } ->
+						at_least_one_field_written := true;
+						self#write_field true field
+					| _ -> ()
+			and write_if_method is_static _ field =
+				match field.cf_kind with
+					| Var _ -> ()
+					| Method MethDynamic when is_static -> ()
+					| Method _ ->
+						if !at_least_one_field_written then writer#write_empty_lines;
+						at_least_one_field_written := true;
+						self#write_field is_static field
+			
