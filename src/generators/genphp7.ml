@@ -3833,4 +3833,80 @@ class class_builder ctx (cls:tclass) =
 			(match field.cf_expr with
 				| None -> (* interface *)
 					writer#write " (";
-					write_args writer#write (writer#write_arg true) (fix_tsign
+					write_args writer#write (writer#write_arg true) (fix_tsignature_args args);
+					writer#write ");\n";
+				| Some { eexpr = TFunction fn } -> (* normal class *)
+					let write_args() =
+						writer#write " (";
+						write_args writer#write writer#write_function_arg (fix_tfunc_args fn.tf_args);
+						writer#write ")\n"
+					in
+					write_args();
+					writer#write_line "{";
+					writer#indent_more;
+					writer#write_indentation;
+					let field_access = "$this->" ^ (field_name field) in
+					writer#write ("return call_user_func_array(" ^ field_access ^ ", func_get_args());\n");
+					writer#indent_less;
+					writer#write_line "}";
+					(* Don't forget to create a field for default value *)
+					writer#write_indentation;
+					writer#write (visibility_kwd ^ " function __hx__default__" ^ (field_name field));
+					write_args();
+					writer#write_line "{";
+					writer#indent_more;
+					writer#write_fake_block fn.tf_expr;
+					writer#indent_less;
+					writer#write_line "}"
+				| _ -> fail field.cf_pos __LOC__
+			);
+		(**
+			Since PHP function names are case-insensitive we must check for method names clashes.
+		*)
+		method private validate_method_name field =
+			let uppercased_name = StringHelper.uppercase field.cf_name in
+			if List.exists (fun n -> n = uppercased_name) used_method_names then
+				ctx.pgc_common.error ("Methods names are case-insensitive in PHP runtime. Cannot redeclare \"" ^ field.cf_name ^ "\".") field.cf_name_pos
+			else
+				used_method_names <- uppercased_name :: used_method_names
+		(**
+			Writes initialization code for instances of this class
+		*)
+		method private write_instance_initialization =
+			let init_dynamic_method field =
+				let field_name = field_name field 
+				and hx_closure = writer#use hxclosure_type_path in
+				writer#write_statement ("if ($this->" ^ field_name ^ " === null) $this->" ^ field_name ^ " = new " ^ hx_closure ^ "($this, '__hx__default__" ^ field_name ^ "')");
+			in
+			List.iter
+				(fun field ->
+					match field.cf_kind with
+						| Method MethDynamic -> init_dynamic_method field
+						| _ -> ()
+				)
+				cls.cl_ordered_fields
+		(**
+			Writes additional initialization code, which should be called before `__hx__init()`
+		*)
+		method private write_pre_hx_init =
+			let getters = ref []
+			and setters = ref [] in
+			let collect field =
+				match field.cf_kind with
+					| Var { v_read = read; v_write = write } ->
+						if read = AccCall then getters := field.cf_name :: !getters;
+						if write = AccCall then setters := field.cf_name :: !setters;
+					| _ -> ()
+			in
+			List.iter collect cls.cl_ordered_fields;
+			List.iter collect cls.cl_ordered_statics;
+			let rec write lst =
+				match lst with
+					| [] -> ()
+					| [item] -> writer#write_line ("'" ^ item ^ "' => true");
+					| item :: rest ->
+						writer#write_line ("'" ^ item ^ "' => true,");
+						write rest
+			and type_name = get_full_type_name ~escape:true ~omit_first_slash:true (add_php_prefix ctx wrapper#get_type_path) in
+			let write_register register_method lst =
+				writer#write_line ((writer#use boot_type_path) ^ "::" ^ register_method ^ "('" ^ type_name ^ "', 
