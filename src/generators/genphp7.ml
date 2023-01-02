@@ -3994,4 +3994,88 @@ class generator (ctx:php_generator_context) =
 				| None -> ()
 				| Some (uses, entry_point) ->
 					let filename = Common.defined_value_safe ~default:"index.php" ctx.pgc_common Define.PhpFront in
-					let front_dir
+					let front_dirs = split_file_path (Filename.dirname filename) in
+					if front_dirs <> [] then
+						ignore(create_dir_recursive (root_dir :: front_dirs));
+					let lib_path =
+						(String.concat "" (List.fold_left (fun acc s -> if s <> "." then "../" :: acc else acc) [] front_dirs))
+						^ (String.concat "/" self#get_lib_path)
+					in
+					let channel = open_out (root_dir ^ "/" ^ filename) in
+					output_string channel "<?php\n";
+					output_string channel uses;
+					output_string channel "\n";
+					output_string channel ("set_include_path(get_include_path().PATH_SEPARATOR.__DIR__.'/" ^ lib_path ^ "');\n");
+					output_string channel "spl_autoload_register(\n";
+					output_string channel "	function($class){\n";
+					output_string channel "		$file = stream_resolve_include_path(str_replace('\\\\', '/', $class) .'.php');\n";
+					output_string channel "		if ($file) {\n";
+					output_string channel "			include_once $file;\n";
+					output_string channel "		}\n";
+					output_string channel "	}\n";
+					output_string channel ");\n";
+					(match boot with
+						| None -> fail null_pos __LOC__
+						| Some (builder, filename) ->
+							let boot_class = get_full_type_name (add_php_prefix ctx builder#get_type_path) in
+							output_string channel (boot_class ^ "::__hx__init();\n")
+					);
+					output_string channel entry_point;
+					close_out channel
+		(**
+			Create necessary directories  before processing types
+		*)
+		method private create_output_dirs =
+			let build_path = (root_dir :: self#get_lib_path) in
+			build_dir <- create_dir_recursive build_path
+		(**
+			Returns path from `index.php` to directory which will contain all generated classes
+		*)
+		method private get_lib_path : string list =
+			let path = Common.defined_value_safe ~default:"lib" ctx.pgc_common Define.PhpLib in
+			split_file_path path
+		(**
+			Returns PHP code for entry point
+		*)
+		method private get_entry_point : (string * string) option =
+			match ctx.pgc_common.main with
+				| None -> None
+				| Some expr ->
+					let writer = new code_writer ctx ([], "") "" in
+					writer#write_as_block ~inline:true expr;
+					let code = writer#get_contents in
+					writer#clear_contents;
+					writer#write_use;
+					let uses = writer#get_contents in
+					Some (uses, code)
+	end
+
+(**
+	@return `tclass` instance for `php.Boot`
+*)
+let get_boot com : tclass =
+	let find com_type =
+		match com_type with
+			| TClassDecl { cl_path = path } -> path = boot_type_path
+			| _ -> false
+	in
+	try
+		match List.find find com.types with
+			| TClassDecl cls -> cls
+			| _ -> raise Not_found
+	with
+		| Not_found -> fail ~msg:"php.Boot not found" null_pos __LOC__
+
+(**
+	Entry point to Genphp7
+*)
+let generate (com:context) =
+	let ctx =
+		{
+			pgc_common = com;
+			pgc_skip_line_directives = Common.defined com Define.RealPosition;
+			pgc_prefix = Str.split (Str.regexp "\\.") (Common.defined_value_safe com Define.PhpPrefix);
+			pgc_boot = get_boot com;
+			pgc_namespaces_types_cache = Hashtbl.create 512;
+			pgc_anons = Hashtbl.create 0;
+			pgc_bottom_buffer = Bu
