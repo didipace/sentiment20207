@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -19,24 +20,21 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-package haxe.crypto;
 
-import haxe.io.Bytes;
-import haxe.io.BytesData;
-import java.security.MessageDigest;
-import java.nio.charset.StandardCharsets;
+package lua.lib.luv;
 
-@:coreApi
-class Sha256 {
-	public static function encode(s:String):String {
-		return Bytes.ofData(digest((cast s : java.NativeString).getBytes(StandardCharsets.UTF_8))).toHex();
-	}
+import haxe.extern.EitherType;
 
-	public static function make(b:haxe.io.Bytes):haxe.io.Bytes {
-		return Bytes.ofData(digest(b.getData()));
-	}
+@:luaRequire("luv")
+extern class Pipe extends Stream {
+	static function new_pipe(ipc:Bool):Pipe;
+	@:native("new_pipe") function new(ipc:Bool):Void;
 
-	inline static function digest(b:BytesData):BytesData {
-		return MessageDigest.getInstance("SHA-256").digest(b);
-	}
+	function open(file:EitherType<FileHandle, Handle>):Pipe;
+	function bind(name:String):Pipe;
+	function connect(name:String, cb:String->Bool->Void):Int;
+	function getsockname():String;
+	function pending_instances(count:Int):Int;
+	function pending_count():Int;
+	function pending_type():Int;
 }
