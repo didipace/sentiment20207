@@ -4078,4 +4078,29 @@ let generate (com:context) =
 			pgc_boot = get_boot com;
 			pgc_namespaces_types_cache = Hashtbl.create 512;
 			pgc_anons = Hashtbl.create 0;
-			pgc_bottom_buffer = Bu
+			pgc_bottom_buffer = Buffer.create 0
+		}
+	in
+	let gen = new generator ctx in
+	gen#initialize;
+	let rec generate com_type =
+		let wrapper = get_wrapper com_type in
+		if wrapper#needs_generation then
+			(match com_type with
+				| TClassDecl cls -> gen#generate (new class_builder ctx cls);
+				| TEnumDecl enm -> gen#generate (new enum_builder ctx enm);
+				| TTypeDecl typedef -> ();
+				| TAbstractDecl abstr -> ()
+			);
+		match wrapper#get_service_type with
+			| None -> ()
+			| Some service_type -> generate service_type
+	in
+	List.iter generate com.types;
+	gen#finalize;
+	Hashtbl.iter
+		(fun name data ->
+			write_resource com.file name data
+		)
+		com.resources;
+	clear_wrappers ();
