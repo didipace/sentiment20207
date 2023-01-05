@@ -76,4 +76,39 @@ class DisplayTestCase implements utest.ITest {
 	}
 
 	function hasField(a:Array<FieldElement>, name:String, type:String, ?kind:String):Bool {
-		return a.exists(function(t) return t.type == type && t.name == name && (kind == null || t.kind == k
+		return a.exists(function(t) return t.type == type && t.name == name && (kind == null || t.kind == kind));
+	}
+
+	function hasToplevel(a:Array<ToplevelElement>, kind:String, name:String, ?type:String = null):Bool {
+		return a.exists(function(t) return t.kind == kind && t.name == name && (type == null || t.type == type));
+	}
+
+	function hasPath(a:Array<FieldElement>, name:String):Bool {
+		return a.exists(function(t) return t.name == name);
+	}
+
+	function diagnosticsRange(start:Position, end:Position):Range {
+		var range = ctx.source.findRange(start, end);
+		// this is probably correct...?
+		range.start.character--;
+		range.end.character--;
+		return range;
+	}
+
+	function sigEq(arg:Int, params:Array<Array<String>>, sig:SignatureHelp, ?pos:haxe.PosInfos) {
+		eq(arg, sig.activeParameter, pos);
+		eq(params.length, sig.signatures.length, pos);
+		for (i in 0...params.length) {
+			var sigInf = sig.signatures[i];
+			var args = params[i];
+			eq(sigInf.parameters.length, args.length, pos);
+			for (i in 0...args.length) {
+				eq(sigInf.parameters[i].label, args[i], pos);
+			}
+		}
+	}
+
+	function report(message, pos:haxe.PosInfos) {
+		Assert.fail(message, pos);
+	}
+}
