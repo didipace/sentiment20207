@@ -1,5 +1,5 @@
 /*
- * Copyright (C)2005-2018 Haxe Foundation
+ * Copyright (C)2005-2019 Haxe Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -20,36 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package haxe.iterators;
+// This file is generated from mozilla\OfflineAudioContext.webidl. Do not edit!
 
-/**
-	This iterator can be used to iterate over char indexes and char codes in a string.
+package js.html.audio;
 
-	Note that char codes may differ across platforms because of different
-	internal encoding of strings in different runtimes.
-**/
-class StringKeyValueIterator {
-	var offset = 0;
-	var s:String;
-
-	/**
-		Create a new `StringKeyValueIterator` over String `s`.
-	**/
-	public inline function new(s:String) {
-		this.s = s;
-	}
-
-	/**
-		See `KeyValueIterator.hasNext`
-	**/
-	public inline function hasNext() {
-		return offset < s.length;
-	}
-
-	/**
-		See `KeyValueIterator.next`
-	**/
-	public inline function next() {
-		return {key: offset, value: StringTools.fastCodeAt(s, offset++)};
-	}
+typedef OfflineAudioContextOptions = {
+	var length : Int;
+	var ?numberOfChannels : Int;
+	var sampleRate : Float;
 }
