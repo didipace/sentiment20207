@@ -41,4 +41,13 @@ extern class RtpSender {
 	**/
 	var track(default,null) : js.html.MediaStreamTrack;
 
-	/*
+	/**
+		An `RTCDTMFSender` which can be used to send `DTMF` tones using `"telephone-event"` payloads on the RTP session represented by the `RTCRtpSender` object. If `null`, the track and/or the connection doesn't support DTMF. Only audio tracks can support DTMF.
+	**/
+	var dtmf(default,null) : DTMFSender;
+
+	function setParameters( ?parameters : RtpParameters ) : Promise<Void>;
+	function getParameters() : RtpParameters;
+	function replaceTrack( withTrack : js.html.MediaStreamTrack ) : Promise<Void>;
+	function getStats() : Promise<StatsReport>;
+}
