@@ -143,4 +143,24 @@ using haxe.Int64;
 
 	public static function programPath():String {
 		final uri:URI = java.Lib.toNativeType(Sys).getProtectionDomain().getCodeSource().getLocation().toURI();
-		return Std.string(P
+		return Std.string(Paths.get(uri));
+	}
+
+	public static function getChar(echo:Bool):Int {
+		// TODO
+		return throw new haxe.exceptions.NotImplementedException();
+	}
+
+	public static function stdin():haxe.io.Input {
+		var _in:java.io.InputStream = Reflect.field(System, "in");
+		return new java.io.NativeInput(_in);
+	}
+
+	public static function stdout():haxe.io.Output {
+		return new java.io.NativeOutput(System.out);
+	}
+
+	public static function stderr():haxe.io.Output {
+		return new java.io.NativeOutput(System.err);
+	}
+}
