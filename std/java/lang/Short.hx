@@ -61,4 +61,5 @@ package java.lang;
 	function longValue():haxe.Int64;
 }
 
-@:realPath("java.lang.Short_ShortCache") @:javaNative @:
+@:realPath("java.lang.Short_ShortCache") @:javaNative @:native("java.lang.Short$ShortCache") @:javaCanonical("java.lang",
+	"Short.ShortCache") extern class Short_ShortCache {}
