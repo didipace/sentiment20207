@@ -73,4 +73,28 @@ extern class DisplayObject extends flash.events.EventDispatcher implements IBitm
 	function localToGlobal(point : flash.geom.Point) : flash.geom.Point;
 	private function set_accessibilityProperties(value : flash.accessibility.AccessibilityProperties) : flash.accessibility.AccessibilityProperties;
 	private function set_alpha(value : Float) : Float;
-	private function set_bl
+	private function set_blendMode(value : BlendMode) : BlendMode;
+	private function set_blendShader(value : Shader) : Shader;
+	private function set_cacheAsBitmap(value : Bool) : Bool;
+	private function set_filters(value : Array<flash.filters.BitmapFilter>) : Array<flash.filters.BitmapFilter>;
+	private function set_height(value : Float) : Float;
+	private function set_mask(value : DisplayObject) : DisplayObject;
+	private function set_metaData(value : Dynamic) : Dynamic;
+	private function set_name(value : String) : String;
+	private function set_opaqueBackground(value : Null<UInt>) : Null<UInt>;
+	private function set_rotation(value : Float) : Float;
+	private function set_rotationX(value : Float) : Float;
+	private function set_rotationY(value : Float) : Float;
+	private function set_rotationZ(value : Float) : Float;
+	private function set_scale9Grid(value : flash.geom.Rectangle) : flash.geom.Rectangle;
+	private function set_scaleX(value : Float) : Float;
+	private function set_scaleY(value : Float) : Float;
+	private function set_scaleZ(value : Float) : Float;
+	private function set_scrollRect(value : flash.geom.Rectangle) : flash.geom.Rectangle;
+	private function set_transform(value : flash.geom.Transform) : flash.geom.Transform;
+	private function set_visible(value : Bool) : Bool;
+	private function set_width(value : Float) : Float;
+	private function set_x(value : Float) : Float;
+	private function set_y(value : Float) : Float;
+	private function set_z(value : Float) : Float;
+}
