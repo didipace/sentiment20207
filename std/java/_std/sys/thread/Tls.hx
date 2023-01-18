@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C)2005-2019 Haxe Foundation
  *
@@ -20,33 +21,24 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package js.lib;
+package sys.thread;
 
-import haxe.extern.Rest;
+// @:coreApi // causes some overload error...
+@:native('haxe.java.vm.Tls') class Tls<T> {
+	var t:java.lang.ThreadLocal<T>;
 
-@:native("Function")
-extern class Function {
-	/** Specifies the number of arguments expected by the function. **/
-	var length(default, never):Int;
+	public var value(get, set):T;
 
-	/** The name of the function. **/
-	var name:String;
+	public function new() {
+		this.t = new java.lang.ThreadLocal();
+	}
 
-	/** Creates a new Function object. **/
-	function new(arg:String, rest:Rest<String>);
+	inline private function get_value():T {
+		return t.get();
+	}
 
-	/** Calls a function and sets its this to the provided value, arguments can be passed as an Array object. **/
-	function apply(thisArg:Dynamic, argsArray:Array<Dynamic>):Dynamic;
-
-	/** Calls (executes) a function and sets its this to the provided value, arguments can be passed as they are. **/
-	function call(thisArg:Dynamic, args:Rest<Dynamic>):Dynamic;
-
-	/**
-		Creates a new function which, when called, has its this set to the provided value,
-		with a given sequence of arguments preceding any provided when the new function was called.
-	**/
-	@:pure function bind(thisArg:Dynamic, args:Rest<Dynamic>):Function;
-
-	/** Returns a string representing the source code of the function. **/
-	@:pure function toString():String;
+	inline private function set_value(v:T):T {
+		t.set(v);
+		return v;
+	}
 }
