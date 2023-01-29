@@ -20,11 +20,16 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\IDBObjectStore.webidl. Do not edit!
+// This file is generated from mozilla\SVGPreserveAspectRatio.webidl. Do not edit!
 
-package js.html.idb;
+package js.html.svg;
 
-typedef ObjectStoreParameters = {
-	var ?autoIncrement : Bool;
-	var ?keyPath : haxe.extern.EitherType<String,Array<String>>;
-}
+/**
+	The `SVGPreserveAspectRatio` interface corresponds to the `preserveAspectRatio` attribute, which is available for some of SVG's elements.
+
+	Documentation [SVGPreserveAspectRatio](https://developer.mozilla.org/en-US/docs/Web/API/SVGPreserveAspectRatio) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/SVGPreserveAspectRatio$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
+
+	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGPreserveAspectRatio>
+**/
+@:native("SVGPreserveAspectRatio")
+extern class PreserveAspectR
