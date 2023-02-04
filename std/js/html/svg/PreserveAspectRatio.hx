@@ -32,4 +32,23 @@ package js.html.svg;
 	@see <https://developer.mozilla.org/en-US/docs/Web/API/SVGPreserveAspectRatio>
 **/
 @:native("SVGPreserveAspectRatio")
-extern class PreserveAspectR
+extern class PreserveAspectRatio {
+	static inline var SVG_PRESERVEASPECTRATIO_UNKNOWN : Int = 0;
+	static inline var SVG_PRESERVEASPECTRATIO_NONE : Int = 1;
+	static inline var SVG_PRESERVEASPECTRATIO_XMINYMIN : Int = 2;
+	static inline var SVG_PRESERVEASPECTRATIO_XMIDYMIN : Int = 3;
+	static inline var SVG_PRESERVEASPECTRATIO_XMAXYMIN : Int = 4;
+	static inline var SVG_PRESERVEASPECTRATIO_XMINYMID : Int = 5;
+	static inline var SVG_PRESERVEASPECTRATIO_XMIDYMID : Int = 6;
+	static inline var SVG_PRESERVEASPECTRATIO_XMAXYMID : Int = 7;
+	static inline var SVG_PRESERVEASPECTRATIO_XMINYMAX : Int = 8;
+	static inline var SVG_PRESERVEASPECTRATIO_XMIDYMAX : Int = 9;
+	static inline var SVG_PRESERVEASPECTRATIO_XMAXYMAX : Int = 10;
+	static inline var SVG_MEETORSLICE_UNKNOWN : Int = 0;
+	static inline var SVG_MEETORSLICE_MEET : Int = 1;
+	static inline var SVG_MEETORSLICE_SLICE : Int = 2;
+	
+	var align : Int;
+	var meetOrSlice : Int;
+	
+}
