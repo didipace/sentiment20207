@@ -13,4 +13,8 @@ private class NotMain implements java.util.Iterator<String> {
 }
 #end
 
-class I
+class Issue10618 extends unit.Test {
+	public function test() {
+		utest.Assert.pass();
+	}
+}
