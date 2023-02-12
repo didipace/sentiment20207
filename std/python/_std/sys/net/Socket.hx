@@ -100,4 +100,102 @@ private class SocketOutput extends haxe.io.Output {
 		}
 	}
 
-	public override function cl
+	public override function close() {
+		super.close();
+		if (__s != null)
+			__s.close();
+	}
+}
+
+@:coreApi class Socket {
+	var __s:PSocket;
+
+	public var input(default, null):haxe.io.Input;
+
+	public var output(default, null):haxe.io.Output;
+
+	public var custom:Dynamic;
+
+	public function new():Void {
+		__initSocket();
+		input = new SocketInput(__s);
+		output = new SocketOutput(__s);
+	}
+
+	function __initSocket():Void {
+		__s = new PSocket();
+	}
+
+	public function close():Void {
+		__s.close();
+	}
+
+	public function read():String {
+		return input.readAll().toString();
+	}
+
+	public function write(content:String):Void {
+		output.writeString(content);
+	}
+
+	public function connect(host:Host, port:Int):Void {
+		var host_str = host.toString();
+		__s.connect(Tuple2.make(host_str, port));
+	}
+
+	public function listen(connections:Int):Void {
+		__s.listen(connections);
+	}
+
+	public function shutdown(read:Bool, write:Bool):Void
+		__s.shutdown((read && write) ? PSocketModule.SHUT_RDWR : read ? PSocketModule.SHUT_RD : PSocketModule.SHUT_WR);
+
+	public function bind(host:Host, port:Int):Void {
+		var host_str = host.toString();
+		__s.bind(Tuple2.make(host_str, port));
+	}
+
+	public function accept():Socket {
+		var tp2:Tuple2<PSocket, PAddress> = __s.accept();
+		var s = new Socket();
+		s.__s = tp2._1;
+		s.input = new SocketInput(s.__s);
+		s.output = new SocketOutput(s.__s);
+		return s;
+	}
+
+	public function peer():{host:Host, port:Int} {
+		var pn = __s.getpeername();
+		return {host: new Host(pn._1), port: pn._2}
+	}
+
+	public function host():{host:Host, port:Int} {
+		var pn = __s.getsockname();
+		return {host: new Host(pn._1), port: pn._2};
+	}
+
+	public function setTimeout(timeout:Float):Void {
+		__s.settimeout(timeout);
+	}
+
+	public function waitForRead():Void {
+		Select.select([this], [], []);
+	}
+
+	public function setBlocking(b:Bool):Void {
+		__s.setblocking(b);
+	}
+
+	public function setFastSend(b:Bool):Void {
+		__s.setsockopt(PSocketModule.SOL_TCP, PSocketModule.TCP_NODELAY, b);
+	}
+
+	@:keep function fileno():Int
+		return __s.fileno();
+
+	public static function select(read:Array<Socket>, write:Array<Socket>, others:Array<Socket>,
+			?timeout:Float):{read:Array<Socket>, write:Array<Socket>, others:Array<Socket>} {
+		var t3 = Select.select(read, write, others, timeout);
+		return {read: t3._1, write: t3._2, others: t3._3};
+	}
+}
