@@ -20,23 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\ExtendableEvent.webidl. Do not edit!
+// This file is generated from mozilla\MediaDeviceInfo.webidl. Do not edit!
 
 package js.html;
 
-import js.lib.Promise;
-
-/**
-	The `ExtendableEvent` interface extends the lifetime of the `install` and `activate` events dispatched on the global scope as part of the service worker lifecycle. This ensures that any functional events (like `FetchEvent`) are not dispatched until it upgrades database schemas and deletes the outdated cache entries.
-
-	Documentation [ExtendableEvent](https://developer.mozilla.org/en-US/docs/Web/API/ExtendableEvent) by [Mozilla Contributors](https://developer.mozilla.org/en-US/docs/Web/API/ExtendableEvent$history), licensed under [CC-BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/).
-
-	@see <https://developer.mozilla.org/en-US/docs/Web/API/ExtendableEvent>
-**/
-@:native("ExtendableEvent")
-extern class ExtendableEvent extends Event {
-	/** @throws DOMError */
-	function new( type : String, ?eventInitDict : ExtendableEventInit ) : Void;
-	/** @throws DOMError */
-	function waitUntil( p : Promise<Dynamic> ) : Void;
+enum abstract MediaDeviceKind(String) {
+	var AUDIOINPUT = "audioinput";
+	var AUDIOOUTPUT = "audiooutput";
+	var VIDEOINPUT = "videoinput";
 }
