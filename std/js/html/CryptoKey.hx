@@ -20,9 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-package cpp;
+// This file is generated from mozilla\SubtleCrypto.webidl. Do not edit!
+
+package js.html;
 
 /**
-	Wraps external types with a class that integrates with Dynamic.
-**/
-typedef Struct<T> = T;
+	The `CryptoKey` interface represents a cryptographic key derived from a specific key algorithm.
+
+	Documentation [CryptoKey](https://developer.mozilla.org/en-US/docs/Web/API/CryptoKey) by [Mozilla Contributors
