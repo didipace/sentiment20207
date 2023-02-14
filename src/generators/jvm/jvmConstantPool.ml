@@ -89,4 +89,104 @@ class constant_pool = object(self)
 		let offset = self#add_type s in
 		if String.contains (snd path) '$' && not (ExtString.String.starts_with s "[") then begin
 			let name1,name2 = ExtString.String.split (snd path) "$" in
-			Hashtbl.replace inner_classes ((fst path,name1),n
+			Hashtbl.replace inner_classes ((fst path,name1),name2) offset;
+		end;
+		offset
+
+	method add_string s =
+		self#add (ConstUtf8 s)
+
+	method add_const_string s =
+		let offset = self#add_string s in
+		self#add (ConstString offset)
+
+	method add_name_and_type name jsig field_kind =
+		let offset_name = self#add_string name in
+		let offset_desc = self#add_string ((if field_kind = FKField then generate_signature else generate_method_signature) false jsig) in
+		self#add (ConstNameAndType(offset_name,offset_desc))
+
+	method add_field path name jsig field_kind =
+		let offset_class = self#add_path path in
+		let offset_info = self#add_name_and_type name jsig field_kind in
+		let const = match field_kind with
+			| FKField -> ConstFieldref(offset_class,offset_info)
+			| FKMethod -> ConstMethodref(offset_class,offset_info)
+			| FKInterfaceMethod -> ConstInterfaceMethodref(offset_class,offset_info)
+		in
+		self#add const
+
+	method get_inner_classes = inner_classes
+
+	method private write_i64 ch i64 =
+		write_real_i32 ch (Int64.to_int32 i64);
+		write_real_i32 ch (Int64.to_int32 (Int64.shift_right_logical i64 32))
+
+	method private write ch =
+		write_ui16 ch next_index;
+		DynArray.iter (function
+			| ConstUtf8 s ->
+				write_byte ch 1;
+				let b = utf8jvm s in
+				write_ui16 ch (Bytes.length b);
+				nwrite ch b
+			| ConstInt i32 ->
+				write_byte ch 3;
+				write_real_i32 ch i32;
+			| ConstFloat f ->
+				write_byte ch 4;
+				(match classify_float f with
+				| FP_normal | FP_subnormal | FP_zero ->
+					write_real_i32 ch (Int32.bits_of_float f)
+				| FP_infinite when f > 0.0 ->
+					write_real_i32 ch 0x7f800000l
+				| FP_infinite ->
+					write_real_i32 ch 0xff800000l
+				| FP_nan ->
+					write_real_i32 ch 0x7f800001l)
+			| ConstLong i64 ->
+				write_byte ch 5;
+				write_i64 ch i64;
+			| ConstDouble d ->
+				write_byte ch 6;
+				write_double ch d
+			| ConstClass offset ->
+				write_byte ch 7;
+				write_ui16 ch offset;
+			| ConstString offset ->
+				write_byte ch 8;
+				write_ui16 ch offset;
+			| ConstFieldref (offset1,offset2) ->
+				write_byte ch 9;
+				write_ui16 ch offset1;
+				write_ui16 ch offset2;
+			| ConstMethodref (offset1,offset2) ->
+				write_byte ch 10;
+				write_ui16 ch offset1;
+				write_ui16 ch offset2;
+			| ConstInterfaceMethodref (offset1,offset2) ->
+				write_byte ch 11;
+				write_ui16 ch offset1;
+				write_ui16 ch offset2;
+			| ConstNameAndType (offset1,offset2) ->
+				write_byte ch 12;
+				write_ui16 ch offset1;
+				write_ui16 ch offset2;
+			| ConstMethodHandle (i,offset) ->
+				write_byte ch 15;
+				write_byte ch i;
+				write_ui16 ch offset;
+			| ConstMethodType offset ->
+				write_byte ch 16;
+				write_ui16 ch offset;
+			| ConstInvokeDynamic (offset1,offset2) ->
+				write_byte ch 18;
+				write_ui16 ch offset1;
+				write_ui16 ch offset2;
+		) pool
+
+	method close =
+		closed <- true;
+		let ch = IO.output_bytes () in
+		self#write ch;
+		IO.close_out ch
+end
