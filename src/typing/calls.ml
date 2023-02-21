@@ -198,4 +198,80 @@ let rec acc_get ctx g =
 		let eobj = sn.sn_base in
 		let enull = Builder.make_null eobj.etype sn.sn_pos in
 		let eneq = Builder.binop OpNotEq eobj enull ctx.t.tbool sn.sn_pos in
-		let ethen = acc_get
+		let ethen = acc_get ctx sn.sn_access in
+		let tnull = ctx.t.tnull ethen.etype in
+		let ethen = if not (is_nullable ethen.etype) then
+			mk (TCast(ethen,None)) tnull ethen.epos
+		else
+			ethen
+		in
+		let eelse = Builder.make_null tnull sn.sn_pos in
+		let eif = mk (TIf(eneq,ethen,Some eelse)) tnull sn.sn_pos in
+		(match sn.sn_temp_var with
+		| None -> eif
+		| Some evar -> { eif with eexpr = TBlock [evar; eif] })
+	| AKAccess _ -> die "" __LOC__
+	| AKResolve(sea,name) ->
+		(dispatcher sea.se_access.fa_pos)#resolve_call sea name
+	| AKUsingAccessor sea | AKUsingField sea when ctx.in_display ->
+		(* Generate a TField node so we can easily match it for position/usage completion (issue #1968) *)
+		let e_field = FieldAccess.get_field_expr sea.se_access FGet in
+		(* TODO *)
+		(* let ec = {ec with eexpr = (TMeta((Meta.StaticExtension,[],null_pos),ec))} in *)
+		let t = match follow e_field.etype with
+			| TFun (_ :: args,ret) -> TFun(args,ret)
+			| t -> t
+		in
+		{e_field with etype = t}
+	| AKField fa ->
+		begin match fa.fa_field.cf_kind with
+		| Method MethMacro ->
+			(* If we are in display mode, we're probably hovering a macro call subject. Just generate a normal field. *)
+			if ctx.in_display then
+				FieldAccess.get_field_expr fa FRead
+			else
+				typing_error "Invalid macro access" fa.fa_pos
+		| _ ->
+			if fa.fa_inline then
+				inline_read fa
+			else
+				FieldAccess.get_field_expr fa FRead
+		end
+	| AKAccessor fa ->
+		(dispatcher fa.fa_pos)#field_call fa [] []
+	| AKUsingAccessor sea ->
+		(dispatcher sea.se_access.fa_pos)#field_call sea.se_access [sea.se_this] []
+	| AKUsingField sea ->
+		let e = sea.se_this in
+		let e_field = FieldAccess.get_field_expr sea.se_access FGet in
+		(* build a closure with first parameter applied *)
+		(match follow e_field.etype with
+		| TFun ((_,_,t0) :: args,ret) ->
+			let p = sea.se_access.fa_pos in
+			let te = abstract_using_param_type sea in
+			unify ctx te t0 e.epos;
+			let tcallb = TFun (args,ret) in
+			let twrap = TFun ([("_e",false,e.etype)],tcallb) in
+			(* arguments might not have names in case of variable fields of function types, so we generate one (issue #2495) *)
+			let args = List.map (fun (n,o,t) ->
+				let t = if o then ctx.t.tnull t else t in
+				o,if n = "" then gen_local ctx t e.epos else alloc_var VGenerated n t e.epos (* TODO: var pos *)
+			) args in
+			let ve = alloc_var VGenerated "_e" e.etype e.epos in
+			let ecall = make_call ctx e_field (List.map (fun v -> mk (TLocal v) v.v_type p) (ve :: List.map snd args)) ret p in
+			let ecallb = mk (TFunction {
+				tf_args = List.map (fun (o,v) -> v,if o then Some (Texpr.Builder.make_null v.v_type v.v_pos) else None) args;
+				tf_type = ret;
+				tf_expr = (match follow ret with | TAbstract ({a_path = [],"Void"},_) -> ecall | _ -> mk (TReturn (Some ecall)) t_dynamic p);
+			}) tcallb p in
+			let ewrap = mk (TFunction {
+				tf_args = [ve,None];
+				tf_type = tcallb;
+				tf_expr = mk (TReturn (Some ecallb)) t_dynamic p;
+			}) twrap p in
+			make_call ctx ewrap [e] tcallb p
+		| _ -> die "" __LOC__)
+
+let check_dynamic_super_method_call ctx fa p =
+	match fa with
+	| { fa_on = { eexpr = TConst TSuper } ;
