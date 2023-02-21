@@ -274,4 +274,87 @@ let rec acc_get ctx g =
 
 let check_dynamic_super_method_call ctx fa p =
 	match fa with
-	| { fa_on = { eexpr = TConst TSuper } ;
+	| { fa_on = { eexpr = TConst TSuper } ; fa_field = { cf_kind = Method MethDynamic; cf_name = name } } ->
+		ctx.com.error ("Cannot call super." ^ name ^ " since it's a dynamic method") p
+	| _ ->
+		()
+
+let rec build_call_access ctx acc el mode with_type p =
+	let get_accessor_to_call fa args =
+		let dispatch = new call_dispatcher ctx MGet WithType.value fa.fa_pos in
+		dispatch#field_call fa args []
+	in
+	let dispatch = new call_dispatcher ctx mode with_type p in
+	match acc with
+	| AKField fa ->
+		check_dynamic_super_method_call ctx fa p;
+		AKExpr (dispatch#field_call fa [] el)
+	| AKUsingField sea ->
+		let eparam = sea.se_this in
+		let e = dispatch#field_call sea.se_access [eparam] el in
+		let e = match sea.se_access.fa_host with
+		| FHAbstract _ when not ctx.allow_transform ->
+			(* transform XXXImpl.field(this,args) back into this.field(args) *)
+			(match e.eexpr with
+			| TCall ({ eexpr = TField(_,name) } as f, abs :: el) -> { e with eexpr = TCall(mk (TField(abs,name)) t_dynamic f.epos, el) }
+			| _ -> assert false)
+		| _ ->
+			e
+		in
+		AKExpr e
+	| AKResolve(sea,name) ->
+		AKExpr (dispatch#expr_call (dispatch#resolve_call sea name) [] el)
+	| AKNo(_,p) ->
+		typing_error "This expression cannot be called" p
+	| AKAccess _ ->
+		typing_error "This expression cannot be called" p
+	| AKAccessor fa ->
+		let e = get_accessor_to_call fa [] in
+		AKExpr (dispatch#expr_call e [] el)
+	| AKUsingAccessor sea ->
+		let e = get_accessor_to_call sea.se_access [sea.se_this] in
+		AKExpr (dispatch#expr_call e [] el)
+	| AKExpr e ->
+		AKExpr (dispatch#expr_call e [] el)
+	| AKSafeNav sn ->
+		(* pack the call inside the safe navigation chain *)
+		AKSafeNav { sn with sn_access = build_call_access ctx sn.sn_access el mode with_type p }
+
+let build_call ?(mode=MGet) ctx acc el (with_type:WithType.t) p =
+	acc_get ctx (build_call_access ctx acc el mode with_type p)
+
+let rec needs_temp_var e =
+	match e.eexpr with
+	| TLocal _ | TTypeExpr _ | TConst _ -> false
+	| TField (e, _) | TParenthesis e -> needs_temp_var e
+	| _ -> true
+
+let call_to_string ctx ?(resume=false) e =
+	if not ctx.allow_transform then
+		{ e with etype = ctx.t.tstring }
+	else
+	let gen_to_string e =
+		(* Ignore visibility of the toString field. *)
+		ctx.meta <- (Meta.PrivateAccess,[],e.epos) :: ctx.meta;
+		let acc = type_field (TypeFieldConfig.create resume) ctx e "toString" e.epos (MCall []) (WithType.with_type ctx.t.tstring) in
+		ctx.meta <- List.tl ctx.meta;
+		build_call ctx acc [] (WithType.with_type ctx.t.tstring) e.epos
+	in
+	if ctx.com.config.pf_static && not (is_nullable e.etype) then
+		gen_to_string e
+	else begin (* generate `if(e == null) 'null' else e.toString()` *)
+		let string_null = mk (TConst (TString "null")) ctx.t.tstring e.epos in
+		if needs_temp_var e then
+			let tmp = alloc_var VGenerated "tmp" e.etype e.epos in
+			let tmp_local = mk (TLocal tmp) tmp.v_type tmp.v_pos in
+			let check_null = mk (TBinop (OpEq, tmp_local, mk (TConst TNull) tmp.v_type tmp.v_pos)) ctx.t.tbool e.epos in
+			{
+				eexpr = TBlock([
+					mk (TVar (tmp, Some e)) tmp.v_type tmp.v_pos;
+					mk (TIf (check_null, string_null, Some (gen_to_string tmp_local))) ctx.t.tstring tmp.v_pos;
+
+				]);
+				etype = ctx.t.tstring;
+				epos = e.epos;
+			}
+		else
