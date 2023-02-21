@@ -424,4 +424,102 @@ let type_bind ctx (e : texpr) (args,ret) params p =
 	in
 	let call = make_call ctx e ordered_args ret p in
 	let body =
-		if ExtType.is_void (foll
+		if ExtType.is_void (follow ret) then call
+		else mk (TReturn(Some call)) ret p
+	in
+	let arg_default optional t =
+		if optional then Some (Texpr.Builder.make_null t null_pos)
+		else None
+	in
+	let fn = {
+		tf_args = List.map (fun (v,o) -> v,arg_default o v.v_type) missing_args;
+		tf_type = ret;
+		tf_expr = body;
+	} in
+	let t = TFun(List.map (fun (v,o) -> v.v_name,o,v.v_type) missing_args,ret) in
+	{
+		eexpr = TBlock (var_decls @ [mk (TFunction fn) t p]);
+		etype = t;
+		epos = p;
+	}
+
+let array_access ctx e1 e2 mode p =
+	let has_abstract_array_access = ref false in
+	try
+		(match follow e1.etype with
+		| TAbstract ({a_impl = Some c} as a,pl) when a.a_array <> [] ->
+			begin match mode with
+			| MSet _ ->
+				(* resolve later *)
+				AKAccess (a,pl,c,e1,e2)
+			| _ ->
+				has_abstract_array_access := true;
+				let f = AbstractCast.find_array_read_access ctx a pl e2 p in
+				if not ctx.allow_transform then
+					let _,_,r,_ = f in
+					AKExpr { eexpr = TArray(e1,e2); epos = p; etype = r }
+				else begin
+					let e = mk_array_get_call ctx f c e1 p in
+					AKExpr e
+				end
+			end
+		| _ -> raise Not_found)
+	with Not_found ->
+		let base_ok = ref true in
+		let rec loop ?(skip_abstract=false) et =
+			match skip_abstract,follow et with
+			| _, TInst ({ cl_array_access = Some t; cl_params = pl },tl) ->
+				apply_params pl tl t
+			| _, TInst ({ cl_super = Some (c,stl); cl_params = pl },tl) ->
+				apply_params pl tl (loop (TInst (c,stl)))
+			| _, TInst ({ cl_path = [],"ArrayAccess" },[t]) ->
+				t
+			| _, TInst ({ cl_path = [],"Array"},[t]) when t == t_dynamic ->
+				t_dynamic
+			| false, TAbstract(a,tl) when Meta.has Meta.ArrayAccess a.a_meta ->
+				let at = apply_params a.a_params tl a.a_this in
+				let skip_abstract = fast_eq et at in
+				loop ~skip_abstract at
+			| _, _ ->
+				let pt = spawn_monomorph ctx p in
+				let t = ctx.t.tarray pt in
+				begin try
+					unify_raise et t p
+				with Error(Unify _,_) ->
+					if not ctx.untyped then begin
+						let msg = if !has_abstract_array_access then
+							"No @:arrayAccess function accepts an argument of " ^ (s_type (print_context()) e2.etype)
+						else
+							"Array access is not allowed on " ^ (s_type (print_context()) e1.etype)
+						in
+						base_ok := false;
+						raise_or_display_message ctx msg e1.epos;
+					end
+				end;
+				pt
+		in
+		let pt = loop e1.etype in
+		if !base_ok then unify ctx e2.etype ctx.t.tint e2.epos;
+		AKExpr (mk (TArray (e1,e2)) pt p)
+
+(*
+	given chain of fields as the `path` argument and an `access_mode->access_kind` getter for some starting expression as `e`,
+	return a new `access_mode->access_kind` getter for the whole field access chain.
+*)
+let field_chain ctx path access mode with_type =
+	let rec loop access path = match path with
+		| [] ->
+			access
+		| part :: path ->
+			let e = acc_get ctx access in
+			let mode, with_type =
+				if path <> [] then
+					(* intermediate field access are just reading the value *)
+					MGet, WithType.value
+				else
+					mode, with_type
+			in
+			let access = type_field_default_cfg ctx e part.name part.pos mode with_type in
+			loop access path
+	in
+	loop access path
