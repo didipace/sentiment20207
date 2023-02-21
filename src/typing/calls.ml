@@ -116,4 +116,86 @@ let rec acc_get ctx g =
 		let p = fa.fa_pos in
 		(* do not create a closure for static calls *)
 		let apply_params = match fa.fa_host with
-			| FHStatic c 
+			| FHStatic c ->
+				(fun t -> t)
+			| FHInstance(c,tl) ->
+				(fun t -> t)
+			| FHAbstract(a,tl,c) ->
+				if a.a_enum then begin
+					(* Enum abstracts have to apply their type parameters because they are basically statics with type params (#8700). *)
+					let monos = Monomorph.spawn_constrained_monos (fun t -> t) a.a_params in
+					apply_params a.a_params monos;
+				end else
+					(fun t -> t)
+			| _ ->
+				die "" __LOC__
+		in
+		ignore(follow cf.cf_type); (* force computing *)
+		begin match cf.cf_kind,cf.cf_expr with
+		| _ when not (ctx.com.display.dms_inline) ->
+			FieldAccess.get_field_expr fa FRead
+		| Method _,_->
+			let chk_class c = ((has_class_flag c CExtern) || has_class_field_flag cf CfExtern) && not (Meta.has Meta.Runtime cf.cf_meta) in
+			let wrap_extern c =
+				let c2 =
+					let m = c.cl_module in
+					let mpath = (fst m.m_path @ ["_" ^ snd m.m_path],(snd m.m_path) ^ "_Impl_") in
+					try
+						let rec loop mtl = match mtl with
+							| (TClassDecl c) :: _ when c.cl_path = mpath -> c
+							| _ :: mtl -> loop mtl
+							| [] -> raise Not_found
+						in
+						loop c.cl_module.m_types
+					with Not_found ->
+						let c2 = mk_class c.cl_module mpath c.cl_pos null_pos in
+						c.cl_module.m_types <- (TClassDecl c2) :: c.cl_module.m_types;
+						c2
+				in
+				let cf = try
+					PMap.find cf.cf_name c2.cl_statics
+				with Not_found ->
+					let cf = {cf with cf_kind = Method MethNormal} in
+					c2.cl_statics <- PMap.add cf.cf_name cf c2.cl_statics;
+					c2.cl_ordered_statics <- cf :: c2.cl_ordered_statics;
+					cf
+				in
+				let e_t = type_module_type ctx (TClassDecl c2) None p in
+				FieldAccess.get_field_expr (FieldAccess.create e_t cf (FHStatic c2) true p) FRead
+			in
+			let e_def = FieldAccess.get_field_expr fa FRead in
+			begin match follow fa.fa_on.etype with
+				| TInst (c,_) when chk_class c ->
+					display_error ctx.com "Can't create closure on an extern inline member method" p;
+					e_def
+				| TAnon a ->
+					begin match !(a.a_status) with
+						| Statics c when has_class_field_flag cf CfExtern ->
+							display_error ctx.com "Cannot create closure on @:extern inline method" p;
+							e_def
+						| Statics c when chk_class c -> wrap_extern c
+						| _ -> e_def
+					end
+				| _ -> e_def
+			end
+		| Var _,Some e ->
+			let rec loop e = Type.map_expr loop { e with epos = p; etype = apply_params e.etype } in
+			let e = loop e in
+			let e = Inline.inline_metadata e cf.cf_meta in
+			let tf = apply_params cf.cf_type in
+			if not (type_iseq tf e.etype) then mk (TCast(e,None)) tf e.epos
+			else e
+		| Var _,None ->
+			typing_error "Recursive inline is not supported" p
+		end
+	in
+	let dispatcher p = new call_dispatcher ctx MGet WithType.value p in
+	match g with
+	| AKNo(_,p) -> typing_error ("This expression cannot be accessed for reading") p
+	| AKExpr e -> e
+	| AKSafeNav sn ->
+		(* generate null-check branching for the safe navigation chain *)
+		let eobj = sn.sn_base in
+		let enull = Builder.make_null eobj.etype sn.sn_pos in
+		let eneq = Builder.binop OpNotEq eobj enull ctx.t.tbool sn.sn_pos in
+		let ethen = acc_get
