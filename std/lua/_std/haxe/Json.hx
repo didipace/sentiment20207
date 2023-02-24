@@ -22,33 +22,13 @@
 
 package haxe;
 
-import haxe.io.Bytes;
-import haxe.io.BytesData;
-
-@:coreApi class Resource {
-	static var content:python.Dict<String, BytesData>;
-
-	static function getContent():python.Dict<String, BytesData> {
-		if (content == null)
-			content = untyped _hx_resources__();
-		return content;
+@:coreApi
+class Json {
+	public static function parse(text:String):Dynamic {
+		return haxe.format.JsonParser.parse(text);
 	}
 
-	public static inline function listNames():Array<String> {
-		return python.internal.UBuiltins.list(getContent().keys());
-	}
-
-	public static function getString(name:String):String {
-		var bytes = getBytes(name);
-		if (bytes != null)
-			return bytes.toString();
-		return null;
-	}
-
-	public static function getBytes(name:String):haxe.io.Bytes {
-		var data = getContent().get(name, null);
-		if (data == null)
-			return null;
-		return Bytes.ofData(data);
+	public static function stringify(value:Dynamic, ?replacer:(key:Dynamic, value:Dynamic) -> Dynamic, ?space:String):String {
+		return haxe.format.JsonPrinter.print(value, replacer, space);
 	}
 }
