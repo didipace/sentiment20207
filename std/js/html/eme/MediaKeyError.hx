@@ -20,13 +20,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\SpeechRecognitionEvent.webidl. Do not edit!
+// This file is generated from mozilla\MediaKeyError.webidl. Do not edit!
 
-package js.html;
+package js.html.eme;
 
-typedef SpeechRecognitionEventInit = EventInit & {
-	var ?emma : HTMLDocument;
-	var ?interpretation : Dynamic;
-	var ?resultIndex : Int;
-	var ?results : SpeechRecognitionResultList;
+@:native("MediaKeyError")
+extern class MediaKeyError extends js.html.Event {
+	var systemCode(default,null) : Int;
+	
 }
