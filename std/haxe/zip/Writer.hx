@@ -94,4 +94,100 @@ class Writer {
 					throw "CRC32 must be processed before compression";
 				f.crc32 = haxe.crypto.Crc32.make(f.data);
 			}
-			if 
+			if (!f.compressed)
+				f.fileSize = f.data.length;
+			f.dataSize = f.data.length;
+		}
+		o.writeUInt16(f.compressed ? 8 : 0);
+		writeZipDate(f.fileTime);
+		o.writeInt32(f.crc32);
+		o.writeInt32(f.dataSize);
+		o.writeInt32(f.fileSize);
+		o.writeUInt16(f.fileName.length);
+		var e = new haxe.io.BytesOutput();
+		if (f.extraFields != null) {
+			for (f in f.extraFields)
+				switch (f) {
+					case FInfoZipUnicodePath(name, crc):
+						var namebytes = haxe.io.Bytes.ofString(name);
+						e.writeUInt16(0x7075);
+						e.writeUInt16(namebytes.length + 5);
+						e.writeByte(1); // version
+						e.writeInt32(crc);
+						e.write(namebytes);
+					case FUnknown(tag, bytes):
+						e.writeUInt16(tag);
+						e.writeUInt16(bytes.length);
+						e.write(bytes);
+					case FUtf8:
+						// nothing
+				}
+		}
+		var ebytes = e.getBytes();
+		o.writeUInt16(ebytes.length);
+		o.writeString(f.fileName);
+		o.write(ebytes);
+		files.add({
+			name: f.fileName,
+			compressed: f.compressed,
+			clen: f.data.length,
+			size: f.fileSize,
+			crc: f.crc32,
+			date: f.fileTime,
+			fields: ebytes
+		});
+	}
+
+	public function write(files:List<Entry>) {
+		for (f in files) {
+			writeEntryHeader(f);
+			o.writeFullBytes(f.data, 0, f.data.length);
+		}
+		writeCDR();
+	}
+
+	public function writeCDR() {
+		var cdr_size = 0;
+		var cdr_offset = 0;
+		for (f in files) {
+			var namelen = f.name.length;
+			var extraFieldsLength = f.fields.length;
+			o.writeInt32(0x02014B50); // header
+			o.writeUInt16(0x0014); // version made-by
+			o.writeUInt16(0x0014); // version
+			o.writeUInt16(0); // flags
+			o.writeUInt16(f.compressed ? 8 : 0);
+			writeZipDate(f.date);
+			o.writeInt32(f.crc);
+			o.writeInt32(f.clen);
+			o.writeInt32(f.size);
+			o.writeUInt16(namelen);
+			o.writeUInt16(extraFieldsLength);
+			o.writeUInt16(0); // comment length always 0
+			o.writeUInt16(0); // disk number start
+			o.writeUInt16(0); // internal file attributes
+			o.writeInt32(0); // external file attributes
+			o.writeInt32(cdr_offset); // relative offset of local header
+			o.writeString(f.name);
+			o.write(f.fields);
+			cdr_size += CENTRAL_DIRECTORY_RECORD_FIELDS_SIZE + namelen + extraFieldsLength;
+			cdr_offset += LOCAL_FILE_HEADER_FIELDS_SIZE + namelen + extraFieldsLength + f.clen;
+		}
+		// end of central dir signature
+		o.writeInt32(0x06054B50);
+		// number of this disk
+		o.writeUInt16(0);
+		// number of the disk with the start of the central directory
+		o.writeUInt16(0);
+		// total number of entries in the central directory on this disk
+		o.writeUInt16(files.length);
+		// total number of entries in the central directory
+		o.writeUInt16(files.length);
+		// size of the central directory record
+		o.writeInt32(cdr_size);
+		// offset of start of central directory with respect to the starting disk number
+		o.writeInt32(cdr_offset);
+		// .ZIP file comment length
+		o.writeUInt16(0);
+	}
+}
