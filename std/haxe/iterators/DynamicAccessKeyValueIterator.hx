@@ -20,10 +20,34 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-// This file is generated from mozilla\RTCDataChannelEvent.webidl. Do not edit!
+package haxe.iterators;
 
-package js.html.rtc;
+/**
+	This Key/Value iterator can be used to iterate over `haxe.DynamicAccess`.
+**/
+class DynamicAccessKeyValueIterator<T> {
+	final access:DynamicAccess<T>;
+	final keys:Array<String>;
+	var index:Int;
 
-typedef DataChannelEventInit = EventInit & {
-	var channel : DataChannel;
+	public inline function new(access:DynamicAccess<T>) {
+		this.access = access;
+		this.keys = access.keys();
+		index = 0;
+	}
+
+	/**
+		See `Iterator.hasNext`
+	**/
+	public inline function hasNext():Bool {
+		return index < keys.length;
+	}
+
+	/**
+		See `Iterator.next`
+	**/
+	public inline function next():{key:String, value:T} {
+		var key = keys[index++];
+		return {value: (access[key] : T), key: key};
+	}
 }
